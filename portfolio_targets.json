@@ -1,28 +1,31 @@
 {
   "portfolio_metadata": {
-    "version": "2.1.0",
+    "version": "2.2.0",
     "last_updated": "2026-07-07",
     "drift_tolerance_percentage": 1.5,
-    "max_trailing_drawdown_percentage": 4.5,
+    "max_trailing_drawdown_percentage": 10,
+    "min_recovery_price_percentage": 7,
     "reinvestment_multiplier_factor": 1.25,
-    "min_cash_absolute": 250.0,
-    "min_cash_target": 500.0,
-    "seek_approval_value": 5000.0,
-    "sell_price_diff_limit": 15.0,
-    "buy_price_diff_limit": 12.0,
+    "min_cash_absolute": 250,
+    "min_cash_target": 500,
+    "seek_approval_value": 5000,
+    "sell_price_diff_limit": 15,
+    "buy_price_diff_limit": 12,
     "cap_on_total_balance_to_use": 10000,
-    "cool_down_period_after_lquidation": 3
+    "cool_down_period_after_lquidation": 10,
+    "beta_benchmark_symbol": "SPY",
+    "beta_calculation_lookback_days": 30
   },
   "targets": {
-    "TQQQ": 20.0,
-    "INTC": 5.0,
+    "TQQQ": 20,
+    "INTC": 5,
     "PLTR": 12.5,
-    "MU": 12.5, 
-    "SOXL": 15.0,
-    "MSTR": 10.0,
-    "COIN": 5.0,
-    "ARM": 5.0,
-    "SMCI": 5.0,
-    "IONQ": 5.0
+    "MU": 12.5,
+    "SOXL": 15,
+    "MSTR": 10,
+    "COIN": 5,
+    "ARM": 5,
+    "SMCI": 5,
+    "IONQ": 5
   }
 }
