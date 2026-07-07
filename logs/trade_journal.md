@@ -1,3 +1,74 @@
+# 2026-07-07 01:44 PM EDT — Rebalance Check — EXECUTED (First Live Run, User-Confirmed)
+
+**Status:** COMPLETED. 9 orders placed, all filled. First live execution after all four
+previously-flagged blockers were resolved by updates to `CLAUDE.md`,
+`portfolio_targets.json`, and the new `peak/prices.json` state file.
+
+## Pre-trade state (CLAUDE.md re-read fresh from `main`, commit `b1b0207`)
+* Account `795732718` ("Agentic"). Out-of-scope holdings (SPCX, AMZN, TSLA,
+  NVDA, ORCL, GOOG, MSFT) correctly ignored per the now-explicit scope rule.
+* Bot-managed equity pre-trade: PLTR $1,306.87 (13.07% of the $10k model),
+  INTC $1,092.34 (10.92%), MU $1,153.37 (11.53%); 7 targets unfunded.
+* `peak/prices.json`: all entries `null` → seeded at current price this cycle
+  per the new rule ("if entry is null ... assume current price is the peak").
+  Drawdown Audit Phase: 0% drawdown for all symbols, no stop-loss triggers —
+  this is the tracking-start cycle and does not retroactively catch the
+  drawdown that occurred earlier today, before tracking began.
+* Alpha Leader (7-day gain, 6/29 close → now): **PLTR at +19.3%** (next
+  closest: COIN +9.8%, MSTR +9.6%).
+* Denominator convention used for target/current %: the fixed $10,000
+  `cap_on_total_balance_to_use` model (bot-managed exposure only). This was
+  presented to the user explicitly before execution and confirmed.
+
+## Orders placed (regular market hours, Market Orders per Order Type rule)
+All 9 orders filled immediately at submission.
+
+| # | Side | Symbol | Notional | Qty filled | Avg fill price | Reason |
+|---|---|---|---|---|---|---|
+| 1 | SELL | INTC | $592.34 | 5.332550 | $111.0501 | Trim overweight (10.92% vs 5% target, drift 5.9% > 1.5% tolerance) |
+| 2 | BUY | TQQQ | $2,000.00 | 27.262813 | $73.3600 | Unfunded, target 20% |
+| 3 | BUY | SOXL | $1,500.00 | 8.918453 | $168.1906 | Unfunded, target 15% |
+| 4 | BUY | MSTR | $1,000.00 | 9.827053 | $101.7599 | Unfunded, target 10% |
+| 5 | BUY | COIN | $500.00 | 3.000472 | $166.6404 | Unfunded, target 5% |
+| 6 | BUY | ARM | $500.00 | 1.640803 | $304.7287 | Unfunded, target 5% |
+| 7 | BUY | SMCI | $500.00 | 18.903591 | $26.4500 | Unfunded, target 5% |
+| 8 | BUY | IONQ | $500.00 | 10.736525 | $46.5700 | Unfunded, target 5% |
+| 9 | BUY | PLTR | $539.76 | 3.894214 | $138.6056 | Alpha Leader multiplier top-up (`base_deployable_cash` × 1.25, capped by remaining $10k headroom — well under the 35% single-asset concentration cap) |
+
+MU and PLTR's pre-existing drift (0.97% and 0.57%) were within the 1.5%
+tolerance, so neither received an ordinary drift trade — PLTR's buy above is
+solely the Alpha Leader top-up. All buys cleared the 12% `buy_price_diff_limit`
+pump filter; the INTC sell (-9.3% on the day) was under the 15%
+`sell_price_diff_limit` crash-exemption threshold, so trimming it was still
+permitted.
+
+Gross nominal value sold: $592.34 — well under the $5,000 `seek_approval_value`
+threshold. Per CLAUDE.md this would not have required a halt for approval, but
+given this was the first live run post-fix and deployed ≈$7,040 total, the
+full plan was presented to the user for confirmation before any order was
+placed; user confirmed "execute this live."
+
+## Post-trade state
+* Bot-managed equity: ≈$10,010 (essentially at the $10,000 cap; ~$10 of
+  overshoot from price movement between plan and fill, immaterial).
+* Cash: $6,102.40 (well above `min_cash_target` $500 and `min_cash_absolute`
+  $250 — the $10k cap is the binding constraint here, not cash, so the lean
+  cash-target instruction is necessarily subordinate to the hard cap once the
+  cap is reached).
+* `peak/prices.json` updated: all 10 target symbols seeded with peakPrice =
+  fill-time price, peakDate = 2026-07-07. No liquidations occurred, so
+  `liquidatedPrice`/`liquidatedDate` remain empty for all symbols.
+
+## Notes / carried-forward items
+* True intraday peaks for INTC/MU that occurred earlier today (before
+  tracking began) were not captured — trailing-stop coverage is effective
+  from this cycle forward only. This is a known, accepted limitation of the
+  "seed at current price" design in the CLAUDE.md update.
+* No liquidations this cycle, so the `cool_down_period_after_lquidation`
+  re-entry rule was not exercised.
+
+---
+
 # 2026-07-07 11:13 AM EDT — Scheduled Rebalance Check — HALTED (Third Consecutive Halt, Unresolved)
 
 **Status:** ABORTED before any orders were reviewed or placed. No trades executed.
