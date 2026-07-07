@@ -1,3 +1,76 @@
+# 2026-07-07 11:13 AM EDT — Scheduled Rebalance Check — HALTED (Third Consecutive Halt, Unresolved)
+
+**Status:** ABORTED before any orders were reviewed or placed. No trades executed.
+
+## Summary
+
+Fresh, stateless run. CLAUDE.md re-read fresh from `main` (commit `fe2bbc0`)
+and `portfolio_targets.json` re-read fresh — both confirmed unchanged in
+substance from the prior halt logged 10 minutes ago at 11:03 AM EDT. This is
+the **third** consecutive halt on the same account today (08:48 AM, 11:03 AM,
+now 11:13 AM). Live state was independently re-verified via `get_accounts`,
+`get_portfolio`, `get_equity_positions`, and `get_equity_quotes` — nothing
+material has changed:
+
+1. **Scope Limit conflict persists.** Account `795732718` ("Agentic") still
+   holds 10 positions; only PLTR, INTC, MU are authorized targets. The other
+   7 (SPCX, AMZN, TSLA, NVDA, ORCL, GOOG, MSFT — ≈$8.6k, ≈71% of equity value)
+   remain outside this bot's mandate. 7 of 10 authorized targets (TQQQ, SOXL,
+   MSTR, COIN, ARM, SMCI, IONQ — 65% of target model weight) are still
+   entirely unfunded.
+2. **`cap_on_total_balance_to_use` ($10,000) denominator still undefined** —
+   full account cash ($12,550 + $8,000 pending deposit) vs. a strategy-only
+   sub-pool. Same unresolved ambiguity as both prior entries.
+3. **Drawdown continues to deepen, still with no peak-tracking mechanism.**
+   Since the 11:03 AM check, INTC and MU have kept falling intraday:
+
+   | Symbol | Prior close (7/6) | Now (11:13 AM) | Today | Held? |
+   |---|---|---|---|---|
+   | INTC | $122.20 | $110.87 | -9.3% | Yes (target 5%) |
+   | MU | $984.75 | $925.55 | -6.0% | Yes (target 12.5%) |
+   | PLTR | $132.54 | $135.18 | +2.0% | Yes (target 12.5%) |
+   | SOXL | $194.65 | $157.50 | -19.1% | No |
+   | TQQQ | $76.42 | $71.84 | -6.0% | No |
+   | ARM | $322.24 | $300.98 | -6.6% | No |
+   | IONQ | $48.87 | $45.20 | -7.5% | No |
+   | SMCI | $27.19 | $26.00 | -4.4% | No |
+   | MSTR | $100.77 | $99.35 | -1.4% | No |
+   | COIN | $168.87 | $164.64 | -2.5% | No |
+
+   SOXL's intraday move (-19.1%) exceeds `sell_price_diff_limit` (15%) but is
+   moot (not held). INTC and MU are both held and both down double digits from
+   last week's levels — very plausibly past the 4.5% `max_trailing_drawdown_percentage`
+   trigger from a recent peak, but CLAUDE.md still defines no mechanism for
+   persisting/computing a trailing peak across stateless runs, so no
+   liquidation was fabricated.
+
+## Action taken
+Read-only calls only: `get_accounts`, `get_portfolio`, `get_equity_positions`,
+`get_equity_quotes`. No orders reviewed or placed; no liquidations,
+rebalancing, or reinvestment-multiplier logic applied.
+
+## Escalation note
+This is the third identical halt in ~2.5 hours with no intervening change to
+`portfolio_targets.json` or the account. Per standing instructions, this
+routine does not improvise past an unresolved ambiguity, so it will keep
+halting on every future scheduled run until a human resolves the open
+questions below (carried over unchanged) — meanwhile INTC and MU continue to
+sit in a fast-moving drawdown with the bot unable to act on it.
+
+## Open questions for the user (carried over, still unresolved)
+1. Is `795732718` ("Agentic") the correct account for this strategy?
+2. Should `cap_on_total_balance_to_use` bound bot-managed exposure only, or
+   is it a true account-wide ceiling (already breached by unrelated holdings)?
+3. Should the 7 out-of-scope positions be left alone permanently, or should
+   `portfolio_targets.json` be corrected to match actual intent?
+4. Urgently: how should trailing-peak state be tracked across scheduled runs
+   so the 4.5% drawdown stop-loss can actually be enforced? INTC and MU are
+   both down double digits from last week and warrant a real look.
+
+No further action will be taken until this is resolved.
+
+---
+
 # 2026-07-07 11:03 AM EDT — Scheduled Rebalance Check — HALTED (Same Blocking Condition, Unresolved)
 
 **Status:** ABORTED before any orders were reviewed or placed. No trades executed.
