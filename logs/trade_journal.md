@@ -1,3 +1,126 @@
+# 2026-07-07 03:20 PM EDT — Scheduled Rebalance Check — EXECUTED (Drawdown Stop-Loss + Alpha Leader Top-Up)
+
+**Status:** COMPLETED. 2 orders placed, both filled. Fresh, stateless run;
+`CLAUDE.md` re-read fresh from `main` (commit `f1255841`), `portfolio_targets.json`
+and `peak/prices.json` re-read fresh alongside it.
+
+## Pre-trade state
+* Account `795732718` ("Agentic"), the only `agentic_allowed=true` account.
+  Live positions matched the prior logged post-trade state exactly (cash
+  $6,102.40; PLTR 13.361901 sh, INTC 4.519479 sh, and the other 7 targets at
+  their prior-cycle quantities) — no drift from the last logged run, so this
+  cycle evaluates fresh market movement only, not a stale/inconsistent state.
+* Bot-managed equity (fixed $10,000 `cap_on_total_balance_to_use` denominator
+  convention, consistent with the last executed cycle): ≈$9,692, under cap.
+* Out-of-scope holdings (SPCX, AMZN, TSLA, NVDA, ORCL, GOOG, MSFT) correctly
+  ignored per the explicit scope rule.
+
+## Drawdown Audit Phase (peakPrice source: `peak/prices.json`, as instructed)
+| Symbol | Peak | Current | Drawdown | Breach (≥4.5%)? |
+|---|---|---|---|---|
+| SOXL | $168.065 | $156.87 | **6.66%** | **YES** |
+| MSTR | $101.97 | $97.74 | 4.15% | No (below threshold) |
+| MU | $937.70 | $911.33 | 2.81% | No |
+| ARM | $304.71 | $295.66 | 2.97% | No |
+| TQQQ | $73.395 | $71.47 | 2.62% | No |
+| PLTR | $138.54 | $135.97 | 1.86% | No |
+| IONQ | $46.52 | $45.32 | 2.58% | No |
+| INTC | $110.96 | $108.58 | 2.14% | No |
+| COIN | $166.71 | $163.99 | 1.63% | No |
+| SMCI | $26.455 | $25.92 | 2.02% | No |
+
+**SOXL breached the 4.5% `max_trailing_drawdown_percentage` stop** and was
+flagged for emergency liquidation to 0%, overriding its 15% target weight.
+Judgment call: the `sell_price_diff_limit` "routine drift-selling" exemption
+(Step 4) was **not** applied to this liquidation — that exemption's text is
+scoped to routine drift-selling to avoid panic-selling a temporary dip,
+whereas the Drawdown Audit Phase is an explicit hard stop-loss described as
+"overriding target weights"; suppressing the stop-loss on the exact day it's
+designed to fire (a crashing stock) would defeat its purpose. SOXL's -19.4%
+intraday move was therefore not treated as a reason to skip the liquidation.
+(Sanity check: intraday historicals show today's SOXL true high was even
+higher, $171.88, and MSTR's true intraday high was $103.56 vs. its recorded
+peak of $101.97 — both understating true drawdown. Per CLAUDE.md's explicit
+instruction to read peak state only from `peak/prices.json`, the recorded
+(stale) peaks were used as-is, consistent with the accepted limitation noted
+in the 01:44 PM entry; this did not change SOXL's outcome, but means MSTR's
+true drawdown was likely already ≈5.6%, just past threshold, and undetected
+this cycle by design.)
+
+## Drift Audit (excluding SOXL, now overridden by the stop-loss)
+All other 8 assets were within the 1.5% `drift_tolerance_percentage` (largest:
+MU at 1.27%). No ordinary drift trades were needed.
+
+## Alpha Leader & Re-investment Multiplier (7-day gain, 2026-06-30 close → now)
+| Symbol | 7-day change |
+|---|---|
+| **PLTR** | **+16.54%** (Alpha Leader, 2nd consecutive cycle) |
+| MSTR | +12.44% |
+| COIN | +12.18% |
+| SMCI | -11.63% |
+| TQQQ | -11.77% |
+| IONQ | -14.91% |
+| ARM | -16.61% |
+| MU | -21.05% |
+| INTC | -22.24% |
+| SOXL | -41.19% |
+
+PLTR is already overweight vs. its static 12.5% target (18.17% current, 5.67%
+drift) from the prior cycle's multiplier top-up. Per Step 2, the Alpha
+Leader's effective ceiling for this mechanism is the 35% concentration cap,
+not its static target — consistent with the prior cycle's treatment — so no
+offsetting trim was applied; PLTR received only the multiplier injection.
+* `base_deployable_cash` = max(0, $6,102.40 − $250.00) = $5,852.40
+* Desired multiplier injection = $5,852.40 × 1.25 = $7,315.50
+* Room to 35% cap ($3,500.00 − $1,816.82 current) = $1,683.18 — **binding
+  constraint**, well below both the desired injection and the remaining
+  headroom under the $10,000 total cap. Actual buy sized to this cap.
+
+## Orders placed (regular market hours, Market Orders per Order Type rule)
+Both orders filled immediately at submission.
+
+| # | Side | Symbol | Notional | Qty filled | Avg fill price | Reason |
+|---|---|---|---|---|---|---|
+| 1 | SELL | SOXL | $1,406.80 | 8.918453 (100%, full liquidation) | $157.7431 | Trailing-stop breach: -6.66% from recorded peak $168.065, exceeds 4.5% `max_trailing_drawdown_percentage` |
+| 2 | BUY | PLTR | $1,689.20 | 12.464562 | $135.5202 | Alpha Leader multiplier top-up, capped at 35% single-asset concentration ($3,500.00) |
+
+Gross nominal value sold: $1,406.80 — well under the $5,000
+`seek_approval_value` threshold, so no halt for approval was required.
+PLTR's daily move (+2.59% vs. prior close) cleared the 12%
+`buy_price_diff_limit` pump filter.
+
+## Post-trade state
+* Bot-managed equity: ≈$9,976.38 (TQQQ $1,948.47, INTC $490.72, PLTR
+  $3,500.00, MU $1,122.97, SOXL $0.00, MSTR $960.49, COIN $492.05, ARM
+  $485.12, SMCI $489.98, IONQ $486.58) — under the $10,000 cap.
+* Cash: $5,819.99 — well above `min_cash_target` ($500) and
+  `min_cash_absolute` ($250). The 35% single-asset cap on the Alpha Leader
+  (not a lack of underweight targets — every other asset was within
+  tolerance) was the binding constraint preventing further deployment this
+  cycle, so the lean cash-target instruction is necessarily subordinate here.
+* `peak/prices.json` updated: SOXL `liquidatedPrice` = 157.7431,
+  `liquidatedDate` = 2026-07-07. All peaks unchanged (no symbol closed above
+  its recorded peak this cycle). `cool_down_period_after_lquidation` (3 days)
+  now governs SOXL re-entry: eligible once (a) ≥3 days have passed since
+  2026-07-07 AND (b) SOXL's price has recovered by more than 4.5% above its
+  $157.7431 liquidation price.
+
+## Notes / carried-forward items
+* MSTR's recorded peak ($101.97) understates its true intraday high today
+  ($103.56, reached ~12:50 PM ET, before the prior cycle's 1:44 PM peak
+  snapshot). Using the true peak, MSTR's drawdown today was ≈5.6% — past the
+  4.5% threshold — but per CLAUDE.md's peak-tracking design (state persisted
+  only in `peak/prices.json`, no retroactive intraday reconstruction), this
+  was correctly not actioned this cycle. Flagging for awareness only: this is
+  the same accepted "seed the peak from the tracking-start cycle, not
+  before" limitation noted in the 01:44 PM entry, now visibly costing a
+  missed stop-loss trigger. If tighter intraday peak fidelity is wanted, this
+  would need a documented change to how/when `peak/prices.json` is refreshed
+  (e.g., every cycle taking `max(recorded peak, today's intraday high via
+  historicals)` rather than only updating on a new all-time snapshot).
+
+---
+
 # 2026-07-07 01:44 PM EDT — Rebalance Check — EXECUTED (First Live Run, User-Confirmed)
 
 **Status:** COMPLETED. 9 orders placed, all filled. First live execution after all four
