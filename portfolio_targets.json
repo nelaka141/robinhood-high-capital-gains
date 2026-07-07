@@ -1,0 +1,27 @@
+{
+  "portfolio_metadata": {
+    "version": "2.1.0",
+    "last_updated": "2026-07-07",
+    "drift_tolerance_percentage": 1.5,
+    "max_trailing_drawdown_percentage": 4.5,
+    "reinvestment_multiplier_factor": 1.25,
+    "min_cash_absolute": 250.0,
+    "min_cash_target": 500.0,
+    "seek_approval_value": 5000.0,
+    "sell_price_diff_limit": 15.0,
+    "buy_price_diff_limit": 12.0,
+    "cap_on_total_balance_to_use": 10000
+  },
+  "targets": {
+    "TQQQ": 20.0,
+    "SOXL": 15.0,
+    "NVDA": 15.0,
+    "PLTR": 10.0,
+    "MSTR": 10.0,
+    "TSLA": 10.0,
+    "COIN": 5.0,
+    "ARM": 5.0,
+    "SMCI": 5.0,
+    "IONQ": 5.0
+  }
+}
