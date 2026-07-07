@@ -10,7 +10,8 @@
     "seek_approval_value": 5000.0,
     "sell_price_diff_limit": 15.0,
     "buy_price_diff_limit": 12.0,
-    "cap_on_total_balance_to_use": 10000
+    "cap_on_total_balance_to_use": 10000,
+    "cool_down_period_after_lquidation": 3
   },
   "targets": {
     "TQQQ": 20.0,
