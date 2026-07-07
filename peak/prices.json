@@ -1,12 +1,12 @@
 {
-        "TQQQ": {"peakPrice": null, "peakDate": null, "liquidatedPrice": "", "liquidatedDate": null},
-        "INTC": {"peakPrice": null, "peakDate": null, "liquidatedPrice": "", "liquidatedDate": null},
-        "PLTR": {"peakPrice": null, "peakDate": null, "liquidatedPrice": "", "liquidatedDate": null},
-        "MU": {"peakPrice": null, "peakDate": null, "liquidatedPrice": "", "liquidatedDate": null},
-        "SOXL": {"peakPrice": null, "peakDate": null, "liquidatedPrice": "", "liquidatedDate": null},
-        "MSTR": {"peakPrice": null, "peakDate": null, "liquidatedPrice": "", "liquidatedDate": null},
-        "COIN": {"peakPrice": null, "peakDate": null, "liquidatedPrice": "", "liquidatedDate": null},
-        "ARM": {"peakPrice": null, "peakDate": null, "liquidatedPrice": "", "liquidatedDate": null},
-        "SMCI": {"peakPrice": null, "peakDate": null, "liquidatedPrice": "", "liquidatedDate": null},
-        "IONQ": {"peakPrice": null, "peakDate": null, "liquidatedPrice": "", "liquidatedDate": null}
+        "TQQQ": {"peakPrice": 73.395, "peakDate": "2026-07-07", "liquidatedPrice": "", "liquidatedDate": null},
+        "INTC": {"peakPrice": 110.96, "peakDate": "2026-07-07", "liquidatedPrice": "", "liquidatedDate": null},
+        "PLTR": {"peakPrice": 138.54, "peakDate": "2026-07-07", "liquidatedPrice": "", "liquidatedDate": null},
+        "MU": {"peakPrice": 937.70, "peakDate": "2026-07-07", "liquidatedPrice": "", "liquidatedDate": null},
+        "SOXL": {"peakPrice": 168.065, "peakDate": "2026-07-07", "liquidatedPrice": "", "liquidatedDate": null},
+        "MSTR": {"peakPrice": 101.97, "peakDate": "2026-07-07", "liquidatedPrice": "", "liquidatedDate": null},
+        "COIN": {"peakPrice": 166.71, "peakDate": "2026-07-07", "liquidatedPrice": "", "liquidatedDate": null},
+        "ARM": {"peakPrice": 304.71, "peakDate": "2026-07-07", "liquidatedPrice": "", "liquidatedDate": null},
+        "SMCI": {"peakPrice": 26.455, "peakDate": "2026-07-07", "liquidatedPrice": "", "liquidatedDate": null},
+        "IONQ": {"peakPrice": 46.52, "peakDate": "2026-07-07", "liquidatedPrice": "", "liquidatedDate": null}
 }
