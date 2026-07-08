@@ -1,3 +1,127 @@
+# 2026-07-08 07:54 AM EDT — Re-Triggered Rebalance Check (Post-Config-Update: New Universe + New Cap) — NO TRADES (Within Tolerance)
+
+**Status:** COMPLETED, 0 orders placed. User updated `portfolio_targets.json`
+(now v2.3.0, dated 2026-07-08) on `main` and asked for a re-trigger. `CLAUDE.md`
+re-read fresh (unchanged text, still v2.2) alongside `portfolio_targets.json`
+and `peak/prices.json` (commit `abebecb6`). Session is in the 7:00–9:30 AM ET
+**pre-market extended-hours** window (last regular print 3:59:59 PM ET
+2026-07-07; current quotes are `last_non_reg_trade_price`, ~7:53 AM ET
+2026-07-08) — moot this cycle since no trades are needed.
+
+## What changed in the config
+* `cap_on_total_balance_to_use`: $10,000 → **$25,000** (2.5x).
+* `drift_tolerance_percentage`: 1.5% → **4.0%**.
+* `max_trailing_drawdown_percentage`: 10% → **15%**.
+* `min_recovery_price_percentage` (7%) and `cool_down_period_after_lquidation`
+  (10 days) unchanged.
+* **7 new targets added** — SPCX 6.8%, AMZN/TSLA/NVDA/ORCL/GOOG/MSFT 8.7% each
+  — these are exactly the 7 positions that were previously out-of-scope
+  ("ignore other stocks in the account") and are already held in the account
+  from before this bot's mandate existed. They are now in-scope.
+* Original 10 targets' weights cut substantially to make room (TQQQ 20→7,
+  INTC 5→3, PLTR 12.5→12, MU 12.5→5, SOXL 15→2, MSTR 10→4, COIN/ARM/SMCI/IONQ
+  5→2 each). New total: 100% across 17 symbols, confirmed summed correctly.
+* `peak/prices.json` had no entries for the 7 new symbols — seeded this cycle
+  per the standing rule ("if entry is null or not present assume current
+  price is the peak"): peakPrice = today's live price, peakDate = 2026-07-08,
+  liquidated/profitSell fields null. This is the same "tracking starts now,
+  no retroactive drawdown coverage" limitation flagged for the original 10 on
+  2026-07-07.
+
+## Drawdown Audit Phase (new 15% threshold; peak source: `peak/prices.json`)
+| Symbol | Peak | Current | Drawdown | Breach (≥15%)? |
+|---|---|---|---|---|
+| MSTR | $101.97 | $94.75 | 7.08% | No |
+| IONQ | $46.52 | $44.02 | 5.37% | No |
+| PLTR | $138.54 | $130.52 | 5.79% | No |
+| COIN | $166.71 | $159.52 | 4.31% | No |
+| TQQQ | $73.395 | $69.86 | 4.82% | No |
+| ARM | $304.71 | $292.86 | 3.89% | No |
+| MU | $938.15 | $902.50 | 3.80% | No |
+| INTC | $110.96 | $107.91 | 2.75% | No |
+| SMCI | $26.455 | $25.8717 | 2.20% | No |
+| SPCX / AMZN / TSLA / NVDA / ORCL / GOOG / MSFT | (seeded today) | — | 0% (new tracking) | No |
+
+No breaches — largest is MSTR at 7.08%, well under the new 15% threshold.
+No peak updates needed for the original 10 (all currently below their
+recorded peaks); the 7 new symbols were seeded as above.
+
+**SOXL** (liquidated 2026-07-07 at $157.7431): current price $154.75 is
+*below* the liquidation price (-1.90%), nowhere near the 7%
+`min_recovery_price_percentage`, and only 1 of the required 10
+`cool_down_period_after_lquidation` days has elapsed. SOXL remains
+**excluded from drift calculations entirely** this cycle.
+
+## Drift Audit (SOXL excluded; $25,000 fixed-cap denominator convention, consistent with precedent)
+| Symbol | Target % | Current % | Drift |
+|---|---|---|---|
+| TQQQ | 7.0 | 7.62 | 0.62 |
+| INTC | 3.0 | 1.95 | 1.05 |
+| PLTR | 12.0 | 13.48 | 1.48 |
+| MU | 5.0 | 4.45 | 0.55 |
+| MSTR | 4.0 | 3.72 | 0.28 |
+| COIN | 2.0 | 1.92 | 0.09 |
+| ARM | 2.0 | 1.92 | 0.08 |
+| SMCI | 2.0 | 1.96 | 0.04 |
+| IONQ | 2.0 | 1.89 | 0.11 |
+| SPCX | 6.8 | 4.54 | 2.26 |
+| AMZN | 8.7 | 4.98 | 3.72 |
+| TSLA | 8.7 | 4.91 | 3.79 |
+| NVDA | 8.7 | 4.93 | 3.78 |
+| ORCL | 8.7 | 4.89 | **3.82** (closest to breach) |
+| GOOG | 8.7 | 5.03 | 3.67 |
+| MSFT | 8.7 | 4.98 | 3.72 |
+
+**Every asset is within the new 4.0% `drift_tolerance_percentage`** — the 7
+newly-added megacaps sit at roughly half their 8.7% target (since they were
+added at their existing, unchanged account weight while the model total grew
+to $25,000), but their drift (~3.7–3.8%) stays just inside the wider
+tolerance. PLTR (this cycle's presumptive Alpha Leader by recent trend) is
+also within tolerance against its own static 12% target this time (1.48%
+drift) — unlike the last two cycles, there's no need to invoke the
+Alpha-Leader-vs-35%-cap exemption, since PLTR isn't flagged as Overweight in
+the first place.
+
+## Step 1 early-exit
+Per Step 1: no asset exceeds `drift_tolerance_percentage` and no drawdown
+breaches `max_trailing_drawdown_percentage` → **early-exit condition met**.
+Steps 2–5 (Alpha Leader multiplier, profit-taking trims, price-limit halts,
+trade execution) were **not evaluated** this cycle, per the literal
+early-exit instruction — this differs from the two prior "no trade" cycles
+today, where a nominally-overweight PLTR forced a walk through Steps 2–3
+before concluding no executable trade existed. This cycle, the wide new
+tolerance and the freshly-diluted new targets mean the whole book is already
+within bounds, so no downstream evaluation was needed. (No Alpha Leader was
+therefore selected/logged this cycle — that calculation is scoped to Step 2.)
+
+## Orders placed
+**None.**
+
+## Current state (informational)
+* Bot-managed equity (16 active symbols, SOXL excluded): ≈$18,290.28 — well
+  under the new $25,000 cap (≈73% deployed).
+* Cash: $5,819.99 (unchanged — no trades this cycle).
+* `peak/prices.json`: 7 new entries added (SPCX $150.55, AMZN $242.44, TSLA
+  $397.90, NVDA $194.4012, ORCL $139.04, GOOG $359.6612, MSFT $383.80, all
+  dated 2026-07-08). All other entries unchanged from the prior cycle.
+
+## Notes / carried-forward items
+* As with the original 10 on 2026-07-07, the 7 newly-added symbols' trailing
+  stops only cover drawdowns from this point forward — any pre-existing
+  unrealized loss position on SPCX/AMZN/TSLA/NVDA/ORCL/GOOG/MSFT (e.g. SPCX's
+  average cost of $165.00 vs. today's ~$150.55, already down ~8.8%) is not
+  itself a drawdown-audit concern (drawdown is measured from peak, not cost
+  basis) but is worth flagging since these are now actively bot-managed
+  positions subject to liquidation if they fall another 15% from today's
+  seeded peak.
+* This was a manual re-trigger requested by the user after they edited
+  `portfolio_targets.json` directly on `main`; consistent with the prior two
+  re-triggers, no separate confirmation was sought before running since
+  re-reading fresh config and re-evaluating is exactly what a scheduled cycle
+  does, and this cycle placed zero trades.
+
+---
+
 # 2026-07-07 04:17 PM EDT — Re-Triggered Rebalance Check (Post-Config-Update) — NO TRADES (Within Tolerance)
 
 **Status:** COMPLETED, 0 orders placed. User updated `CLAUDE.md` (now v2.2) and
