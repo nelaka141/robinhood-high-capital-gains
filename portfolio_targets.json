@@ -1,9 +1,9 @@
 {
   "portfolio_metadata": {
-    "version": "2.2.0",
-    "last_updated": "2026-07-07",
-    "drift_tolerance_percentage": 1.5,
-    "max_trailing_drawdown_percentage": 10,
+    "version": "2.3.0",
+    "last_updated": "2026-07-08",
+    "drift_tolerance_percentage": 4.0,
+    "max_trailing_drawdown_percentage": 15,
     "min_recovery_price_percentage": 7,
     "reinvestment_multiplier_factor": 1.25,
     "min_cash_absolute": 250,
@@ -11,21 +11,28 @@
     "seek_approval_value": 5000,
     "sell_price_diff_limit": 15,
     "buy_price_diff_limit": 12,
-    "cap_on_total_balance_to_use": 10000,
+    "cap_on_total_balance_to_use": 25000,
     "cool_down_period_after_lquidation": 10,
     "beta_benchmark_symbol": "SPY",
     "beta_calculation_lookback_days": 30
   },
   "targets": {
-    "TQQQ": 20,
-    "INTC": 5,
-    "PLTR": 12.5,
-    "MU": 12.5,
-    "SOXL": 15,
-    "MSTR": 10,
-    "COIN": 5,
-    "ARM": 5,
-    "SMCI": 5,
-    "IONQ": 5
+    "TQQQ": 7.0,
+    "INTC": 3.0,
+    "PLTR": 12.0,
+    "MU": 5.0,
+    "SOXL": 2.0,
+    "MSTR": 4.0,
+    "COIN": 2.0,
+    "ARM": 2.0,
+    "SMCI": 2.0,
+    "IONQ": 2.0,
+    "SPCX": 6.8,
+    "AMZN": 8.7,
+    "TSLA": 8.7,
+    "NVDA": 8.7,
+    "ORCL": 8.7,
+    "GOOG": 8.7,
+    "MSFT": 8.7
   }
 }
