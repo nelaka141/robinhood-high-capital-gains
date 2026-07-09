@@ -1,3 +1,241 @@
+# 2026-07-09 09:53 AM EDT — Scheduled Rebalance Check — EXECUTED (Drift Correction + Alpha Leader Multiplier, Partially Cash-Constrained)
+
+**Status:** COMPLETED. 4 orders placed, all filled. Fresh, stateless run for
+the 9:45 AM ET scheduled check. `CLAUDE.md` re-read fresh from `main`
+(commit `834f8696`, unchanged text, still v2.2) alongside `portfolio_targets.json`
+(v2.5.0, dated 2026-07-09, unchanged `targets` block from the 08:12 AM cycle
+but note `SPCX` target is 6.0% here vs 6.8% quoted in earlier journal
+entries — the file itself is the source of truth and was used as-is) and
+`peak/prices.json`, both re-read fresh from `main`. Session is in **regular
+market hours** (quotes at 9:45:5x AM ET, `last_trade_price` seconds old) —
+Market Orders applied per the Order Type rule.
+
+## Pre-trade state
+* Account `795732718` ("Agentic"), the only `agentic_allowed=true` account —
+  confirmed via `get_accounts`.
+* Cash: $5,819.99. Bot-managed equity (16 active symbols, SOXL excluded):
+  ≈$18,787.18 — under the $25,000 `cap_on_total_balance_to_use` (≈75.1% deployed).
+* Total account value: $24,611.61 (includes $8,000 pending deposit, unsettled,
+  not counted as spendable cash).
+
+## Drawdown Audit Phase (15% threshold; peak source: `peak/prices.json`)
+| Symbol | Peak | Current | Drawdown | Breach (≥15%)? |
+|---|---|---|---|---|
+| PLTR | $138.54 | $127.79 | 7.76% | No |
+| MSTR | $101.97 | $96.40 | 5.46% | No |
+| COIN | $166.71 | $159.285 | 4.45% | No |
+| GOOG | $362.27 | $354.46 | 2.16% | No |
+| NVDA | $205.6015 | $201.595 | 1.95% | No |
+| IONQ | $46.52 | $45.60 | 1.98% | No |
+| MSFT | $384.09 | $378.65 | 1.42% | No |
+| AMZN | $243.89 | $241.69 | 0.90% | No |
+| SPCX | $151.27 | $150.16 | 0.73% | No |
+| TSLA | $398.66 | $395.765 | 0.73% | No |
+| SMCI | $28.8652 | $28.86 | 0.02% (no new peak) | No |
+| TQQQ | $74.53 | **$75.75** | **new peak** | No |
+| INTC | $115.4606 | **$116.203** | **new peak** | No |
+| MU | $998.99 | **$1,015.69** | **new peak** | No |
+| ARM | $312.37 | **$334.21** | **new peak** | No |
+| ORCL | $141.70 | **$147.67** | **new peak** | No |
+
+No breaches — largest is PLTR at 7.76%, well under the 15% threshold. Five
+symbols (TQQQ, INTC, MU, ARM, ORCL) closed at new tracked highs this cycle;
+`peak/prices.json` updated accordingly (peakDate = 2026-07-09).
+
+**SOXL** (liquidated 2026-07-07 at $157.7431): current price $202.595 is
+**+28.44%** above the liquidation price — comfortably past the 7%
+`min_recovery_price_percentage` — but only **2 of the required 10**
+`cool_down_period_after_lquidation` days have elapsed (liquidated
+2026-07-07, today 2026-07-09). Both conditions are required, so SOXL
+**remains excluded** from drift calculations this cycle despite the strong
+recovery. Earliest possible re-entry: 2026-07-17.
+
+## Drift Audit ($25,000 fixed-cap denominator; SOXL excluded)
+| Symbol | Target % | Current % | Drift | Exceeds 2.0%? |
+|---|---|---|---|---|
+| TSLA | 8.0 | 4.884 | 3.116 | **YES** |
+| GOOG | 8.0 | 4.954 | 3.046 | **YES** |
+| MSFT | 8.0 | 4.913 | 3.087 | **YES** |
+| AMZN | 8.0 | 4.965 | 3.035 | **YES** |
+| ORCL | 8.0 | 5.188 | 2.812 | **YES** |
+| NVDA | 8.0 | 5.107 | 2.893 | **YES** |
+| SPCX | 6.0 | 4.532 | 1.468 | No |
+| PLTR | 12.0 | 13.202 | 1.202 | No |
+| TQQQ | 7.0 | 8.261 | 1.261 | No |
+| INTC | 3.0 | 2.101 | 0.899 | No |
+| ARM | 2.0 | 2.194 | 0.194 | No |
+| SMCI | 2.0 | 2.182 | 0.182 | No |
+| MSTR | 4.0 | 3.789 | 0.211 | No |
+| COIN | 2.0 | 1.912 | 0.088 | No |
+| IONQ | 2.0 | 1.958 | 0.042 | No |
+| MU | 5.0 | 5.006 | 0.006 | No |
+
+Six megacap targets (AMZN, TSLA, NVDA, ORCL, GOOG, MSFT) all breach the 2.0%
+`drift_tolerance_percentage`, all Underweight — the same persistent artifact
+carried since these positions were folded into the model at their
+pre-existing account weight. TQQQ, PLTR, ARM, SMCI are nominally Overweight
+but within tolerance — these four are the trim candidates for Step 3.
+
+## Alpha Leader (7-day gain, 2026-07-02 close → 2026-07-08 close)
+| Symbol | 7-day change |
+|---|---|
+| **NVDA** | **+4.7683%** (Alpha Leader) |
+| SMCI | +3.4901% |
+| PLTR | +2.2583% |
+| GOOG | +0.7103% |
+| AMZN | +0.3915% |
+| ORCL | +0.1568% |
+| TSLA | +0.1550% |
+| TQQQ | -0.8589% |
+| MSFT | -1.8310% |
+| MU | -2.7430% |
+| SOXL | -3.6645% |
+| COIN | -3.6983% |
+| ARM | -4.7704% |
+| MSTR | -6.8473% |
+| IONQ | -8.2248% |
+| SPCX | -8.4568% |
+
+NVDA is Alpha Leader — coincidentally also one of the six drift-breaching
+Underweight megacaps.
+* `base_deployable_cash` = max(0, $5,819.99 − $250.00) = **$5,569.99**
+* `multiplier_cash` = $5,569.99 × (1.25 − 1.0) = **$1,392.50**
+* Desired total injection = $5,569.99 + $1,392.50 = **$6,962.49**
+* Room to 35% cap ($8,750.00 − $1,281.80 pre-trade NVDA value) = $7,468.20 —
+  not binding.
+
+## Step 3 — High-Beta Gains Calculation
+Overweight-within-tolerance candidates: TQQQ, PLTR, ARM, SMCI. 30-day daily
+returns computed for each vs. `SPY` (`beta_calculation_lookback_days`=30,
+2026-05-27 → 2026-07-08 close-to-close series):
+
+| Symbol | Beta (vs SPY) | Raw_Gain_% (vs. avg cost, at execution price) | High_Beta_Gain_Score | Rank |
+|---|---|---|---|---|
+| ARM | 4.7446 | +9.452% (cost $304.73 → $333.5356) | **44.85** | 1st |
+| SMCI | 4.4957 | +9.491% (cost $26.45 → $28.9601) | **42.67** | 2nd |
+| TQQQ | 5.2740 | +3.463% (cost $73.36 → $75.9001, partial trim) | **18.27** | 3rd |
+| PLTR | 1.6063 | **-4.996%** (cost $134.51 → $127.79) | -8.03 | last resort (loss) |
+
+PLTR is underwater vs. its blended cost basis (prior Alpha-Leader top-ups
+raised its average cost above today's price) — trimming it would realize a
+loss, contrary to "lock in high-beta gains." Excluded from the funding plan.
+
+## Funding logic and a judgment call on an unspecified case
+Total capital required this cycle: NVDA multiplier injection ($6,962.49,
+Step 2's explicit "Rule") + closing all six Underweight megacaps to exact
+target ($3,773.73, sum of AMZN/TSLA/ORCL/GOOG/MSFT gaps — NVDA's own gap is
+superseded by the multiplier mechanism) = **$10,736.22**. Available capital
+was $5,569.99 cash + up to $3,159.09 from fully trimming ARM+SMCI+TQQQ
+(PLTR excluded per above) = $8,729.08 — a **$2,007.14 shortfall** even before
+considering same-day settlement (see below). `CLAUDE.md` defines an exact
+funding priority for the Alpha Leader multiplier (Step 2's "Rule": 100% of
+base + multiplier cash goes to the Alpha Leader, up to the 35% cap) but
+gives **no formula for splitting scarce capital across multiple
+simultaneously-breaching Underweight targets** (AMZN/TSLA/ORCL/GOOG/MSFT)
+when funds are insufficient to close all of them. Per standing instructions
+not to improvise past a genuine ambiguity, this run did **not** fabricate a
+pro-rata or priority-order allocation for that portion — it funded only the
+unambiguous parts (the Alpha Leader multiplier, sized exactly to `CLAUDE.md`'s
+formula) and logged the five megacap buys as SKIPPED/PENDING (see below) for
+a human to set a priority/allocation rule, or for a future cycle once more
+cash settles.
+
+## Step 4 — Price Limit & Volatility Halts
+All symbols in the executed batch were checked against same-day move vs.
+prior close: ARM +11.0%, SMCI +2.7%, TQQQ +4.4% (all up, so the 15%
+`sell_price_diff_limit` crash-exemption — which only blocks selling into a
+collapsing price — did not apply to any of the three sells). NVDA was down
+-0.77% on the day, well clear of the 12% `buy_price_diff_limit` pump filter.
+No exemptions triggered.
+
+## Orders placed (regular market hours, Market Orders)
+All 4 orders filled immediately at submission.
+
+| # | Side | Symbol | Notional | Qty filled | Avg fill price | Reason |
+|---|---|---|---|---|---|---|
+| 1 | SELL | ARM | $547.27 | 1.640803 (100%, profit-take, not a stop-loss) | $333.5356 | Top-ranked trim (score 44.85) |
+| 2 | SELL | SMCI | $547.45 gross ($547.43 net of $0.02 fee) | 18.903591 (100%, profit-take) | $28.9601 | 2nd-ranked trim (score 42.67) |
+| 3 | SELL | TQQQ | $298.65 | 3.934780 (partial trim, ~14.4% of position) | $75.9001 | 3rd-ranked trim (score 18.27); sized to exactly cover the residual `multiplier_cash` need after ARM+SMCI |
+| 4 | BUY | NVDA | $5,569.99 | 27.500012 | $202.5450 | Alpha Leader multiplier injection (base_deployable_cash portion) |
+
+Gross nominal value of the 3 sells: **$1,393.37** — well under the $5,000
+`seek_approval_value` threshold; no approval halt was required.
+
+### Cash-account settlement constraint discovered mid-execution
+After the three sells filled, `get_portfolio` showed `cash` at $7,213.34 but
+`buying_power` still at $5,819.99 — the **unsettled** sale proceeds
+(≈$1,393.35) were not usable same-day in this **cash account** (not margin;
+`CLAUDE.md` explicitly forbids margin use). Confirmed via a rejected
+`review_equity_order` preview: attempting the full $6,962.49 NVDA buy
+returned `EQUITY_NOT_ENOUGH_BP_DOLLAR_BASED` (needed $1,143.35 more than
+available). This is a real broker constraint, not a judgment call — the
+`multiplier_cash` portion of Step 2's Rule ($1,392.50) **could not be
+deployed this cycle**; only `base_deployable_cash` ($5,569.99) was invested
+into NVDA today. The harvested trim proceeds remain as settling cash and
+should become deployable on the next scheduled cycle (typically T+1).
+
+## Proposed buys — **SKIPPED/PENDING**
+
+**Blocking reason:** (a) no deployable capital remains after funding the
+Alpha Leader's `base_deployable_cash` portion — the `multiplier_cash`
+portion itself is unsettled and undeployed this cycle (see above) — and (b)
+`CLAUDE.md` specifies no priority/allocation rule for splitting whatever
+capital *would* become available across five simultaneously-breaching
+Underweight targets. No amounts were fabricated.
+
+| # | Side | Symbol | Full gap-close $ (at 9:45 AM prices) | Basis |
+|---|---|---|---|---|
+| — | BUY | AMZN | ~$758.80 | Close to 8.0% target |
+| — | BUY | TSLA | ~$778.90 | Close to 8.0% target |
+| — | BUY | ORCL | ~$702.90 | Close to 8.0% target |
+| — | BUY | GOOG | ~$761.48 | Close to 8.0% target |
+| — | BUY | MSFT | ~$771.65 | Close to 8.0% target |
+| — | BUY | NVDA (multiplier remainder) | ~$1,392.50 | Unsettled trim proceeds, not yet usable buying power |
+
+## Step 3 — High-Beta Gains Realized (final)
+| Symbol | Beta_asset | Raw_Gain_Percentage | Shares Sold | High_Beta_Gain_Dollars |
+|---|---|---|---|---|
+| ARM | 4.7446 | +9.452% | 1.640803 | $47.26 |
+| SMCI | 4.4957 | +9.491% | 18.903591 | $47.45 |
+| TQQQ | 5.2740 | +3.463% | 3.934780 | $9.99 |
+| **Total** | | | | **$104.70** |
+
+## Post-trade state
+* Bot-managed equity (16 active symbols, SOXL excluded, ARM/SMCI now at $0):
+  ≈$22,976.92 — under the $25,000 cap (≈91.9% deployed). NVDA now the
+  largest single position at ≈27.4% of the $25k model (well under the 35%
+  cap); TQQQ reduced to ≈7.08% (still near its 7.0% target after the
+  partial trim).
+* Cash: $1,643.35 ($250.00 of which is currently usable `buying_power`; the
+  remainder is settling sale proceeds from today's trims).
+* `peak/prices.json` updated: 5 new peaks (TQQQ $75.75, INTC $116.203, MU
+  $1,015.69, ARM $334.21, ORCL $147.67, all dated 2026-07-09). ARM and SMCI
+  now carry `profitSellPrice`/`profitSellDate` ($333.5356 / 2026-07-09 and
+  $28.9601 / 2026-07-09 respectively) — full-position profit-take exits, not
+  stop-loss liquidations, so `liquidatedPrice`/`liquidatedDate` were left
+  untouched (empty/null) for both. Per the `sold_stock_repurchase_days`
+  (5 days) / `sold_stock_price_change_percentage` (5.0%) rule, ARM and SMCI
+  are excluded from drift calculations until both (a) ≥5 days have passed
+  since 2026-07-09 and (b) price has dropped ≥5% from the recorded
+  `profitSellPrice`. TQQQ's partial trim does not gate re-entry (it was never
+  fully exited) — it keeps ordinary peak tracking and remains in play.
+  SOXL's `liquidatedPrice`/`liquidatedDate` unchanged (still in its own
+  10-day cooldown, 2 of 10 days elapsed).
+
+## Notes / carried-forward items
+* The five megacap Underweight buys (AMZN, TSLA, ORCL, GOOG, MSFT) and the
+  remaining ~$1,392.50 NVDA multiplier top-up are carried forward. Once
+  today's trim proceeds settle (expected by the next trading session) a
+  future cycle will have real buying power to work with — at that point a
+  human should specify how to split it across the five megacaps (pro-rata by
+  drift-gap size, priority by momentum, or another rule), since `CLAUDE.md`
+  does not currently define one.
+* This was an unattended scheduled run. Gross sells ($1,393.37) stayed well
+  under `seek_approval_value` ($5,000), so no approval halt was needed for
+  the trades that were executed.
+
+---
+
 # 2026-07-09 08:12 AM EDT — Re-Triggered Rebalance Check (Post-Config-Update: Tighter Tolerance + New Re-Entry Rules) — SKIPPED/PENDING (Extended-Hours Fractional-Routing Restriction)
 
 **Status:** Trade matrix computed but **NOT executed** — deferred to the next
@@ -340,7 +578,7 @@ and `peak/prices.json` (commit `abebecb6`). Session is in the 7:00–9:30 AM ET
 
 No breaches — largest is MSTR at 7.08%, well under the new 15% threshold.
 No peak updates needed for the original 10 (all currently below their
-recorded peaks); the 7 new symbols were seeded as above.
+recorded peak); the 7 new symbols were seeded as above.
 
 **SOXL** (liquidated 2026-07-07 at $157.7431): current price $154.75 is
 *below* the liquidation price (-1.90%), nowhere near the 7%
@@ -530,126 +768,3 @@ multiplier has no executable room — early-exit condition met.
   confirmation was sought before running since re-reading fresh config and
   re-evaluating is exactly what a scheduled cycle does, and this cycle placed
   zero trades.
-
----
-
-# 2026-07-07 03:20 PM EDT — Scheduled Rebalance Check — EXECUTED (Drawdown Stop-Loss + Alpha Leader Top-Up)
-
-**Status:** COMPLETED. 2 orders placed, both filled. Fresh, stateless run;
-`CLAUDE.md` re-read fresh from `main` (commit `f1255841`), `portfolio_targets.json`
-and `peak/prices.json` re-read fresh alongside it.
-
-## Pre-trade state
-* Account `795732718` ("Agentic"), the only `agentic_allowed=true` account.
-  Live positions matched the prior logged post-trade state exactly (cash
-  $6,102.40; PLTR 13.361901 sh, INTC 4.519479 sh, and the other 7 targets at
-  their prior-cycle quantities) — no drift from the last logged run, so this
-  cycle evaluates fresh market movement only, not a stale/inconsistent state.
-* Bot-managed equity (fixed $10,000 `cap_on_total_balance_to_use` denominator
-  convention, consistent with the last executed cycle): ≈$9,692, under cap.
-* Out-of-scope holdings (SPCX, AMZN, TSLA, NVDA, ORCL, GOOG, MSFT) correctly
-  ignored per the explicit scope rule.
-
-## Drawdown Audit Phase (peakPrice source: `peak/prices.json`, as instructed)
-| Symbol | Peak | Current | Drawdown | Breach (≥4.5%)? |
-|---|---|---|---|---|
-| SOXL | $168.065 | $156.87 | **6.66%** | **YES** |
-| MSTR | $101.97 | $97.74 | 4.15% | No (below threshold) |
-| MU | $937.70 | $911.33 | 2.81% | No |
-| ARM | $304.71 | $295.66 | 2.97% | No |
-| TQQQ | $73.395 | $71.47 | 2.62% | No |
-| PLTR | $138.54 | $135.97 | 1.86% | No |
-| IONQ | $46.52 | $45.32 | 2.58% | No |
-| INTC | $110.96 | $108.58 | 2.14% | No |
-| COIN | $166.71 | $163.99 | 1.63% | No |
-| SMCI | $26.455 | $25.92 | 2.02% | No |
-
-**SOXL breached the 4.5% `max_trailing_drawdown_percentage` stop** and was
-flagged for emergency liquidation to 0%, overriding its 15% target weight.
-Judgment call: the `sell_price_diff_limit` "routine drift-selling" exemption
-(Step 4) was **not** applied to this liquidation — that exemption's text is
-scoped to routine drift-selling to avoid panic-selling a temporary dip,
-whereas the Drawdown Audit Phase is an explicit hard stop-loss described as
-"overriding target weights"; suppressing the stop-loss on the exact day it's
-designed to fire (a crashing stock) would defeat its purpose. SOXL's -19.4%
-intraday move was therefore not treated as a reason to skip the liquidation.
-(Sanity check: intraday historicals show today's SOXL true high was even
-higher, $171.88, and MSTR's true intraday high was $103.56 vs. its recorded
-peak of $101.97 — both understating true drawdown. Per CLAUDE.md's explicit
-instruction to read peak state only from `peak/prices.json`, the recorded
-(stale) peaks were used as-is, consistent with the accepted limitation noted
-in the 01:44 PM entry; this did not change SOXL's outcome, but means MSTR's
-true drawdown was likely already ≈5.6%, just past threshold, and undetected
-this cycle by design.)
-
-## Drift Audit (excluding SOXL, now overridden by the stop-loss)
-All other 8 assets were within the 1.5% `drift_tolerance_percentage` (largest:
-MU at 1.27%). No ordinary drift trades were needed.
-
-## Alpha Leader & Re-investment Multiplier (7-day gain, 2026-06-30 close → now)
-| Symbol | 7-day change |
-|---|---|
-| **PLTR** | **+16.54%** (Alpha Leader, 2nd consecutive cycle) |
-| MSTR | +12.44% |
-| COIN | +12.18% |
-| SMCI | -11.63% |
-| TQQQ | -11.77% |
-| IONQ | -14.91% |
-| ARM | -16.61% |
-| MU | -21.05% |
-| INTC | -22.24% |
-| SOXL | -41.19% |
-
-PLTR is already overweight vs. its static 12.5% target (18.17% current, 5.67%
-drift) from the prior cycle's multiplier top-up. Per Step 2, the Alpha
-Leader's effective ceiling for this mechanism is the 35% concentration cap,
-not its static target — consistent with the prior cycle's treatment — so no
-offsetting trim was applied; PLTR received only the multiplier injection.
-* `base_deployable_cash` = max(0, $6,102.40 − $250.00) = $5,852.40
-* Desired multiplier injection = $5,852.40 × 1.25 = $7,315.50
-* Room to 35% cap ($3,500.00 − $1,816.82 current) = $1,683.18 — **binding
-  constraint**, well below both the desired injection and the remaining
-  headroom under the $10,000 total cap. Actual buy sized to this cap.
-
-## Orders placed (regular market hours, Market Orders per Order Type rule)
-Both orders filled immediately at submission.
-
-| # | Side | Symbol | Notional | Qty filled | Avg fill price | Reason |
-|---|---|---|---|---|---|---|
-| 1 | SELL | SOXL | $1,406.80 | 8.918453 (100%, full liquidation) | $157.7431 | Trailing-stop breach: -6.66% from recorded peak $168.065, exceeds 4.5% `max_trailing_drawdown_percentage` |
-| 2 | BUY | PLTR | $1,689.20 | 12.464562 | $135.5202 | Alpha Leader multiplier top-up, capped at 35% single-asset concentration ($3,500.00) |
-
-Gross nominal value sold: $1,406.80 — well under the $5,000
-`seek_approval_value` threshold, so no halt for approval was required.
-PLTR's daily move (+2.59% vs. prior close) cleared the 12%
-`buy_price_diff_limit` pump filter.
-
-## Post-trade state
-* Bot-managed equity: ≈$9,976.38 (TQQQ $1,948.47, INTC $490.72, PLTR
-  $3,500.00, MU $1,122.97, SOXL $0.00, MSTR $960.49, COIN $492.05, ARM
-  $485.12, SMCI $489.98, IONQ $486.58) — under the $10,000 cap.
-* Cash: $5,819.99 — well above `min_cash_target` ($500) and
-  `min_cash_absolute` ($250). The 35% single-asset cap on the Alpha Leader
-  (not a lack of underweight targets — every other asset was within
-  tolerance) was the binding constraint preventing further deployment this
-  cycle, so the lean cash-target instruction is necessarily subordinate here.
-* `peak/prices.json` updated: SOXL `liquidatedPrice` = 157.7431,
-  `liquidatedDate` = 2026-07-07. All peaks unchanged (no symbol closed above
-  its recorded peak this cycle). `cool_down_period_after_lquidation` (3 days)
-  now governs SOXL re-entry: eligible once (a) ≥3 days have passed since
-  2026-07-07 AND (b) SOXL's price has recovered by more than 4.5% above its
-  $157.7431 liquidation price.
-
-## Notes / carried-forward items
-* MSTR's recorded peak ($101.97) understates its true intraday high today
-  ($103.56, reached ~12:50 PM ET, before the prior cycle's 1:44 PM peak
-  snapshot). Using the true peak, MSTR's drawdown today was ≈5.6% — past the
-  4.5% threshold — but per CLAUDE.md's peak-tracking design (state persisted
-  only in `peak/prices.json`, no retroactive intraday reconstruction), this
-  was correctly not actioned this cycle. Flagging for awareness only: this is
-  the same accepted "seed the peak from the tracking-start cycle, not
-  before" limitation noted in the 01:44 PM entry, now visibly costing a
-  missed stop-loss trigger. If tighter intraday peak fidelity is wanted, this
-  would need a documented change to how/when `peak/prices.json` is refreshed
-  (e.g., every cycle taking `max(recorded peak, today's intraday high via
-  historicals)` rather than only updating on a new all-time snapshot).
