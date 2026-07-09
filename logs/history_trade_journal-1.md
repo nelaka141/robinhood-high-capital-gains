@@ -1,3 +1,188 @@
+# 2026-07-09 08:12 AM EDT — Re-Triggered Rebalance Check (Post-Config-Update: Tighter Tolerance + New Re-Entry Rules) — SKIPPED/PENDING (Extended-Hours Fractional-Routing Restriction)
+
+**Status:** Trade matrix computed but **NOT executed** — deferred to the next
+regular-hours check. `CLAUDE.md` re-read fresh (unchanged text version 2.2,
+but with two new parameters and a Step 1 re-entry bullet, plus a new Step 6
+journal-rotation requirement) and `portfolio_targets.json` (now v2.4.0, dated
+2026-07-09) and `peak/prices.json` re-read fresh from `main` (commit
+`61f187cb`). Session is in the 7:00–9:30 AM ET **pre-market extended-hours**
+window (last regular print 3:59:59 PM ET 2026-07-08; current quotes are
+`last_non_reg_trade_price`, ~8:06 AM ET 2026-07-09).
+
+**Correction to the request:** the user's message said stocks were added,
+but `portfolio_targets.json`'s `targets` block is byte-for-byte unchanged
+from the prior cycle — same 17 symbols, same weights. Only
+`drift_tolerance_percentage` changed, plus two new metadata parameters. No
+new symbols exist to act on this cycle; flagging this back to the user
+rather than fabricating targets that aren't in the file.
+
+## What changed in the config
+* `drift_tolerance_percentage`: 4.0% → **2.0%** (tightened back down).
+* New `sold_stock_repurchase_days` (5) / `sold_stock_price_change_percentage`
+  (5.0%): mirrors the liquidation re-entry rule but for **profit-sold**
+  stocks — a stock sold for profit only comes back into play once its price
+  has *dropped* ≥5% from the `profitSellPrice` **and** ≥5 days have passed
+  since `profitSellDate`. Both conditions required, same AND-gate pattern as
+  `min_recovery_price_percentage`/`cool_down_period_after_lquidation`.
+* New Step 6 requirement: **journal rotation**. `logs/trade_journal.md` now
+  keeps only the last 5 entries; older entries move to
+  `logs/history_trade_journal-<seq_no>.md` (10 entries per file, new file
+  when a history file fills). Implemented this cycle: the 4 oldest entries
+  (01:44 PM, 11:13 AM, 11:03 AM, 08:48 AM on 2026-07-07) moved to the new
+  `logs/history_trade_journal-1.md`.
+* `max_trailing_drawdown_percentage` (15%), `cap_on_total_balance_to_use`
+  ($25,000), `min_recovery_price_percentage` (7%),
+  `cool_down_period_after_lquidation` (10 days), and all targets: unchanged.
+
+## Drawdown Audit Phase (15% threshold; peak source: `peak/prices.json`)
+No breaches. Eight symbols set **new peaks** this cycle (all updated in
+`peak/prices.json`, dated 2026-07-09): TQQQ $74.53, INTC $115.4606, MU
+$998.99, SOXL $194.50, ARM $312.37, SMCI $28.8652, NVDA $205.6015, ORCL
+$141.70. Remaining symbols stayed below their recorded peak, largest
+drawdown MSTR at 7.46% — well under 15%.
+
+**SOXL** (liquidated 2026-07-07 at $157.7431): current price $194.50 is
+**+23.30%** off the liquidation price — comfortably past the 7%
+`min_recovery_price_percentage` — but only **2 of the required 10**
+`cool_down_period_after_lquidation` days have elapsed (liquidated
+2026-07-07, today 2026-07-09). Both conditions are required, so SOXL
+**remains excluded** from drift calculations this cycle despite the strong
+price recovery. Re-entry becomes possible starting 2026-07-17, contingent on
+price still being ≥$168.78 at that point.
+
+## Drift Audit ($25,000 fixed-cap denominator; SOXL excluded)
+| Symbol | Target % | Current % | Drift | Exceeds 2.0%? |
+|---|---|---|---|---|
+| TSLA | 8.7 | 4.881 | 3.819 | **YES** |
+| MSFT | 8.7 | 4.889 | 3.811 | **YES** |
+| AMZN | 8.7 | 4.946 | 3.754 | **YES** |
+| GOOG | 8.7 | 4.961 | 3.739 | **YES** |
+| ORCL | 8.7 | 4.979 | 3.721 | **YES** |
+| NVDA | 8.7 | 5.209 | 3.491 | **YES** |
+| SPCX | 6.8 | 4.539 | 2.261 | **YES** |
+| PLTR | 12.0 | 13.339 | 1.339 | No |
+| TQQQ | 7.0 | 8.128 | 1.128 | No |
+| INTC | 3.0 | 2.087 | 0.913 | No |
+| SMCI | 2.0 | 2.183 | 0.183 | No |
+| MSTR | 4.0 | 3.709 | 0.291 | No |
+| COIN | 2.0 | 1.903 | 0.097 | No |
+| IONQ | 2.0 | 1.979 | 0.021 | No |
+| MU | 5.0 | 4.925 | 0.075 | No |
+| ARM | 2.0 | 2.050 | 0.050 | No |
+
+All 7 newly-onboarded megacap targets breach the new, tighter 2.0% tolerance
+— they're all sitting at roughly half their target weight (added at their
+pre-existing account weight against a $25k model, same situation as the
+2026-07-08 cycle, but now the tighter tolerance actually flags it). TQQQ,
+PLTR, ARM, SMCI are nominally Overweight but within tolerance.
+
+## Alpha Leader (7-day gain, 2026-07-02 close → now)
+| Symbol | 7-day change |
+|---|---|
+| **SMCI** | **+6.04%** (new Alpha Leader — displaces PLTR, which is actually down -0.14% over 7 days this cycle) |
+| NVDA | +5.53% |
+| MU | +2.40% |
+| TQQQ | +1.61% |
+| ORCL | +1.02% |
+| TSLA | +0.52% |
+| GOOG | -0.35% |
+| PLTR | -0.14% |
+| AMZN | -0.78% |
+| ARM | -0.92% |
+| MSFT | -3.51% |
+| INTC | -4.06% |
+| COIN | -4.19% |
+| IONQ | -6.17% |
+| MSTR | -6.36% |
+| SPCX | -7.16% |
+
+SMCI is also nominally Overweight (2.183% vs. 2.0% target) — per the
+Alpha-Leader precedent carried since 2026-07-07, it is **exempted** from the
+Overweight-trim pool and would instead receive multiplier top-up capital
+(see below).
+
+## Step 3 — High-Beta Gains Calculation (new this cycle)
+Overweight-within-tolerance candidates (excluding SMCI, the Alpha Leader):
+TQQQ, PLTR, ARM. 30-day daily-return beta computed vs. `SPY`
+(`beta_calculation_lookback_days`=30, 21 trading-day return series,
+2026-06-05 → 2026-07-08):
+
+| Symbol | Beta (vs SPY) | Raw_Gain_% (vs. avg cost) | High_Beta_Gain_Score | Rank |
+|---|---|---|---|---|
+| ARM | 4.4873 | +2.507% (cost $304.73 → $312.37) | **11.25** | 1st |
+| TQQQ | 5.3174 | +1.595% (cost $73.36 → $74.53) | **8.48** | 2nd |
+| PLTR | 1.1167 | **-4.006%** (cost $134.51 → $129.12) | -4.47 | last resort |
+
+PLTR is currently underwater vs. its blended cost basis (the prior cycles'
+Alpha-Leader top-up raised its average cost above today's price) — trimming
+it would realize a loss, contrary to "lock in high-beta gains." It ranks
+last and is excluded from the funding plan below.
+
+## Proposed Trade Matrix — **SKIPPED/PENDING**
+
+**Blocking reason:** `CLAUDE.md` Step 5: *"Only route orders during
+extended hours if all targeted assets qualify for fractional share routing
+during those time windows."* `get_equity_tradability` shows
+`extended_hours_fractional_tradability` is **false** for ARM, SPCX, AMZN,
+ORCL, GOOG, and MSFT (true only for TQQQ, TSLA, NVDA) — 6 of the 9 assets
+this cycle's plan touches don't qualify. Since not *all* targeted assets
+qualify, no order in the batch was routed this cycle; the plan below is
+deferred as a cohesive unit to the next check during regular market hours
+(≥9:30 AM ET) rather than partially executed.
+
+Funding logic: cash deployable to the lean `min_cash_target` ($5,819.99 −
+$500 = $5,319.99) plus harvested trims (ARM full profit-take + partial TQQQ
+trim, in High-Beta-Score order) to close all 7 megacap targets to exactly
+100% of target weight. No capital remains for the SMCI Alpha-Leader
+multiplier this cycle — Underweight-drift correction took full priority
+over the multiplier engine.
+
+| # | Side | Symbol | Approx. $ | Basis |
+|---|---|---|---|---|
+| 1 | SELL | ARM | ~$512.54 (100%, profit-take, not a stop-loss) | Top-ranked trim (score 11.25); funds buys below |
+| 2 | SELL | TQQQ | ~$316 (partial) | 2nd-ranked trim (score 8.48); remaining funding gap after ARM + cash |
+| 3 | BUY | SPCX | ~$565 | Close to 6.8% target |
+| 4 | BUY | AMZN | ~$939 | Close to 8.7% target |
+| 5 | BUY | TSLA | ~$955 | Close to 8.7% target |
+| 6 | BUY | NVDA | ~$873 | Close to 8.7% target |
+| 7 | BUY | ORCL | ~$930 | Close to 8.7% target |
+| 8 | BUY | GOOG | ~$935 | Close to 8.7% target |
+| 9 | BUY | MSFT | ~$953 | Close to 8.7% target |
+| — | — | SMCI (Alpha Leader) | $0 | No deployable capital left this cycle |
+
+All dollar amounts are **estimates** as of ~8:06 AM ET pre-market quotes;
+actual sizing will be recalculated against live prices when this executes.
+Gross nominal value of the ARM+TQQQ sells (~$829) is well under the $5,000
+`seek_approval_value` — no user-approval halt anticipated when this
+executes. All 7 buy targets' daily moves are well inside the 12%
+`buy_price_diff_limit` (largest: SPCX +1.42%); ARM (+4.04%) and TQQQ
+(+2.49%) are both up today, so the `sell_price_diff_limit` crash-exemption
+is not a factor for either sell.
+
+## Current state (informational, unchanged — no trades)
+* Bot-managed equity (16 active symbols, SOXL excluded): ≈$18,676.75, under
+  the $25,000 cap.
+* Cash: $5,819.99 (unchanged).
+* `peak/prices.json`: 8 peaks updated to today's highs (listed above); SOXL's
+  `liquidatedPrice`/`liquidatedDate` unchanged; no `profitSellPrice`/`Date`
+  set yet (no profit-sell has executed).
+
+## Notes / carried-forward items
+* This cycle is a genuine capital-availability crunch, not an ambiguity: the
+  megacap targets need ≈$6,149 to close to target, but only ≈$5,320 of lean
+  deployable cash plus ≈$829 of reasonably-harvestable trim capital
+  (stopping at ARM's full value + a modest TQQQ trim, without pushing TQQQ
+  materially below its own target or touching loss-making PLTR) is
+  available — funding still (barely) covers the full gap, so no proportional
+  shortfall this cycle, but there is nothing left over for the Alpha Leader
+  multiplier engine.
+* Once regular hours open, all 9 planned orders should be re-priced fresh
+  (not executed off these pre-market estimates) and re-run through the full
+  Step 1–5 sequence, since 90+ minutes of pre-market/opening volatility could
+  change drift, peaks, and the Alpha Leader pick before 9:30 AM ET.
+
+---
+
 # 2026-07-08 09:46 AM EDT — Scheduled Rebalance Check — NO TRADES (Within Tolerance)
 
 **Status:** COMPLETED, 0 orders placed. Fresh, stateless run for the 9:45 AM ET
