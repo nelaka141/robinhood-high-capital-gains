@@ -1,3 +1,114 @@
+# 2026-07-08 09:46 AM EDT — Scheduled Rebalance Check — NO TRADES (Within Tolerance)
+
+**Status:** COMPLETED, 0 orders placed. Fresh, stateless run for the 9:45 AM ET
+scheduled check. `CLAUDE.md` re-read fresh from `main` (commit `ac145d00`,
+still v2.2 text, unchanged from the prior cycle) alongside `portfolio_targets.json`
+(v2.3.0, unchanged since 2026-07-08) and `peak/prices.json`. Session is in
+**regular market hours** (quotes at 09:46:0x AM ET, `last_trade_price` fresh
+seconds old) — Market Orders would have applied per the Order Type rule had
+any trade been required.
+
+## Pre-check state
+* Account `795732718` ("Agentic"), the only `agentic_allowed=true` account —
+  confirmed via `get_accounts`.
+* Cash: $5,819.99. Bot-managed equity (16 active symbols, SOXL excluded):
+  ≈$18,496.31 — under the $25,000 `cap_on_total_balance_to_use` (≈74% deployed).
+* Total account value: $24,313.62 (includes $8,000 pending deposit, unsettled,
+  not counted as spendable cash).
+
+## Drawdown Audit Phase (15% threshold; peak source: `peak/prices.json`)
+| Symbol | Peak | Current | Drawdown | Breach (≥15%)? |
+|---|---|---|---|---|
+| MSTR | $101.97 | $92.86 | 8.93% | No |
+| PLTR | $138.54 | $128.71 | 7.10% | No |
+| COIN | $166.71 | $160.67 | 3.62% | No |
+| INTC | $110.96 | $108.48 | 2.24% | No |
+| TQQQ | $73.395 | $72.125 | 1.73% | No |
+| IONQ | $46.52 | $45.97 | 1.18% | No |
+| MU | $938.15 | **$949.61** | **new peak** | No |
+| ARM | $304.71 | **$309.39** | **new peak** | No |
+| SMCI | $26.455 | **$27.20** | **new peak** | No |
+| SPCX | $150.55 | **$151.27** | **new peak** | No |
+| AMZN | $242.44 | **$243.89** | **new peak** | No |
+| TSLA | $397.90 | **$398.66** | **new peak** | No |
+| NVDA | $194.4012 | **$199.27** | **new peak** | No |
+| ORCL | $139.04 | **$140.87** | **new peak** | No |
+| GOOG | $359.6612 | **$362.27** | **new peak** | No |
+| MSFT | $383.80 | **$384.09** | **new peak** | No |
+
+No breaches — largest is MSTR at 8.93%, well under the 15% threshold. 10
+symbols (MU, ARM, SMCI, SPCX, AMZN, TSLA, NVDA, ORCL, GOOG, MSFT) closed at
+new all-time-tracked highs this cycle; `peak/prices.json` updated accordingly
+(peakPrice = today's live price, peakDate = 2026-07-08). All other entries
+unchanged.
+
+**SOXL** (liquidated 2026-07-07 at $157.7431): current price $172.80 is
++9.55% above the liquidation price — **above** the 7%
+`min_recovery_price_percentage` threshold — but only 1 of the required 10
+`cool_down_period_after_lquidation` days has elapsed (liquidated 2026-07-07,
+today 2026-07-08). Both conditions are required; cooldown is not met, so
+SOXL remains **excluded from drift calculations entirely** this cycle.
+Earliest possible re-entry: 2026-07-17 (10-day cooldown), contingent on price
+still being ≥7% above $157.7431 at that time.
+
+## Drift Audit (SOXL excluded; $25,000 fixed-cap denominator convention, consistent with precedent)
+| Symbol | Target % | Current % | Drift |
+|---|---|---|---|
+| TQQQ | 7.0 | 7.87 | 0.87 |
+| INTC | 3.0 | 1.96 | 1.04 |
+| PLTR | 12.0 | 13.30 | 1.30 |
+| MU | 5.0 | 4.68 | 0.32 |
+| MSTR | 4.0 | 3.65 | 0.35 |
+| COIN | 2.0 | 1.93 | 0.07 |
+| ARM | 2.0 | 2.03 | 0.03 |
+| SMCI | 2.0 | 2.06 | 0.06 |
+| IONQ | 2.0 | 1.97 | 0.03 |
+| SPCX | 6.8 | 4.57 | 2.23 |
+| AMZN | 8.7 | 5.01 | 3.69 |
+| TSLA | 8.7 | 4.92 | 3.78 |
+| NVDA | 8.7 | 5.05 | 3.65 |
+| ORCL | 8.7 | 4.95 | 3.75 |
+| GOOG | 8.7 | 5.06 | 3.64 |
+| MSFT | 8.7 | 4.98 | 3.72 |
+
+**Every asset is within the 4.0% `drift_tolerance_percentage`** — the largest
+drift is TSLA at 3.78%, still inside tolerance. The 7 megacap targets remain
+at roughly half their static 8.7% weight (a known, carried-forward artifact
+of how they were folded into the model at their pre-existing account
+allocation while the model total grew to $25,000), but none breaches the
+wider tolerance band this cycle.
+
+## Step 1 early-exit
+Per Step 1: no asset exceeds `drift_tolerance_percentage` and no drawdown
+breaches `max_trailing_drawdown_percentage` → **early-exit condition met**.
+Steps 2–5 (Alpha Leader multiplier, profit-taking trims, price-limit halts,
+trade execution) were **not evaluated** this cycle, consistent with the
+literal early-exit instruction and the precedent set by the 07:54 AM cycle
+today. No Alpha Leader was selected/logged (that calculation is scoped to
+Step 2).
+
+## Orders placed
+**None.**
+
+## Current state (informational)
+* Bot-managed equity (16 active symbols, SOXL excluded): ≈$18,496.31 — under
+  the $25,000 cap (≈74% deployed).
+* Cash: $5,819.99 (unchanged — no trades this cycle).
+* `peak/prices.json`: 10 entries updated to new highs (MU $949.61, ARM
+  $309.39, SMCI $27.20, SPCX $151.27, AMZN $243.89, TSLA $398.66, NVDA
+  $199.27, ORCL $140.87, GOOG $362.27, MSFT $384.09, all dated 2026-07-08).
+  All other entries unchanged.
+
+## Notes / carried-forward items
+* SOXL's recovery price condition (+9.55%) is already satisfied; only the
+  10-day cooldown remains outstanding (9 days left, clears 2026-07-17). Worth
+  a routine check on/after that date since price staying above the recovery
+  threshold isn't guaranteed.
+* This was an unattended scheduled run; no trades were needed so no approval
+  threshold (`seek_approval_value`) was ever in play.
+
+---
+
 # 2026-07-08 07:54 AM EDT — Re-Triggered Rebalance Check (Post-Config-Update: New Universe + New Cap) — NO TRADES (Within Tolerance)
 
 **Status:** COMPLETED, 0 orders placed. User updated `portfolio_targets.json`
