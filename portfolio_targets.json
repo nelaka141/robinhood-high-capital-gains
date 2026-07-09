@@ -29,12 +29,12 @@
     "ARM": 2.0,
     "SMCI": 2.0,
     "IONQ": 2.0,
-    "SPCX": 6.8,
-    "AMZN": 8.7,
-    "TSLA": 8.7,
-    "NVDA": 8.7,
-    "ORCL": 8.7,
-    "GOOG": 8.7,
-    "MSFT": 8.7
+    "SPCX": 6.0,
+    "AMZN": 8.0,
+    "TSLA": 8.0,
+    "NVDA": 8.0,
+    "ORCL": 8.0,
+    "GOOG": 8.0,
+    "MSFT": 8.0
   }
 }
