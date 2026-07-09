@@ -1,3 +1,188 @@
+# 2026-07-09 08:12 AM EDT — Re-Triggered Rebalance Check (Post-Config-Update: Tighter Tolerance + New Re-Entry Rules) — SKIPPED/PENDING (Extended-Hours Fractional-Routing Restriction)
+
+**Status:** Trade matrix computed but **NOT executed** — deferred to the next
+regular-hours check. `CLAUDE.md` re-read fresh (unchanged text version 2.2,
+but with two new parameters and a Step 1 re-entry bullet, plus a new Step 6
+journal-rotation requirement) and `portfolio_targets.json` (now v2.4.0, dated
+2026-07-09) and `peak/prices.json` re-read fresh from `main` (commit
+`61f187cb`). Session is in the 7:00–9:30 AM ET **pre-market extended-hours**
+window (last regular print 3:59:59 PM ET 2026-07-08; current quotes are
+`last_non_reg_trade_price`, ~8:06 AM ET 2026-07-09).
+
+**Correction to the request:** the user's message said stocks were added,
+but `portfolio_targets.json`'s `targets` block is byte-for-byte unchanged
+from the prior cycle — same 17 symbols, same weights. Only
+`drift_tolerance_percentage` changed, plus two new metadata parameters. No
+new symbols exist to act on this cycle; flagging this back to the user
+rather than fabricating targets that aren't in the file.
+
+## What changed in the config
+* `drift_tolerance_percentage`: 4.0% → **2.0%** (tightened back down).
+* New `sold_stock_repurchase_days` (5) / `sold_stock_price_change_percentage`
+  (5.0%): mirrors the liquidation re-entry rule but for **profit-sold**
+  stocks — a stock sold for profit only comes back into play once its price
+  has *dropped* ≥5% from the `profitSellPrice` **and** ≥5 days have passed
+  since `profitSellDate`. Both conditions required, same AND-gate pattern as
+  `min_recovery_price_percentage`/`cool_down_period_after_lquidation`.
+* New Step 6 requirement: **journal rotation**. `logs/trade_journal.md` now
+  keeps only the last 5 entries; older entries move to
+  `logs/history_trade_journal-<seq_no>.md` (10 entries per file, new file
+  when a history file fills). Implemented this cycle: the 4 oldest entries
+  (01:44 PM, 11:13 AM, 11:03 AM, 08:48 AM on 2026-07-07) moved to the new
+  `logs/history_trade_journal-1.md`.
+* `max_trailing_drawdown_percentage` (15%), `cap_on_total_balance_to_use`
+  ($25,000), `min_recovery_price_percentage` (7%),
+  `cool_down_period_after_lquidation` (10 days), and all targets: unchanged.
+
+## Drawdown Audit Phase (15% threshold; peak source: `peak/prices.json`)
+No breaches. Eight symbols set **new peaks** this cycle (all updated in
+`peak/prices.json`, dated 2026-07-09): TQQQ $74.53, INTC $115.4606, MU
+$998.99, SOXL $194.50, ARM $312.37, SMCI $28.8652, NVDA $205.6015, ORCL
+$141.70. Remaining symbols stayed below their recorded peak, largest
+drawdown MSTR at 7.46% — well under 15%.
+
+**SOXL** (liquidated 2026-07-07 at $157.7431): current price $194.50 is
+**+23.30%** off the liquidation price — comfortably past the 7%
+`min_recovery_price_percentage` — but only **2 of the required 10**
+`cool_down_period_after_lquidation` days have elapsed (liquidated
+2026-07-07, today 2026-07-09). Both conditions are required, so SOXL
+**remains excluded** from drift calculations this cycle despite the strong
+price recovery. Re-entry becomes possible starting 2026-07-17, contingent on
+price still being ≥$168.78 at that point.
+
+## Drift Audit ($25,000 fixed-cap denominator; SOXL excluded)
+| Symbol | Target % | Current % | Drift | Exceeds 2.0%? |
+|---|---|---|---|---|
+| TSLA | 8.7 | 4.881 | 3.819 | **YES** |
+| MSFT | 8.7 | 4.889 | 3.811 | **YES** |
+| AMZN | 8.7 | 4.946 | 3.754 | **YES** |
+| GOOG | 8.7 | 4.961 | 3.739 | **YES** |
+| ORCL | 8.7 | 4.979 | 3.721 | **YES** |
+| NVDA | 8.7 | 5.209 | 3.491 | **YES** |
+| SPCX | 6.8 | 4.539 | 2.261 | **YES** |
+| PLTR | 12.0 | 13.339 | 1.339 | No |
+| TQQQ | 7.0 | 8.128 | 1.128 | No |
+| INTC | 3.0 | 2.087 | 0.913 | No |
+| SMCI | 2.0 | 2.183 | 0.183 | No |
+| MSTR | 4.0 | 3.709 | 0.291 | No |
+| COIN | 2.0 | 1.903 | 0.097 | No |
+| IONQ | 2.0 | 1.979 | 0.021 | No |
+| MU | 5.0 | 4.925 | 0.075 | No |
+| ARM | 2.0 | 2.050 | 0.050 | No |
+
+All 7 newly-onboarded megacap targets breach the new, tighter 2.0% tolerance
+— they're all sitting at roughly half their target weight (added at their
+pre-existing account weight against a $25k model, same situation as the
+2026-07-08 cycle, but now the tighter tolerance actually flags it). TQQQ,
+PLTR, ARM, SMCI are nominally Overweight but within tolerance.
+
+## Alpha Leader (7-day gain, 2026-07-02 close → now)
+| Symbol | 7-day change |
+|---|---|
+| **SMCI** | **+6.04%** (new Alpha Leader — displaces PLTR, which is actually down -0.14% over 7 days this cycle) |
+| NVDA | +5.53% |
+| MU | +2.40% |
+| TQQQ | +1.61% |
+| ORCL | +1.02% |
+| TSLA | +0.52% |
+| GOOG | -0.35% |
+| PLTR | -0.14% |
+| AMZN | -0.78% |
+| ARM | -0.92% |
+| MSFT | -3.51% |
+| INTC | -4.06% |
+| COIN | -4.19% |
+| IONQ | -6.17% |
+| MSTR | -6.36% |
+| SPCX | -7.16% |
+
+SMCI is also nominally Overweight (2.183% vs. 2.0% target) — per the
+Alpha-Leader precedent carried since 2026-07-07, it is **exempted** from the
+Overweight-trim pool and would instead receive multiplier top-up capital
+(see below).
+
+## Step 3 — High-Beta Gains Calculation (new this cycle)
+Overweight-within-tolerance candidates (excluding SMCI, the Alpha Leader):
+TQQQ, PLTR, ARM. 30-day daily-return beta computed vs. `SPY`
+(`beta_calculation_lookback_days`=30, 21 trading-day return series,
+2026-06-05 → 2026-07-08):
+
+| Symbol | Beta (vs SPY) | Raw_Gain_% (vs. avg cost) | High_Beta_Gain_Score | Rank |
+|---|---|---|---|---|
+| ARM | 4.4873 | +2.507% (cost $304.73 → $312.37) | **11.25** | 1st |
+| TQQQ | 5.3174 | +1.595% (cost $73.36 → $74.53) | **8.48** | 2nd |
+| PLTR | 1.1167 | **-4.006%** (cost $134.51 → $129.12) | -4.47 | last resort |
+
+PLTR is currently underwater vs. its blended cost basis (the prior cycles'
+Alpha-Leader top-up raised its average cost above today's price) — trimming
+it would realize a loss, contrary to "lock in high-beta gains." It ranks
+last and is excluded from the funding plan below.
+
+## Proposed Trade Matrix — **SKIPPED/PENDING**
+
+**Blocking reason:** `CLAUDE.md` Step 5: *"Only route orders during
+extended hours if all targeted assets qualify for fractional share routing
+during those time windows."* `get_equity_tradability` shows
+`extended_hours_fractional_tradability` is **false** for ARM, SPCX, AMZN,
+ORCL, GOOG, and MSFT (true only for TQQQ, TSLA, NVDA) — 6 of the 9 assets
+this cycle's plan touches don't qualify. Since not *all* targeted assets
+qualify, no order in the batch was routed this cycle; the plan below is
+deferred as a cohesive unit to the next check during regular market hours
+(≥9:30 AM ET) rather than partially executed.
+
+Funding logic: cash deployable to the lean `min_cash_target` ($5,819.99 −
+$500 = $5,319.99) plus harvested trims (ARM full profit-take + partial TQQQ
+trim, in High-Beta-Score order) to close all 7 megacap targets to exactly
+100% of target weight. No capital remains for the SMCI Alpha-Leader
+multiplier this cycle — Underweight-drift correction took full priority
+over the multiplier engine.
+
+| # | Side | Symbol | Approx. $ | Basis |
+|---|---|---|---|---|
+| 1 | SELL | ARM | ~$512.54 (100%, profit-take, not a stop-loss) | Top-ranked trim (score 11.25); funds buys below |
+| 2 | SELL | TQQQ | ~$316 (partial) | 2nd-ranked trim (score 8.48); remaining funding gap after ARM + cash |
+| 3 | BUY | SPCX | ~$565 | Close to 6.8% target |
+| 4 | BUY | AMZN | ~$939 | Close to 8.7% target |
+| 5 | BUY | TSLA | ~$955 | Close to 8.7% target |
+| 6 | BUY | NVDA | ~$873 | Close to 8.7% target |
+| 7 | BUY | ORCL | ~$930 | Close to 8.7% target |
+| 8 | BUY | GOOG | ~$935 | Close to 8.7% target |
+| 9 | BUY | MSFT | ~$953 | Close to 8.7% target |
+| — | — | SMCI (Alpha Leader) | $0 | No deployable capital left this cycle |
+
+All dollar amounts are **estimates** as of ~8:06 AM ET pre-market quotes;
+actual sizing will be recalculated against live prices when this executes.
+Gross nominal value of the ARM+TQQQ sells (~$829) is well under the $5,000
+`seek_approval_value` — no user-approval halt anticipated when this
+executes. All 7 buy targets' daily moves are well inside the 12%
+`buy_price_diff_limit` (largest: SPCX +1.42%); ARM (+4.04%) and TQQQ
+(+2.49%) are both up today, so the `sell_price_diff_limit` crash-exemption
+is not a factor for either sell.
+
+## Current state (informational, unchanged — no trades)
+* Bot-managed equity (16 active symbols, SOXL excluded): ≈$18,676.75, under
+  the $25,000 cap.
+* Cash: $5,819.99 (unchanged).
+* `peak/prices.json`: 8 peaks updated to today's highs (listed above); SOXL's
+  `liquidatedPrice`/`liquidatedDate` unchanged; no `profitSellPrice`/`Date`
+  set yet (no profit-sell has executed).
+
+## Notes / carried-forward items
+* This cycle is a genuine capital-availability crunch, not an ambiguity: the
+  megacap targets need ≈$6,149 to close to target, but only ≈$5,320 of lean
+  deployable cash plus ≈$829 of reasonably-harvestable trim capital
+  (stopping at ARM's full value + a modest TQQQ trim, without pushing TQQQ
+  materially below its own target or touching loss-making PLTR) is
+  available — funding still (barely) covers the full gap, so no proportional
+  shortfall this cycle, but there is nothing left over for the Alpha Leader
+  multiplier engine.
+* Once regular hours open, all 9 planned orders should be re-priced fresh
+  (not executed off these pre-market estimates) and re-run through the full
+  Step 1–5 sequence, since 90+ minutes of pre-market/opening volatility could
+  change drift, peaks, and the Alpha Leader pick before 9:30 AM ET.
+
+---
+
 # 2026-07-08 09:46 AM EDT — Scheduled Rebalance Check — NO TRADES (Within Tolerance)
 
 **Status:** COMPLETED, 0 orders placed. Fresh, stateless run for the 9:45 AM ET
@@ -468,300 +653,3 @@ PLTR's daily move (+2.59% vs. prior close) cleared the 12%
   would need a documented change to how/when `peak/prices.json` is refreshed
   (e.g., every cycle taking `max(recorded peak, today's intraday high via
   historicals)` rather than only updating on a new all-time snapshot).
-
----
-
-# 2026-07-07 01:44 PM EDT — Rebalance Check — EXECUTED (First Live Run, User-Confirmed)
-
-**Status:** COMPLETED. 9 orders placed, all filled. First live execution after all four
-previously-flagged blockers were resolved by updates to `CLAUDE.md`,
-`portfolio_targets.json`, and the new `peak/prices.json` state file.
-
-## Pre-trade state (CLAUDE.md re-read fresh from `main`, commit `b1b0207`)
-* Account `795732718` ("Agentic"). Out-of-scope holdings (SPCX, AMZN, TSLA,
-  NVDA, ORCL, GOOG, MSFT) correctly ignored per the now-explicit scope rule.
-* Bot-managed equity pre-trade: PLTR $1,306.87 (13.07% of the $10k model),
-  INTC $1,092.34 (10.92%), MU $1,153.37 (11.53%); 7 targets unfunded.
-* `peak/prices.json`: all entries `null` → seeded at current price this cycle
-  per the new rule ("if entry is null ... assume current price is the peak").
-  Drawdown Audit Phase: 0% drawdown for all symbols, no stop-loss triggers —
-  this is the tracking-start cycle and does not retroactively catch the
-  drawdown that occurred earlier today, before tracking began.
-* Alpha Leader (7-day gain, 6/29 close → now): **PLTR at +19.3%** (next
-  closest: COIN +9.8%, MSTR +9.6%).
-* Denominator convention used for target/current %: the fixed $10,000
-  `cap_on_total_balance_to_use` model (bot-managed exposure only). This was
-  presented to the user explicitly before execution and confirmed.
-
-## Orders placed (regular market hours, Market Orders per Order Type rule)
-All 9 orders filled immediately at submission.
-
-| # | Side | Symbol | Notional | Qty filled | Avg fill price | Reason |
-|---|---|---|---|---|---|---|
-| 1 | SELL | INTC | $592.34 | 5.332550 | $111.0501 | Trim overweight (10.92% vs 5% target, drift 5.9% > 1.5% tolerance) |
-| 2 | BUY | TQQQ | $2,000.00 | 27.262813 | $73.3600 | Unfunded, target 20% |
-| 3 | BUY | SOXL | $1,500.00 | 8.918453 | $168.1906 | Unfunded, target 15% |
-| 4 | BUY | MSTR | $1,000.00 | 9.827053 | $101.7599 | Unfunded, target 10% |
-| 5 | BUY | COIN | $500.00 | 3.000472 | $166.6404 | Unfunded, target 5% |
-| 6 | BUY | ARM | $500.00 | 1.640803 | $304.7287 | Unfunded, target 5% |
-| 7 | BUY | SMCI | $500.00 | 18.903591 | $26.4500 | Unfunded, target 5% |
-| 8 | BUY | IONQ | $500.00 | 10.736525 | $46.5700 | Unfunded, target 5% |
-| 9 | BUY | PLTR | $539.76 | 3.894214 | $138.6056 | Alpha Leader multiplier top-up (`base_deployable_cash` × 1.25, capped by remaining $10k headroom — well under the 35% single-asset concentration cap) |
-
-MU and PLTR's pre-existing drift (0.97% and 0.57%) were within the 1.5%
-tolerance, so neither received an ordinary drift trade — PLTR's buy above is
-solely the Alpha Leader top-up. All buys cleared the 12% `buy_price_diff_limit`
-pump filter; the INTC sell (-9.3% on the day) was under the 15%
-`sell_price_diff_limit` crash-exemption threshold, so trimming it was still
-permitted.
-
-Gross nominal value sold: $592.34 — well under the $5,000 `seek_approval_value`
-threshold. Per CLAUDE.md this would not have required a halt for approval, but
-given this was the first live run post-fix and deployed ≈$7,040 total, the
-full plan was presented to the user for confirmation before any order was
-placed; user confirmed "execute this live."
-
-## Post-trade state
-* Bot-managed equity: ≈$10,010 (essentially at the $10,000 cap; ~$10 of
-  overshoot from price movement between plan and fill, immaterial).
-* Cash: $6,102.40 (well above `min_cash_target` $500 and `min_cash_absolute`
-  $250 — the $10k cap is the binding constraint here, not cash, so the lean
-  cash-target instruction is necessarily subordinate to the hard cap once the
-  cap is reached).
-* `peak/prices.json` updated: all 10 target symbols seeded with peakPrice =
-  fill-time price, peakDate = 2026-07-07. No liquidations occurred, so
-  `liquidatedPrice`/`liquidatedDate` remain empty for all symbols.
-
-## Notes / carried-forward items
-* True intraday peaks for INTC/MU that occurred earlier today (before
-  tracking began) were not captured — trailing-stop coverage is effective
-  from this cycle forward only. This is a known, accepted limitation of the
-  "seed at current price" design in the CLAUDE.md update.
-* No liquidations this cycle, so the `cool_down_period_after_lquidation`
-  re-entry rule was not exercised.
-
----
-
-# 2026-07-07 11:13 AM EDT — Scheduled Rebalance Check — HALTED (Third Consecutive Halt, Unresolved)
-
-**Status:** ABORTED before any orders were reviewed or placed. No trades executed.
-
-## Summary
-
-Fresh, stateless run. CLAUDE.md re-read fresh from `main` (commit `fe2bbc0`)
-and `portfolio_targets.json` re-read fresh — both confirmed unchanged in
-substance from the prior halt logged 10 minutes ago at 11:03 AM EDT. This is
-the **third** consecutive halt on the same account today (08:48 AM, 11:03 AM,
-now 11:13 AM). Live state was independently re-verified via `get_accounts`,
-`get_portfolio`, `get_equity_positions`, and `get_equity_quotes` — nothing
-material has changed:
-
-1. **Scope Limit conflict persists.** Account `795732718` ("Agentic") still
-   holds 10 positions; only PLTR, INTC, MU are authorized targets. The other
-   7 (SPCX, AMZN, TSLA, NVDA, ORCL, GOOG, MSFT — ≈$8.6k, ≈71% of equity value)
-   remain outside this bot's mandate. 7 of 10 authorized targets (TQQQ, SOXL,
-   MSTR, COIN, ARM, SMCI, IONQ — 65% of target model weight) are still
-   entirely unfunded.
-2. **`cap_on_total_balance_to_use` ($10,000) denominator still undefined** —
-   full account cash ($12,550 + $8,000 pending deposit) vs. a strategy-only
-   sub-pool. Same unresolved ambiguity as both prior entries.
-3. **Drawdown continues to deepen, still with no peak-tracking mechanism.**
-   Since the 11:03 AM check, INTC and MU have kept falling intraday:
-
-   | Symbol | Prior close (7/6) | Now (11:13 AM) | Today | Held? |
-   |---|---|---|---|---|
-   | INTC | $122.20 | $110.87 | -9.3% | Yes (target 5%) |
-   | MU | $984.75 | $925.55 | -6.0% | Yes (target 12.5%) |
-   | PLTR | $132.54 | $135.18 | +2.0% | Yes (target 12.5%) |
-   | SOXL | $194.65 | $157.50 | -19.1% | No |
-   | TQQQ | $76.42 | $71.84 | -6.0% | No |
-   | ARM | $322.24 | $300.98 | -6.6% | No |
-   | IONQ | $48.87 | $45.20 | -7.5% | No |
-   | SMCI | $27.19 | $26.00 | -4.4% | No |
-   | MSTR | $100.77 | $99.35 | -1.4% | No |
-   | COIN | $168.87 | $164.64 | -2.5% | No |
-
-   SOXL's intraday move (-19.1%) exceeds `sell_price_diff_limit` (15%) but is
-   moot (not held). INTC and MU are both held and both down double digits from
-   last week's levels — very plausibly past the 4.5% `max_trailing_drawdown_percentage`
-   trigger from a recent peak, but CLAUDE.md still defines no mechanism for
-   persisting/computing a trailing peak across stateless runs, so no
-   liquidation was fabricated.
-
-## Action taken
-Read-only calls only: `get_accounts`, `get_portfolio`, `get_equity_positions`,
-`get_equity_quotes`. No orders reviewed or placed; no liquidations,
-rebalancing, or reinvestment-multiplier logic applied.
-
-## Escalation note
-This is the third identical halt in ~2.5 hours with no intervening change to
-`portfolio_targets.json` or the account. Per standing instructions, this
-routine does not improvise past an unresolved ambiguity, so it will keep
-halting on every future scheduled run until a human resolves the open
-questions below (carried over unchanged) — meanwhile INTC and MU continue to
-sit in a fast-moving drawdown with the bot unable to act on it.
-
-## Open questions for the user (carried over, still unresolved)
-1. Is `795732718` ("Agentic") the correct account for this strategy?
-2. Should `cap_on_total_balance_to_use` bound bot-managed exposure only, or
-   is it a true account-wide ceiling (already breached by unrelated holdings)?
-3. Should the 7 out-of-scope positions be left alone permanently, or should
-   `portfolio_targets.json` be corrected to match actual intent?
-4. Urgently: how should trailing-peak state be tracked across scheduled runs
-   so the 4.5% drawdown stop-loss can actually be enforced? INTC and MU are
-   both down double digits from last week and warrant a real look.
-
-No further action will be taken until this is resolved.
-
----
-
-# 2026-07-07 11:03 AM EDT — Scheduled Rebalance Check — HALTED (Same Blocking Condition, Unresolved)
-
-**Status:** ABORTED before any orders were reviewed or placed. No trades executed.
-
-## Summary
-
-This is a fresh, stateless run (9:45 AM ET scheduled check). CLAUDE.md was
-re-read fresh from `main` (commit `384828ca`) as the single source of truth.
-The account state is **unchanged in kind** from the prior halt logged at
-08:48 AM EDT today: the same scope-limit conflict and cap ambiguity are
-still present, and `portfolio_targets.json` / the account mapping have not
-been corrected. Per standing instructions, when CLAUDE.md does not clearly
-cover a situation, the routine stops and reports rather than improvising —
-so this run halted again rather than guessing at a resolution.
-
-### 1. Scope Limit conflict persists (Hard Rule)
-The only `agentic_allowed=true` account (`795732718`, "Agentic") still holds
-10 equity positions; only 3 (PLTR, INTC, MU) are on the authorized
-`portfolio_targets.json` list. 7 positions — SPCX, AMZN, TSLA, NVDA, ORCL,
-GOOG, MSFT (≈$8,643 of equity, ≈71% of the account's equity value) — are not
-in the target file at all, and this agent has no authorization to trade them.
-Meanwhile 7 of 10 authorized targets — TQQQ, SOXL, MSTR, COIN, ARM, SMCI,
-IONQ (65% of target model weight) — remain entirely unfunded ($0 held).
-
-### 2. `cap_on_total_balance_to_use` denominator still undefined
-`cap_on_total_balance_to_use` is $10,000. In-scope equity (PLTR+INTC+MU) is
-only ≈$3,480, well under cap — but CLAUDE.md never specifies whether
-`current_cash` for the Step 2 `base_deployable_cash` formula means the
-account's full cash balance ($12,550, shared with the 7 out-of-scope
-positions) or a strategy-only cash sub-pool bounded by the $10k cap. Using
-the full account cash would let the reinvestment multiplier route thousands
-of dollars belonging to unrelated holdings into the Alpha Leader — guessing
-this would risk a real, hard-to-reverse capital misallocation.
-
-### 3. NEW — Severe multi-day drawdown across the entire target universe
-Not present in the prior halt entry: every target high-beta/leveraged name
-priced this run is deep in a sustained selloff, both intraday and over the
-trailing week (2026-06-30 close → now):
-
-| Symbol | 6/30 Close | Now | Change | Today Only (7/6 close → now) |
-|---|---|---|---|---|
-| TQQQ | $81.00 | $71.44 | -11.8% | -6.5% |
-| SOXL | $266.71 | $154.94 | -41.9% | -20.4% |
-| INTC (held) | $139.63 | $109.84 | -21.3% | -10.1% |
-| MU (held) | $1,154.29 | $913.84 | -20.8% | -7.2% |
-| ARM | — | $299.56 | — | -7.0% |
-| IONQ | — | $44.95 | — | -8.0% |
-| SMCI | — | $25.76 | — | -5.3% |
-| COIN | — | $164.38 | — | -2.7% |
-| MSTR | — | $99.29 | — | -1.5% |
-| PLTR (held) | — | $134.35 | — | +1.4% |
-
-SOXL's -20.4% single-day move exceeds `sell_price_diff_limit` (15%) —
-moot since it isn't held, but flagged for awareness. INTC and MU (both
-current holdings) are down 20%+ from last week's levels — almost certainly
-past the 4.5% `max_trailing_drawdown_percentage` trigger from any reasonable
-recent peak. However, this is a stateless one-shot run with **no persisted
-peak-tracking history** from prior cycles, and CLAUDE.md does not define
-where/how peak state should be stored across runs. Fabricating a peak
-reference point to justify a real liquidation order was judged too risky to
-improvise, especially stacked on top of the unresolved scope/cap conflict
-above.
-
-## Action taken
-Read-only calls only: `get_accounts`, `get_portfolio`, `get_equity_positions`,
-`get_equity_quotes`, `get_equity_historicals`. No orders were reviewed or
-placed; no liquidations, rebalancing, or reinvestment-multiplier logic was
-applied.
-
-## Open questions for the user (carried over, still unresolved)
-1. Is `795732718` ("Agentic") the correct account for this strategy?
-2. Should `cap_on_total_balance_to_use` bound bot-managed exposure only, or
-   is it a true account-wide ceiling (already breached by unrelated holdings)?
-3. Should the 7 out-of-scope positions be left alone permanently, or should
-   `portfolio_targets.json` be corrected to match actual intent?
-4. Separately and urgently: how should trailing-peak state be tracked across
-   scheduled runs so the 4.5% drawdown stop-loss can actually be enforced?
-   Given today's move sizes, INTC and MU may already warrant a real look.
-
-No further action will be taken until this is resolved.
-
----
-
-# 2026-07-07 08:48 AM EDT — Scheduled Rebalance Check — HALTED (Pre-Execution Anomaly)
-
-**Status:** ABORTED before any orders were placed. No trades executed.
-
-## Reason for halt
-
-CLAUDE.md's execution sequence assumes the connected account already reflects
-prior bot-managed positions confined to `portfolio_targets.json` and within
-`cap_on_total_balance_to_use`. On this run, neither assumption held, and
-CLAUDE.md does not specify how to reconcile the account in that state. Per
-standing instructions, the routine stops and reports rather than improvising
-a resolution.
-
-### 1. Scope Limit violation (Hard Rule)
-The only `agentic_allowed=true` account (`795732718`, nickname "Agentic")
-currently holds 10 equity positions. Only 3 are on the authorized target list;
-7 are **not present in `portfolio_targets.json` at all**:
-
-| Symbol | Qty | Approx. Value | Authorized? |
-|---|---|---|---|
-| SPCX | 7.545454 | $1,211.24 | ❌ not in targets |
-| PLTR | 9.467687 | $1,273.31 | ✅ target 10% |
-| INTC | 9.852029 | $1,161.06 | ❌ not in targets |
-| MU | 1.232234 | $1,156.51 | ❌ not in targets |
-| AMZN | 5.135503 | $1,261.53 | ❌ not in targets |
-| TSLA | 3.085425 | $1,286.42 | ✅ target 10% |
-| NVDA | 6.333624 | $1,219.11 | ✅ target 15% |
-| ORCL | 8.783694 | $1,276.09 | ❌ not in targets |
-| GOOG | 3.494149 | $1,277.63 | ❌ not in targets |
-| MSFT | 3.244046 | $1,272.24 | ❌ not in targets |
-
-≈ $8,616 (≈69% of equity value) sits in symbols this agent has no
-authorization to manage (buy, sell, or liquidate).
-
-Additionally, 7 of 10 authorized targets — TQQQ (20%), SOXL (15%), MSTR (10%),
-COIN (5%), ARM (5%), SMCI (5%), IONQ (5%) — representing 65% of target model
-weight, are **entirely unfunded** ($0 held).
-
-### 2. `cap_on_total_balance_to_use` already breached
-- `cap_on_total_balance_to_use`: $10,000.00
-- Current equity value alone: ≈ $12,393.41 (already 24% over cap, before cash)
-- Current cash: $12,550.00 (+ $8,000.00 pending deposit, unsettled)
-- Total account value: ≈ $24,943.41 (≈2.5x the authorized cap)
-
-## Action taken
-- Read-only calls only: `get_accounts`, `get_portfolio`, `get_equity_positions`,
-  `get_equity_quotes`. **No orders were reviewed or placed.**
-- No liquidations, no rebalancing, no reinvestment-multiplier logic applied.
-- Routine terminated prior to Step 1's drawdown/drift audit pending human
-  review, since acting on this account under the current strategy definition
-  would require either (a) confirmation that the 7 out-of-scope positions are
-  intentionally out of this bot's mandate and should be left untouched while
-  only the in-scope $3.7k sliver is managed under a $10k cap that's already
-  breached by unrelated holdings, or (b) a corrected `portfolio_targets.json`
-  / account mapping.
-
-## Open questions for the user
-1. Is `795732718` ("Agentic") the correct account for this strategy? It holds
-   large-cap tech names (INTC, MU, AMZN, ORCL, GOOG, MSFT, SPCX) that look
-   unrelated to the high-beta/leveraged-ETF mandate in `portfolio_targets.json`.
-2. Should `cap_on_total_balance_to_use` be interpreted as a cap on bot-managed
-   exposure only (ignoring the 7 out-of-scope names), or as a true account-wide
-   ceiling that is now breached?
-3. Do the 7 out-of-scope positions need to be left alone indefinitely, or
-   should `portfolio_targets.json` be updated to reflect them?
-
-No further action will be taken until this is resolved.
