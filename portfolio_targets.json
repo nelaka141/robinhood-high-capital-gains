@@ -1,6 +1,6 @@
 {
   "portfolio_metadata": {
-    "version": "2.4.0",
+    "version": "2.5.0",
     "last_updated": "2026-07-09",
     "drift_tolerance_percentage": 2.0,
     "max_trailing_drawdown_percentage": 15,
