@@ -1,8 +1,8 @@
 {
   "portfolio_metadata": {
-    "version": "2.3.0",
-    "last_updated": "2026-07-08",
-    "drift_tolerance_percentage": 4.0,
+    "version": "2.4.0",
+    "last_updated": "2026-07-09",
+    "drift_tolerance_percentage": 2.0,
     "max_trailing_drawdown_percentage": 15,
     "min_recovery_price_percentage": 7,
     "reinvestment_multiplier_factor": 1.25,
@@ -14,7 +14,9 @@
     "cap_on_total_balance_to_use": 25000,
     "cool_down_period_after_lquidation": 10,
     "beta_benchmark_symbol": "SPY",
-    "beta_calculation_lookback_days": 30
+    "beta_calculation_lookback_days": 30,
+    "sold_stock_repurchase_days" : 5,
+    "sold_stock_price_change_percentage": 5.0
   },
   "targets": {
     "TQQQ": 7.0,
