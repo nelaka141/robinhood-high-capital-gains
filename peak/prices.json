@@ -12,7 +12,7 @@
         "SPCX": {"peakPrice": 152.9988, "peakDate": "2026-07-09", "liquidatedPrice": "", "liquidatedDate": null, "profitSellPrice": null, "profitSellDate": null, "lastPurchaseDate": "2026-07-10"},
         "AMZN": {"peakPrice": 246.89, "peakDate": "2026-07-10", "liquidatedPrice": "", "liquidatedDate": null, "profitSellPrice": null, "profitSellDate": null, "lastPurchaseDate": "2026-07-10"},
         "TSLA": {"peakPrice": 409.36, "peakDate": "2026-07-10", "liquidatedPrice": "", "liquidatedDate": null, "profitSellPrice": null, "profitSellDate": null, "lastPurchaseDate": "2026-07-10"},
-        "NVDA": {"peakPrice": 206.5909, "peakDate": "2026-07-10", "liquidatedPrice": "", "liquidatedDate": null, "profitSellPrice": null, "profitSellDate": null, "lastPurchaseDate": "2026-07-10"},
+        "NVDA": {"peakPrice": 206.818, "peakDate": "2026-07-10", "liquidatedPrice": "", "liquidatedDate": null, "profitSellPrice": null, "profitSellDate": null, "lastPurchaseDate": "2026-07-10"},
         "ORCL": {"peakPrice": 147.67, "peakDate": "2026-07-09", "liquidatedPrice": "", "liquidatedDate": null, "profitSellPrice": null, "profitSellDate": null, "lastPurchaseDate": "2026-07-10"},
         "GOOG": {"peakPrice": 362.27, "peakDate": "2026-07-08", "liquidatedPrice": "", "liquidatedDate": null, "profitSellPrice": null, "profitSellDate": null, "lastPurchaseDate": "2026-07-10"},
         "MSFT": {"peakPrice": 386.245, "peakDate": "2026-07-10", "liquidatedPrice": "", "liquidatedDate": null, "profitSellPrice": null, "profitSellDate": null, "lastPurchaseDate": "2026-07-10"}
