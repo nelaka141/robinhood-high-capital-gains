@@ -1,3 +1,57 @@
+# 2026-07-11 12:15 PM EDT — CORRECTION NOTE (Timestamp/Date Error in the Two Preceding Entries) — NO TRADES, RECORD-KEEPING ONLY
+
+**Status:** COMPLETED. This is a correction addendum, not a new rebalance
+cycle — **0 orders placed, none evaluated.** The user observed that the two
+preceding entries ("2026-07-10 08:00 PM EDT" and "2026-07-10 08:15 PM EDT")
+were mislabeled: the review was actually run on **2026-07-11 ~12:15 PM
+EDT**, not 2026-07-10 evening. This entry documents the root cause and
+corrects the specific downstream facts affected. Per the "unalterable paper
+trail" principle, the two prior entries are left as-written below/in
+history — this is an appended correction, not a rewrite.
+
+## Root cause
+Both prior entries derived "current time" from the live quote data's venue
+print timestamps (`venue_last_trade_time` / `venue_last_non_reg_trade_time`,
+~19:59–23:59 UTC on 2026-07-10) rather than from an authoritative clock.
+Because markets were closed by the time those cycles actually ran (no new
+prints since Friday 2026-07-10's ~8:00 PM ET extended-hours close), the
+"most recent quote timestamp" was ~16 hours stale relative to the real
+wall-clock time. Both entries were mislabeled "2026-07-10" as a result, and
+the same stale date was used as `current_date` for that cycle's
+`lock_in_period` / cooldown day-math (per `CLAUDE.md` v2.13.0's explicit
+"`current_date` is the current calendar date in US ET timezone" rule).
+
+## What changed with the correct date (2026-07-11, not 2026-07-10)
+| Check | As originally written (wrong: 2026-07-10) | Corrected (right: 2026-07-11) | Outcome changed? |
+|---|---|---|---|
+| MU lock diff (`lastPurchaseDate` 2026-07-09, lock 2 days) | 1 day elapsed — "still locked, unlocks 2026-07-11 (tomorrow)" | **2 days elapsed — MU had already unlocked as of this review** | **Yes, description was wrong** — but MU remained non-tradeable regardless, blocked separately by the `overweight_sell_minimum_profit_margin_percent` rule (MU was underwater, roughly -3.6% to -4.5% depending on the cycle's prices, needing ≥+1.0%). **No trade would have resulted either way.** |
+| NVDA lock diff (`lastPurchaseDate` 2026-07-10, lock 2 days) | 0 days elapsed — "locked, unlocks 2026-07-12" | 1 day elapsed — still locked, unlocks 2026-07-12 | No — conclusion and unlock date were already correct. |
+| SOXL cooldown (`liquidatedDate` 2026-07-07, needs 8 days) | "3 of 8 days elapsed" | "4 of 8 days elapsed" | No — still short of 8 either way, still excluded. |
+| ARM cooldown (`profitSellDate` 2026-07-09, needs 5 days) | "1 of 5 days elapsed" | "2 of 5 days elapsed" | No — still short of 5 either way, still excluded. |
+| SMCI cooldown (`profitSellDate` 2026-07-09, needs 5 days) | "1 of 5 days elapsed" | "2 of 5 days elapsed" | No — still short of 5 either way, still excluded. |
+
+**Net effect: the "0 trades" outcome of both prior entries is unchanged.**
+The only materially wrong statement was describing MU as still
+`lock_in_period`-locked when it had, in fact, already unlocked — it was
+simply blocked by a different, independent rule (profit margin) instead.
+All dollar figures, drift percentages, Alpha Leader identification, and the
+config-diff review in both prior entries are unaffected (none of those
+depend on the exact calendar date).
+
+## Process fix going forward
+This routine will no longer infer `current_date` from live quote print
+timestamps. It will anchor to the date given in its own session context
+(authoritative) and, when time-of-day precision matters (e.g. determining
+whether a session is regular/extended/closed), ask the user or use an
+explicit time source rather than treating "the newest available quote
+timestamp" as "now" — closed markets make that inference unreliable, as
+this incident shows.
+
+## Orders placed
+**None.** This entry makes no trading decision and re-evaluates nothing.
+
+---
+
 # 2026-07-10 08:15 PM EDT — Re-Triggered Rebalance Check (Behavioral Config Update: v2.13.0 / v2.10.0) — ANALYSIS-ONLY, NO TRADES (User-Directed Dry Run)
 
 **Status:** COMPLETED. **0 orders placed — by explicit user instruction**
@@ -835,166 +889,3 @@ source existed). `Total_High_Beta_Gains_Realized` = **$0.00**.
 * This was an unattended scheduled run (9:45 AM ET). No approval halt was
   needed — zero sells, and all buys were well-defined by the drift/Alpha
   Leader/pro-rata rules with no unresolved ambiguity.
-
----
-
-# 2026-07-09 02:31 PM EDT — Re-Triggered Rebalance Check (Post-Config-Update: Drift Denominator Changed to Total Account Value) — SKIPPED/PENDING (No Settled Buying Power; Only Overweight Candidates Are Lock-In Protected)
-
-**Status:** COMPLETED, 0 orders placed. User requested a re-trigger after
-further `CLAUDE.md` edits on `main`. `CLAUDE.md` re-read fresh (commit
-`fcefe704`, now v2.9.0) alongside `portfolio_targets.json` (v2.7.0,
-unchanged since the 11:43 AM cycle) and `peak/prices.json`, both re-read
-fresh. Session is in **regular market hours** (~2:31 PM ET) — Market Orders
-would apply per the Order Type rule had any trade been executable.
-
-## What changed in the config
-* **New Step 1 bullet: "Current percentage should be calculated based on
-  total value of the account (all assets + cash) not on the
-  `cap_on_total_balance_to_use`."** This is a fundamental change to the
-  drift-calculation denominator — every prior cycle today used the fixed
-  `cap_on_total_balance_to_use` ($25k, then $50k) as the % denominator.
-  From this cycle forward, `Current_Percentage = value / total_account_value
-  * 100`, where `total_account_value` = `equity_value + cash` (Robinhood's
-  own `total_value` field — confirmed $25,150.69 + $4,541.31 = $29,691.9989,
-  matching exactly; `pending_deposits` is NOT included since it isn't
-  settled/spendable).
-* `cap_on_total_balance_to_use` also gained a clarifying note: "This can be
-  greater than the total account value and in that case it effectively
-  there is no cap" — moot this cycle regardless, since $50,000 cap far
-  exceeds both total account value (~$29,692) and bot-managed equity
-  (~$25,151).
-* `portfolio_targets.json` (v2.7.0) and `peak/prices.json` are otherwise
-  unchanged from the 11:43 AM cycle.
-
-## Pre-check state
-* Account `795732718` ("Agentic"), the only `agentic_allowed=true` account.
-* Cash: $4,541.31, **`buying_power`: still $250.00** — unchanged for the
-  third cycle in a row today. Same-day trim proceeds (from 09:53 AM and
-  11:25 AM) remain unsettled.
-* Total account value (new drift denominator): **$29,691.9989** (equity
-  $25,150.69 + cash $4,541.31). Bot-managed equity is ≈85% of this, well
-  under the $50,000 cap — the cap is not a binding constraint this cycle
-  (per the new clarifying note, a cap well above total account value is
-  effectively no cap at all).
-
-## Drawdown Audit Phase (15% threshold; peak source: `peak/prices.json`)
-No breaches. Four new peaks this cycle: **TQQQ** $75.955 → **$76.4901**,
-**SPCX** $151.27 → **$152.9988**, **AMZN** $243.89 → **$245.05**, **TSLA**
-$398.66 → **$407.505** (all dated 2026-07-09). Largest drawdown among the
-rest: MSTR at 6.19%.
-
-**SOXL**: still excluded, 2 of 8 `cool_down_period_after_lquidation` days
-elapsed. **ARM/SMCI**: still excluded, 0 of 5 `sold_stock_repurchase_days`
-elapsed. Unchanged from prior cycles today.
-
-## Drift Audit (**new denominator: total account value ≈$29,691.9989**; ARM/SMCI/SOXL excluded)
-| Symbol | Target % | Current % | Drift | Exceeds 2.0%? | Locked (`lock_in_period`)? |
-|---|---|---|---|---|---|
-| **MU** | 5.0 | 15.471 | 10.471 | **YES (Overweight)** | **YES — bought today** |
-| **NVDA** | 8.0 | 23.226 | 15.226 | **YES (Overweight)** | **YES — bought today** |
-| MSFT | 8.0 | 4.161 | 3.839 | **YES (Underweight)** | No |
-| GOOG | 8.0 | 4.164 | 3.836 | **YES (Underweight)** | No |
-| TSLA | 8.0 | 4.235 | 3.765 | **YES (Underweight)** | No |
-| AMZN | 8.0 | 4.239 | 3.761 | **YES (Underweight)** | No |
-| ORCL | 8.0 | 4.271 | 3.729 | **YES (Underweight)** | No |
-| TQQQ | 7.0 | 1.761 | 5.239 | **YES (Underweight)** | No |
-| SPCX | 6.0 | 3.889 | 2.111 | **YES (Underweight)** | No |
-| PLTR | 12.0 | 11.153 | 0.847 | No | No |
-| MSTR | 4.0 | 3.166 | 0.834 | No | No |
-| INTC | 3.0 | 1.714 | 1.286 | No | No |
-| IONQ | 2.0 | 1.643 | 0.357 | No | No |
-| COIN | 2.0 | 1.620 | 0.380 | No | No |
-
-Switching the denominator from the $50k cap to the ~$29.7k total account
-value shrank the denominator, which **mechanically increased every
-position's percentage** — MU and NVDA's Overweight drift got noticeably
-*worse* in relative terms (MU: 4.21% drift under the $50k-cap method →
-10.47% now; NVDA: 5.64% → 15.23% now), while the Underweight megacaps'
-drift shrank somewhat (they're a smaller shortfall against a smaller total).
-SPCX flipped from a manageable gap to still-breaching but much closer to
-tolerance. Same seven Underweight breaches as the 11:43 AM cycle (TQQQ,
-SPCX, AMZN, TSLA, ORCL, GOOG, MSFT), just resized.
-
-## Alpha Leader (7-day gain, 2026-07-02 close → live ~2:31 PM ET)
-| Symbol | 7-day change |
-|---|---|
-| **NVDA** | **+4.619%** (Alpha Leader — displaces MU; locked from selling, not from buying) |
-| MU | +4.287% |
-| TQQQ | +4.281% |
-| TSLA | +3.573% |
-| ORCL | +2.923% |
-| AMZN | +0.981% |
-| GOOG | -0.668% |
-| PLTR | -0.835% |
-| MSFT | -2.492% |
-| COIN | -3.142% |
-| MSTR | -5.072% |
-| SPCX | -5.556% |
-| IONQ | -7.494% |
-
-(ARM, SMCI, SOXL excluded — not in play.) NVDA edges out MU as Alpha Leader
-this cycle. The `lock_in_period` only restricts *selling* NVDA, not adding
-to it — but per the funding analysis below, there's no cash to add with.
-
-## Funding analysis — why $0 traded this cycle
-* `base_deployable_cash` = max(0, `buying_power` $250.00 − `min_cash_absolute`
-  $250.00) = **$0.00**. Third consecutive cycle today with no new settled
-  cash.
-* Step 3 (Overweight trim source): the only two Overweight positions in the
-  entire book, under either denominator convention, are **MU and NVDA** —
-  and both remain `lock_in_period`-protected until 2026-07-11. No other
-  candidate is Overweight this cycle (everything else is now Underweight or
-  within tolerance under the new, larger effective percentages). **Zero
-  legally tradeable Overweight source, same as the 11:43 AM cycle.**
-* Net: $0 deployable cash + zero eligible trim sources = no order of any
-  kind is executable this cycle, despite ≈$7,802.89 of aggregate Underweight
-  drift now sitting in the seven breaching positions (recalculated under the
-  new total-account-value denominator — smaller than the $22,400 figure
-  logged at 11:43 AM under the old $50k-cap denominator, since the
-  denominator itself shrank).
-
-## Orders placed
-**None.**
-
-## Proposed buys — still **SKIPPED/PENDING** (reference pro-rata split, by dollar drift-gap, for when capital exists)
-| Symbol | Full gap-close $ (at ~2:31 PM prices, new denominator) | Pro-rata share |
-|---|---|---|
-| TQQQ | ~$1,555.29 | 19.93% |
-| MSFT | ~$1,140.09 | 14.61% |
-| GOOG | ~$1,139.19 | 14.60% |
-| TSLA | ~$1,117.81 | 14.32% |
-| AMZN | ~$1,116.61 | 14.31% |
-| ORCL | ~$1,107.11 | 14.19% |
-| SPCX | ~$626.79 | 8.03% |
-| **Total** | **~$7,802.89** | 100% |
-
-**Blocking reason:** $0 settled buying power (same T+1 constraint, third
-cycle running), and the book's only two Overweight positions (MU, NVDA)
-remain lock-in-protected until 2026-07-11. No amounts were fabricated.
-
-## Post-check state (informational, unchanged — no trades)
-* Total account value: $29,691.9989. Bot-managed equity: ≈$25,151.32 — well
-  under the $50,000 cap (not a binding constraint this cycle).
-* Cash: $4,541.31 ($250.00 usable `buying_power`; the rest is unsettled
-  trim proceeds from earlier cycles today, expected to clear next session).
-* `peak/prices.json`: four new peaks — TQQQ $76.4901, SPCX $152.9988, AMZN
-  $245.05, TSLA $407.505 (all dated 2026-07-09). No other changes;
-  `lastPurchaseDate` untouched for MU and NVDA (still 2026-07-09, no new
-  purchases this cycle).
-
-## Notes / carried-forward items
-* The drift-denominator change is now understood and applied: all future
-  cycles will compute `Current_Percentage` against total account value
-  (equity + cash), not `cap_on_total_balance_to_use`. This makes the
-  drift/Overweight picture more sensitive to the account's cash balance —
-  as unsettled cash clears and buying power rises, MU/NVDA's Overweight
-  percentages will mechanically ease even without any trim, since the
-  denominator grows relative to their fixed dollar size... except cash
-  itself isn't part of any position's numerator, so growing cash actually
-  dilutes every position's percentage roughly proportionally. Worth
-  reviewing after the next cash-settlement cycle to see how the drift table
-  shifts.
-* MU and NVDA still unlock for selling on **2026-07-11**.
-* This was a manual re-trigger requested by the user after further
-  `CLAUDE.md` edits; consistent with prior re-triggers, no separate
-  confirmation was sought before running.
