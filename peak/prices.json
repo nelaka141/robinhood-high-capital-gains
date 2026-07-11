@@ -1,7 +1,7 @@
 {
         "TQQQ": {
-                "peakPrice": 76.4901,
-                "peakDate": "2026-07-09",
+                "peakPrice": 77.275,
+                "peakDate": "2026-07-10",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
                 "profitSellPrice": null,
@@ -117,7 +117,7 @@
                 "lastPurchaseDate": "2026-07-10"
         },
         "NVDA": {
-                "peakPrice": 206.818,
+                "peakPrice": 210.5701,
                 "peakDate": "2026-07-10",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
