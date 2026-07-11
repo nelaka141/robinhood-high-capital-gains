@@ -1,3 +1,192 @@
+# 2026-07-10 08:15 PM EDT — Re-Triggered Rebalance Check (Behavioral Config Update: v2.13.0 / v2.10.0) — ANALYSIS-ONLY, NO TRADES (User-Directed Dry Run)
+
+**Status:** COMPLETED. **0 orders placed — by explicit user instruction**
+("do not place any trades," "review changes and highlight important ones
+with respect to previous"). Full Step 1–5 analytical walkthrough only;
+Step 6 execution intentionally skipped. `CLAUDE.md` re-read fresh from
+`main` (**v2.12.0 → v2.13.0**), `portfolio_targets.json` re-read fresh
+(**v2.9.0 → v2.10.0**), `peak/prices.json` re-read fresh (**unchanged**
+byte-for-byte from the last push). Live quotes returned **identical
+timestamps and prices** to the previous cycle (last regular print
+2026-07-10 19:59:59 UTC, last extended print 2026-07-10 23:59:xx UTC ≈
+7:59–8:00 PM ET) — the market/extended-hours session appears unchanged
+since the last check, so all dollar figures below match the prior cycle
+exactly except where the new rules change the *interpretation* of those
+same numbers.
+
+## Config diff — highlights (narrower than the last update; behavioral, not structural — no universe or weight changes this time)
+
+1. **New `drift_tolerance_percentage_for_first_time_trades` (0.1%)** — a
+   much tighter drift tolerance used specifically for assets with **no
+   entry in `peak/prices.json`** (i.e., never yet bought). This is the most
+   consequential change this cycle: last cycle, only 3 of the 7 newly
+   added symbols (HOOD, AMD, NEE) were flagged as breaching the standard
+   2.0% tolerance; **AAPL, META, VRT, and AVGO sat within tolerance at
+   their small ≈1.06% targets and were not yet actionable.** Under the new
+   0.1% first-time tolerance, **all 7 new symbols now breach immediately**
+   — any newly-added asset with a nonzero target and zero position will
+   essentially always qualify for a first buy, regardless of how small its
+   target weight is. This effectively fast-tracks full-universe buy-in for
+   every asset added to `portfolio_targets.json` going forward.
+2. **New `alpha_cash_allocation_percentage` (60.0) + a matching Step 3 rule
+   change: the Alpha Leader now receives `alpha_cash_allocation_percent`%
+   of (`base_deployable_cash` + `multiplier_cash`), not 100% of it as
+   before.** This is the second major behavioral shift — every prior cycle
+   this session routed the *entire* deployable-cash-plus-multiplier amount
+   into the single Alpha Leader ("winner take all"). Now only 60% goes to
+   the Alpha Leader; the remaining 40% (plus any multiplier shortfall)
+   falls through to the existing pro-rata Underweight-distribution rule.
+   Net effect: capital gets meaningfully more diversified across the
+   breaching book each cycle instead of concentrating in one name.
+3. **Naming inconsistency worth flagging (not a blocker):** the `CLAUDE.md`
+   prose refers to the parameter as `alpha_cash_allocation_percent`, but
+   the actual field in `portfolio_targets.json` is
+   `alpha_cash_allocation_percentage` (with an extra "-age"). Interpreted
+   these as the same parameter since the intent and the single occurrence
+   in each file are unambiguous — flagging the mismatch for a future cleanup.
+4. **No changes to the 24-symbol universe or any target weight this
+   cycle** — `targets` block is byte-identical to the last version.
+   `forceSell` remains empty. All other parameters
+   (`cap_on_total_cash_balance_to_use` $10,000, `max_portfolio_percentage`
+   35%, `sell_or_buy_value_limit` $10, `lock_in_period` 2 days,
+   `overweight_sell_minimum_profit_margin_percent` 1.0%, etc.) are
+   unchanged from the last review.
+5. `peak/prices.json`: **no changes** — identical to what this routine last
+   pushed (TQQQ peak $77.275, NVDA peak $210.5701, both 2026-07-10; no
+   other symbol changed).
+
+## Drawdown Audit Phase (15% threshold; peak source: `peak/prices.json`)
+No breaches, no new peaks — prices are unchanged from the last cycle's
+snapshot (TQQQ and NVDA already sit exactly at their recorded peaks;
+INTC/PLTR/MSTR/IONQ/SPCX/ORCL/AMZN/TSLA/MU/COIN/GOOG/MSFT all remain below
+their recorded peaks, same drawdown percentages as last cycle). **SOXL**
+(3 of 8 cooldown days elapsed), **ARM** (1 of 5 days, price only -2.66%
+below `profitSellPrice`), **SMCI** (1 of 5 days, price only -1.83% below
+`profitSellPrice`) — all three unchanged, still excluded from play.
+
+## Drift Audit (`account_balance` = $37,688.28 = equity $29,433.17 + `current_cash` $8,255.11; SOXL/ARM/SMCI excluded from action)
+| Symbol | Target % | Current % | Drift | Tolerance Used | Breach? | Sellable? |
+|---|---|---|---|---|---|---|
+| **NVDA** | 8.051 | 27.973 | 19.922 | 2.0% (existing) | **YES (Overweight)** | **NO — locked, unlocks 2026-07-12** |
+| **MU** | 5.297 | 11.776 | 6.479 | 2.0% (existing) | **YES (Overweight)** | **NO — locked, unlocks 2026-07-11; also underwater** |
+| **PLTR** | 5.297 | 8.672 | 3.375 | 2.0% (existing) | **YES (Overweight)** | **NO — underwater -5.92%, fails profit-margin rule** |
+| TQQQ | 6.780 | 1.907 | 4.872 | 2.0% (existing) | YES (Underweight) | — |
+| ORCL | 8.051 | 3.636 | 4.415 | 2.0% (existing) | YES (Underweight) | — |
+| GOOG | 8.051 | 3.656 | 4.394 | 2.0% (existing) | YES (Underweight) | — |
+| MSFT | 8.051 | 3.674 | 4.377 | 2.0% (existing) | YES (Underweight) | — |
+| TSLA | 8.051 | 3.692 | 4.359 | 2.0% (existing) | YES (Underweight) | — |
+| AMZN | 8.051 | 3.700 | 4.351 | 2.0% (existing) | YES (Underweight) | — |
+| SPCX | 6.356 | 3.126 | 3.230 | 2.0% (existing) | YES (Underweight) | — |
+| **HOOD** | 2.119 | 0.000 | 2.119 | **0.1% (first-time)** | YES (Underweight) | — |
+| **AMD** | 2.119 | 0.000 | 2.119 | **0.1% (first-time)** | YES (Underweight) | — |
+| **NEE** | 2.119 | 0.000 | 2.119 | **0.1% (first-time)** | YES (Underweight) | — |
+| **META** | 1.059 | 0.000 | 1.059 | **0.1% (first-time)** | **YES — newly actionable this cycle** | — |
+| **AAPL** | 1.059 | 0.000 | 1.059 | **0.1% (first-time)** | **YES — newly actionable this cycle** | — |
+| **VRT** | 1.059 | 0.000 | 1.059 | **0.1% (first-time)** | **YES — newly actionable this cycle** | — |
+| **AVGO** | 1.059 | 0.000 | 1.059 | **0.1% (first-time)** | **YES — newly actionable this cycle** | — |
+| MSTR | 4.237 | 2.474 | 1.763 | 2.0% (existing) | No | — |
+| INTC | 2.542 | 1.314 | 1.228 | 2.0% (existing) | No | — |
+| COIN | 2.119 | 1.272 | 0.846 | 2.0% (existing) | No | — |
+| IONQ | 2.119 | 1.223 | 0.895 | 2.0% (existing) | No | — |
+
+**13 of 21 in-play symbols now breach** (up from 9 last cycle) — purely a
+function of the new tight first-time tolerance pulling in META, AAPL, VRT,
+and AVGO that were previously within tolerance. Same three Overweight
+positions as last cycle (NVDA, MU, PLTR), all still blocked from selling
+for the same reasons as before.
+
+## Alpha Leader (7-day gain, 2026-07-02 close → live; identical to last cycle — no price movement)
+**META remains Alpha Leader at +14.599%** (NVDA second at +8.079%; full
+table unchanged from the last entry — see that entry for the complete
+ranking). META also happens to be one of the 7 first-time-tolerance
+symbols, so it is simultaneously this cycle's Alpha Leader *and* a
+first-time breaching Underweight buy target.
+
+## Step 3 — Alpha Leader Multiplier (calculated for reference only; NOT executed)
+* `current_cash` = min($8,255.11, $10,000 cap) = **$8,255.11** (cap still
+  not binding).
+* `base_deployable_cash` = max(0, $8,255.11 − $250.00) = **$8,005.11**.
+* `multiplier_cash` (formula) = $8,005.11 × 0.25 = **$2,001.28** — still
+  unharvestable this cycle (no legal Overweight trim source; see Drift
+  Audit), so only the base portion is real.
+* **New allocation rule in effect:** Alpha Leader gets
+  `alpha_cash_allocation_percentage` (60%) of base + multiplier, not 100%.
+  With multiplier unharvested, that's 60% of $8,005.11 = **$4,803.07** to
+  META — **down from the ~$8,005 that would have gone to META under the
+  old 100%-to-Alpha-Leader rule reviewed last cycle.**
+* Remaining 40% of `base_deployable_cash` = **$3,202.04** would fall
+  through to the pro-rata Underweight rule, spread across the other 12
+  breaching Underweight positions (META itself excluded from that pool
+  since it already receives the direct Alpha allocation):
+
+| Symbol | Dollar drift-gap | Pro-rata share | Reference $ (of $3,202.04) |
+|---|---|---|---|
+| TQQQ | $1,836.29 | 12.32% | $394.64 |
+| ORCL | $1,664.01 | 11.17% | $357.62 |
+| GOOG | $1,656.17 | 11.12% | $355.93 |
+| MSFT | $1,649.43 | 11.07% | $354.48 |
+| TSLA | $1,642.92 | 11.03% | $353.09 |
+| AMZN | $1,639.80 | 11.01% | $352.41 |
+| SPCX | $1,217.44 | 8.17% | $261.64 |
+| HOOD | $798.48 | 5.36% | $171.60 |
+| AMD | $798.48 | 5.36% | $171.60 |
+| NEE | $798.48 | 5.36% | $171.60 |
+| AAPL | $399.24 | 2.68% | $85.80 |
+| VRT | $399.24 | 2.68% | $85.80 |
+| AVGO | $399.24 | 2.68% | $85.80 |
+| **Total** | **$14,899.22** | 100% | **$3,202.04** |
+
+Every reference allocation above clears the new $10 `sell_or_buy_value_limit`
+floor comfortably. Room to the 35% `max_portfolio_percentage` cap for META
+($13,190.90 cap vs. $0 current value) is not binding. **This entire
+breakdown is calculated for transparency only and was NOT executed.**
+
+## Step 4 — High-Beta Gains Calculation
+Not performed — moot, since all three Overweight candidates (NVDA, MU,
+PLTR) are already ruled out as trim sources by Step 2's guardrails
+regardless of Beta/gain ranking. `Total_High_Beta_Gains_Realized` = **$0.00**.
+
+## Step 5 — Price Limit & Volatility Halts
+Not evaluated for execution — no orders were sized or would have been
+placed this cycle.
+
+## Step 6 — Execute Sequential Trades
+**Skipped entirely, by explicit user instruction.** No `review_equity_order`
+or `place_equity_order` calls were made.
+
+## Orders placed
+**None — by design this cycle.**
+
+## Post-check state (informational, unchanged — no trades)
+* Account balance: $37,688.28 (equity $29,433.17 + capped cash $8,255.11),
+  unchanged from last cycle. Additional $5,000 `pending_deposits` still not
+  counted/spendable.
+* `peak/prices.json`: **no changes** this cycle (prices identical to last
+  push; nothing was bought, sold, or newly peaked).
+
+## Notes / carried-forward items
+* **This was a second consecutive user-directed analysis-only cycle** —
+  same instruction pattern as the prior entry ("pull changes and retrigger
+  — do not place any trades... review and highlight important ones").
+* **The two new rules compound with last cycle's universe expansion in a
+  notable way:** last cycle added 7 zero-position symbols; this cycle's
+  first-time tolerance makes all 7 immediately actionable, and the new
+  60%/40% alpha-split rule means the *next* cycle allowed to trade would
+  likely place a much more diversified batch of buys (13 positions) rather
+  than one concentrated Alpha Leader buy plus nothing else.
+* MU still unlocks for selling **2026-07-11** (tomorrow), but remains
+  blocked separately by the profit-margin rule while underwater — unlocking
+  alone will not make it tradeable. NVDA unlocks **2026-07-12**. PLTR has
+  no lock but needs its price to recover to ≥+1.0% (from -5.92% today) to
+  become sellable, or a `forceSell` entry.
+* Live quotes were identical, timestamp-for-timestamp, to the prior
+  cycle's pull — flagged as a data-quality observation (either the
+  extended-hours session had no further prints, or the feed is returning a
+  cached snapshot). Did not affect this cycle's outcome since no trades
+  were priced or placed either way.
+
+---
+
 # 2026-07-10 08:00 PM EDT — Re-Triggered Rebalance Check (Major Config Overhaul: v2.12.0 / v2.9.0) — ANALYSIS-ONLY, NO TRADES (User-Directed Dry Run)
 
 **Status:** COMPLETED. **0 orders placed — by explicit user instruction**
@@ -809,154 +998,3 @@ remain lock-in-protected until 2026-07-11. No amounts were fabricated.
 * This was a manual re-trigger requested by the user after further
   `CLAUDE.md` edits; consistent with prior re-triggers, no separate
   confirmation was sought before running.
-
----
-
-# 2026-07-09 11:43 AM EDT — Re-Triggered Rebalance Check (Post-Config-Update: Cap Doubled to $50k + Lock-In Period) — SKIPPED/PENDING (No Settled Buying Power; Only Overweight Candidates Are Lock-In Protected)
-
-**Status:** COMPLETED, 0 orders placed. User requested a re-trigger after
-further edits to `CLAUDE.md`/`portfolio_targets.json` on `main`. `CLAUDE.md`
-re-read fresh (commit `cb044059`, now v2.7.0) alongside `portfolio_targets.json`
-(v2.7.0, dated 2026-07-09) and `peak/prices.json`, both re-read fresh.
-Session is in **regular market hours** (~11:43 AM ET) — Market Orders would
-apply per the Order Type rule had any trade been executable.
-
-## What changed in the config
-* **`cap_on_total_balance_to_use`: $25,000 → $50,000** (2x). Target
-  percentages are unchanged, but since they're now measured against a $50k
-  model instead of $25k, every dollar target effectively doubled while
-  actual holdings stayed the same — this flips most of the book from
-  "roughly at target" to "sharply Underweight" this cycle (see Drift Audit).
-* **New `lock_in_period` (2 days)** + new `lastPurchaseDate` field in
-  `peak/prices.json`: "do not sell the stocks if they are bought within
-  `lock_in_period` days." MU and NVDA both show `lastPurchaseDate:
-  2026-07-09` (today, from this morning's/late-morning's multiplier buys) —
-  both are therefore **locked from selling until 2026-07-11**, regardless of
-  their drift or High-Beta-Gain-Score standing. This directly resolves the
-  ad-hoc judgment call this routine had been making about not touching NVDA
-  same-day — it's now an explicit, unambiguous rule.
-* All other parameters and the `targets` block unchanged from the last cycle.
-
-## Pre-check state
-* Account `795732718` ("Agentic"), the only `agentic_allowed=true` account.
-* Cash: $4,541.31, **`buying_power`: still $250.00** — unchanged from the
-  11:25 AM cycle. No new cash was added this time; the ~$1,250.80 (TQQQ) and
-  ~$1,647.16 (MU correction) in same-day sale proceeds remain unsettled.
-* Bot-managed equity (14 active symbols, ARM/SMCI/SOXL excluded): ≈$25,001.39
-  — now only **≈50% of the new $50,000 cap** (≈$24,999 of headroom), a
-  dramatic change from being nearly at the old $25,000 cap last cycle.
-
-## Drawdown Audit Phase (15% threshold; peak source: `peak/prices.json`)
-No breaches. Largest drawdown: PLTR at 8.06%. One new peak this cycle:
-**TQQQ** $75.8305 → **$75.955** (peakDate stays 2026-07-09). All other
-symbols remain below their recorded peak.
-
-**SOXL**: still excluded, 2 of 8 `cool_down_period_after_lquidation` days
-elapsed. **ARM/SMCI**: still excluded, 0 of 5 `sold_stock_repurchase_days`
-elapsed. Unchanged from prior cycles today.
-
-## Drift Audit ($50,000 fixed-cap denominator; ARM/SMCI/SOXL excluded)
-| Symbol | Target % | Current % | Drift | Exceeds 2.0%? | Locked (`lock_in_period`)? |
-|---|---|---|---|---|---|
-| **NVDA** | 8.0 | 13.639 | 5.639 | **YES (Overweight)** | **YES — bought today** |
-| **MU** | 5.0 | 9.212 | 4.212 | **YES (Overweight)** | **YES — bought today** |
-| GOOG | 8.0 | 2.450 | 5.550 | **YES (Underweight)** | No |
-| TSLA | 8.0 | 2.452 | 5.548 | **YES (Underweight)** | No |
-| MSFT | 8.0 | 2.468 | 5.532 | **YES (Underweight)** | No |
-| AMZN | 8.0 | 2.481 | 5.519 | **YES (Underweight)** | No |
-| ORCL | 8.0 | 2.574 | 5.426 | **YES (Underweight)** | No |
-| TQQQ | 7.0 | 1.038 | 5.962 | **YES (Underweight)** | No |
-| PLTR | 12.0 | 6.581 | 5.419 | **YES (Underweight)** | No |
-| SPCX | 6.0 | 2.270 | 3.730 | **YES (Underweight)** | No |
-| MSTR | 4.0 | 1.885 | 2.115 | **YES (Underweight)** | No |
-| INTC | 3.0 | 1.018 | 1.982 | No (just inside) | No |
-| IONQ | 2.0 | 0.975 | 1.025 | No | No |
-| COIN | 2.0 | 0.958 | 1.042 | No | No |
-
-The cap doubling flipped nearly the entire book Underweight overnight (in
-dollar terms nothing changed — only the $50k denominator did). MU and NVDA
-remain the only Overweight positions, and both are lock-in-protected.
-
-## Alpha Leader (7-day gain, 2026-07-02 close → live ~11:43 AM ET)
-| Symbol | 7-day change |
-|---|---|
-| **MU** | **+4.575%** (Alpha Leader — locked from selling, but not from buying) |
-| ORCL | +4.442% |
-| TQQQ | +3.552% |
-| NVDA | +3.450% |
-| TSLA | +0.989% |
-| AMZN | -0.453% |
-| PLTR | -1.485% |
-| GOOG | -1.564% |
-| MSFT | -2.601% |
-| COIN | -3.553% |
-| MSTR | -4.804% |
-| SPCX | -7.169% |
-| IONQ | -7.524% |
-
-(ARM, SMCI, SOXL excluded — not in play.) MU remains Alpha Leader. The
-`lock_in_period` only restricts *selling* MU, not buying more of it — but
-see funding analysis below, there's no cash to buy anything this cycle.
-
-## Funding analysis — why $0 traded this cycle
-* `base_deployable_cash` = max(0, `buying_power` $250.00 − `min_cash_absolute`
-  $250.00) = **$0.00**. Same T+1 settlement constraint as the 11:07 AM
-  cycle — no new deposit arrived this time, so nothing has changed here.
-* Step 3 (Overweight trim source for the pro-rata Underweight rule and/or
-  multiplier funding): the only two Overweight positions in the entire book
-  are **MU and NVDA — and both are `lock_in_period`-protected**, having been
-  purchased earlier today. `CLAUDE.md` is unambiguous here: "do not sell any
-  stocks within the `lock_in_period`." No other candidate is Overweight
-  (TQQQ and PLTR, last cycle's trim sources, are now themselves Underweight
-  under the new $50k denominator). **There is no legally tradeable
-  Overweight position to harvest from this cycle, full stop** — not a
-  judgment call, a hard rule.
-* Net: with $0 deployable cash and zero eligible trim sources, no order of
-  any kind is executable this cycle, despite ≈$22,400 of aggregate
-  Underweight drift now sitting in the book (see pro-rata reference below).
-
-## Orders placed
-**None.**
-
-## Proposed buys — still **SKIPPED/PENDING** (reference pro-rata split, by dollar drift-gap, for when capital exists)
-| Symbol | Full gap-close $ (at ~11:43 AM prices) | Pro-rata share |
-|---|---|---|
-| TQQQ | ~$2,981.00 | 13.31% |
-| GOOG | ~$2,775.00 | 12.39% |
-| TSLA | ~$2,774.00 | 12.38% |
-| MSFT | ~$2,766.00 | 12.35% |
-| AMZN | ~$2,759.50 | 12.32% |
-| ORCL | ~$2,713.00 | 12.11% |
-| PLTR | ~$2,709.50 | 12.10% |
-| SPCX | ~$1,865.00 | 8.33% |
-| MSTR | ~$1,057.50 | 4.72% |
-| **Total** | **~$22,400.50** | 100% |
-
-**Blocking reason:** $0 settled buying power (same as the 11:07 AM cycle),
-compounded this time by the fact that the book's only two Overweight
-positions are `lock_in_period`-protected and cannot legally be trimmed for
-funding until 2026-07-11. No amounts were fabricated.
-
-## Post-check state (informational, unchanged — no trades)
-* Bot-managed equity (14 active symbols, ARM/SMCI/SOXL excluded): ≈$25,001.39
-  — now only ≈50% of the new $50,000 cap.
-* Cash: $4,541.31 ($250.00 usable `buying_power`; the rest is this morning's
-  unsettled trim proceeds, expected to clear by the next session).
-* `peak/prices.json`: TQQQ's peak updated to $75.955 (up from $75.8305),
-  dated 2026-07-09. No other changes; `lastPurchaseDate` untouched for MU
-  and NVDA (still 2026-07-09 from their earlier buys today — no new
-  purchases this cycle to update).
-
-## Notes / carried-forward items
-* Once (a) today's unsettled trim proceeds clear (expected next session) or
-  (b) another deposit is added, there is now dramatically more room to
-  deploy under the new $50k cap — nearly the entire book is Underweight, so
-  the pro-rata rule will likely distribute broadly across TQQQ, PLTR, SPCX,
-  MSTR, AMZN, TSLA, ORCL, GOOG, and MSFT rather than concentrating in a
-  handful of megacaps as before.
-* MU and NVDA unlock for selling on **2026-07-11** (2 days after their
-  2026-07-09 `lastPurchaseDate`). Until then, neither can be trimmed even if
-  a future cycle's Step 3 ranking would otherwise favor them.
-* This was a manual re-trigger requested by the user after further
-  `CLAUDE.md`/`portfolio_targets.json` edits; consistent with prior
-  re-triggers, no separate confirmation was sought before running.
