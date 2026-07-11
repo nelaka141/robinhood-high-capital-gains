@@ -8,7 +8,7 @@
     "min_recovery_price_percentage": 7,
     "reinvestment_multiplier_factor": 1.25,
     "max_portfolio_percentage": 35.0,
-    "alpha_cash_allocation_percentage": 60.0,
+    "alpha_cash_allocation_percentage": 35.0,
     "min_cash_absolute": 250,
     "min_cash_target": 500,
     "seek_approval_value": 5000,
