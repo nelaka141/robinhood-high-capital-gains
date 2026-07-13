@@ -1,3 +1,214 @@
+# 2026-07-10 10:48 AM EDT — Re-Triggered Rebalance Check (User Requested Refresh & Retrigger) — SKIPPED/PENDING (Alpha Leader at 35% Cap; Both Overweight Candidates Lock-In Protected; Deployable Cash Immaterial)
+
+**Status:** COMPLETED, 0 orders placed. User requested a fresh pull from
+GitHub and a retrigger. `CLAUDE.md` re-read fresh from `main` (now
+**v2.10.0**) alongside `portfolio_targets.json` (**v2.8.0**) and
+`peak/prices.json`, all re-read fresh. This cycle follows the unattended
+9:49 AM ET scheduled run logged above, which already placed 8 buy orders
+(NVDA Alpha Leader multiplier + 7 pro-rata Underweight buys) — that run
+explains the `lastPurchaseDate: 2026-07-10` values now present across most
+of the book in `peak/prices.json`. Session is in **regular market hours**
+(quotes ~10:48 AM ET) — Market Orders would apply per the Order Type rule
+had any trade been executable.
+
+## What changed in the config
+* **New parameter `overweight_sell_minimum_profit_margin_percent` (1.0%)**
+  + new Step 1 rule: "Do not sell any overweight stocks if the profit
+  margin condition is not achieved,
+  `((market value − average cost basis) / average cost basis) * 100 >=
+  overweight_sell_minimum_profit_margin_percent`, unless the stock is
+  listed in `forceSell`." `portfolio_targets.json` gained a `forceSell: []`
+  list (currently empty — no symbol is exempted from this new rule).
+* No other material rule changes since the 9:49 AM cycle today.
+
+## Pre-check state
+* Account `795732718` ("Agentic"), the only `agentic_allowed=true` account.
+* Cash: $255.11, **`buying_power`: $255.11 — fully settled** (matches cash
+  exactly; this morning's 9:49 AM buys have already cleared into today's
+  settled balance).
+* Total account value: **$29,452.3059** (equity $29,197.196 + cash $255.11).
+  Bot-managed equity ≈99.1% of the account, well under the $50,000
+  `cap_on_total_balance_to_use` (not a binding constraint).
+
+## Drawdown Audit Phase (15% threshold; peak source: `peak/prices.json`)
+No breaches. Largest drawdown: INTC at 6.07% ($116.203 → $109.1543). One
+new peak this cycle: **NVDA** $206.5909 → **$206.818**, dated 2026-07-10
+(price continued higher after this morning's buy).
+
+**SOXL** (liquidated 2026-07-07 at $157.7431): 3 of 8
+`cool_down_period_after_lquidation` days elapsed — still not met. Current
+price $186.256 is +18.08% above the liquidation price (recovery condition
+already satisfied), but the cooldown-days condition is the binding one.
+Still excluded.
+**ARM** (profit-sold 2026-07-09 at $333.5356): 1 of 5
+`sold_stock_repurchase_days` elapsed; current price $321.40 is only -3.64%
+below `profitSellPrice` (needs ≥5.0%). Neither condition met — excluded.
+**SMCI** (profit-sold 2026-07-09 at $28.9601): 1 of 5 days elapsed; current
+price $28.53 is only -1.49% below `profitSellPrice` (needs ≥5.0%). Neither
+condition met — excluded.
+
+## Drift Audit (total-account-value denominator ≈$29,452.3059; ARM/SMCI/SOXL excluded)
+| Symbol | Target % | Current % | Drift | Exceeds 2.0%? | Locked (`lock_in_period`)? |
+|---|---|---|---|---|---|
+| **NVDA** | 8.0 | 35.158 | 27.158 | **YES (Overweight)** | **YES — bought 2026-07-10, unlocks 2026-07-12** |
+| **MU** | 5.0 | 14.934 | 9.934 | **YES (Overweight)** | **YES — bought 2026-07-09, unlocks 2026-07-11** |
+| TQQQ | 7.0 | 2.394 | 4.606 | **YES (Underweight)** | — |
+| GOOG | 8.0 | 4.635 | 3.365 | **YES (Underweight)** | — |
+| ORCL | 8.0 | 4.645 | 3.355 | **YES (Underweight)** | — |
+| MSFT | 8.0 | 4.672 | 3.328 | **YES (Underweight)** | — |
+| AMZN | 8.0 | 4.730 | 3.270 | **YES (Underweight)** | — |
+| TSLA | 8.0 | 4.731 | 3.269 | **YES (Underweight)** | — |
+| SPCX | 6.0 | 4.056 | 1.944 | No | — |
+| INTC | 3.0 | 1.675 | 1.325 | No | — |
+| PLTR | 12.0 | 11.121 | 0.879 | No | — |
+| MSTR | 4.0 | 3.190 | 0.810 | No | — |
+| COIN | 2.0 | 1.638 | 0.362 | No | — |
+| IONQ | 2.0 | 1.565 | 0.435 | No | — |
+
+**NVDA is now at 35.158% concentration — organically above the 35%
+single-asset cap referenced in Step 2** — purely from price appreciation
+since this morning's buy (it closed the 9:49 AM cycle at ≈34.93%). This is
+flagged as informational only: `CLAUDE.md`'s 35% cap is framed as a ceiling
+on new multiplier-driven buys into the Alpha Leader, not as an ongoing
+mandatory-trim ceiling, and no rule requires force-trimming NVDA back under
+35% — nor could this routine act on it even if it wanted to, since NVDA is
+`lock_in_period`-protected from selling until 2026-07-12 regardless. No rule
+was fabricated to justify a trim.
+
+## Alpha Leader (7-day gain, 2026-07-02 close → live ~10:48 AM ET)
+| Symbol | 7-day change |
+|---|---|
+| **NVDA** | **+6.153%** (Alpha Leader — same pick as the 9:49 AM cycle; locked from selling, not from buying) |
+| TSLA | +3.748% |
+| TQQQ | +3.327% |
+| AMZN | +1.162% |
+| ORCL | +0.271% |
+| MU | -0.139% |
+| GOOG | -1.255% |
+| PLTR | -1.914% |
+| MSFT | -1.934% |
+| COIN | -2.828% |
+| MSTR | -5.121% |
+| SPCX | -8.657% |
+| INTC | -9.303% |
+| IONQ | -12.592% |
+
+(ARM +1.941%, SMCI +4.813%, SOXL +2.637% excluded — not in play.) NVDA
+remains Alpha Leader by a wide margin, but per the funding analysis below
+there is no room left to add to it.
+
+## Step 2 — Alpha Leader Multiplier: zero headroom
+* `base_deployable_cash` = max(0, `buying_power` $255.11 − `min_cash_absolute`
+  $250.00) = **$5.11** — the first time today `buying_power` has cleared
+  the floor by a positive amount (this morning's earlier trims/settlement
+  have now cleared), but the amount itself is immaterial (see below).
+* Room to the 35% single-asset cap ($10,308.31 target-cap value − $10,354.71
+  pre-check NVDA value) = **-$46.40 — already over the cap**, purely from
+  price appreciation, not from a new buy this cycle. **$0 can be routed
+  into NVDA this cycle**, regardless of how much cash exists.
+* `multiplier_cash` (formula) = $5.11 × (1.25 − 1.0) = $1.28 — moot, since
+  no cash can reach the Alpha Leader this cycle and no Overweight trim
+  source exists to harvest it from anyway (see Step 3).
+
+## Step 3 — High-Beta Gains Calculation: no viable trim source
+The only two Overweight positions are **NVDA and MU**, and both remain
+`lock_in_period`-protected:
+* **NVDA**: `lastPurchaseDate` 2026-07-10 (today, from the 9:49 AM cycle) —
+  0 of 2 lock days elapsed, unlocks 2026-07-12. Raw gain +1.916% (would
+  clear the new 1.0% `overweight_sell_minimum_profit_margin_percent`
+  threshold if unlocked, but the lock is the binding constraint here).
+* **MU**: `lastPurchaseDate` 2026-07-09 — 1 of 2 lock days elapsed, unlocks
+  2026-07-11 (tomorrow). Raw gain **-4.490%** — a loss. Even once MU
+  unlocks tomorrow, it will **also** fail the new
+  `overweight_sell_minimum_profit_margin_percent` (1.0%) rule while
+  underwater, and `forceSell` is empty, so MU cannot be sold tomorrow
+  either unless it first recovers to ≥+1.0% or is added to `forceSell`.
+  This is a new, material constraint for future cycles' Step 3 planning.
+
+No other candidate is Overweight this cycle. **Zero legally tradeable
+Overweight trim source exists.** `Total_High_Beta_Gains_Realized` = **$0.00**.
+
+## Funding analysis — why $0 traded this cycle
+* Alpha Leader (NVDA): $0 routable — already over the 35% cap organically.
+* Pro-rata Underweight distribution: `base_deployable_cash` is only **$5.11**.
+  Splitting this pro-rata by dollar drift-gap across the six breaching
+  Underweight positions (TQQQ, GOOG, ORCL, MSFT, AMZN, TSLA — aggregate gap
+  ≈$6,241.83) would allocate **$1.11 to TQQQ and less than $0.82 to each of
+  the other five** — fragmenting $5.11 into up to six sub-dollar orders is
+  not a sensible execution and was judged immaterial, consistent with this
+  routine's practice of not forcing noise trades to force a nonzero trade
+  count. No rule in `CLAUDE.md` mandates a minimum deployment amount, so
+  this $5.11 simply rolls forward and will combine with whatever settles by
+  the next cycle.
+* Net: $5.11 nominal deployable cash, $0 of it deployed; zero Overweight
+  trim source. **0 orders placed.**
+
+## Step 4 — Price Limit & Volatility Halts
+Not evaluated for execution (no orders were sized this cycle), but for
+reference, same-day moves vs. prior close at ~10:48 AM ET: NVDA +1.99%,
+TQQQ -0.72%, GOOG -1.27%, ORCL -2.48% (using `adjusted_previous_close`
+$143.72 — ORCL had a corporate-action adjustment overnight), MSFT -0.37%,
+AMZN -0.63%, TSLA +0.40% — all comfortably inside the 12%
+`buy_price_diff_limit` / 15% `sell_price_diff_limit` bands; none would have
+blocked anything had capital existed.
+
+## Orders placed
+**None.**
+
+## Proposed buys — still **SKIPPED/PENDING** (reference pro-rata split, by dollar drift-gap, for when capital exists)
+| Symbol | Full gap-close $ (at ~10:48 AM prices) | Pro-rata share |
+|---|---|---|
+| TQQQ | ~$1,356.62 | 21.73% |
+| GOOG | ~$991.09 | 15.88% |
+| ORCL | ~$988.20 | 15.83% |
+| MSFT | ~$980.15 | 15.70% |
+| AMZN | ~$962.94 | 15.43% |
+| TSLA | ~$962.81 | 15.43% |
+| **Total** | **~$6,241.83** | 100% |
+
+**Blocking reason:** deployable cash ($5.11) is immaterial relative to the
+gap; NVDA (Alpha Leader) has zero room under the 35% cap; MU and NVDA (the
+only Overweight positions) are both `lock_in_period`-protected and cannot
+be trimmed for funding. No amounts were fabricated.
+
+## Post-check state (informational, unchanged — no trades)
+* Total account value: $29,452.3059. Bot-managed equity: ≈$29,200.28 — well
+  under the $50,000 cap (not binding). NVDA ≈35.16% of total account value
+  (over the 35% single-asset reference cap, organically, via price
+  appreciation — see note above).
+* Cash: $255.11 (`buying_power` matches exactly, $5.11 above
+  `min_cash_absolute`).
+* `peak/prices.json`: one new peak — NVDA $206.5909 → $206.818, dated
+  2026-07-10. No liquidations, no profit-sells, no purchases this cycle —
+  all other fields unchanged.
+
+## Notes / carried-forward items
+* **NVDA over the 35% concentration reference** is a new situation worth
+  tracking: it happened purely from price appreciation, not from this
+  routine adding more. If NVDA keeps climbing while locked, its
+  concentration will keep drifting further from any reference ceiling with
+  no mechanism to correct it until the lock lifts 2026-07-12 — and even
+  then, only if its gain still clears the new
+  `overweight_sell_minimum_profit_margin_percent` (1.0%) threshold (it does
+  today, at +1.916%, but this should be re-checked at that time, not
+  assumed).
+* **MU's negative gain (-4.490%) will likely still block it from selling
+  even after its lock lifts tomorrow (2026-07-11)**, under the new
+  `overweight_sell_minimum_profit_margin_percent` rule, unless it recovers
+  to ≥+1.0% or is explicitly added to `forceSell` in
+  `portfolio_targets.json`. This is a new, material planning item for the
+  next cycle — MU unlocking is no longer sufficient by itself to make it a
+  usable Step 3 trim source.
+* The $5.11 in immaterial deployable cash carries forward; no journal entry
+  or peak/prices.json field was invented to force a nonzero trade.
+* This was a manual re-trigger requested by the user ("refresh the files
+  from github and retrigger"); consistent with prior re-triggers, no
+  separate confirmation was sought before running, since this cycle placed
+  zero trades and required no approval-threshold halt.
+
+
+---
+
 # 2026-07-10 09:49 AM EDT — Scheduled Rebalance Check — EXECUTED (Alpha Leader Multiplier, Base-Cash Only + Pro-Rata Underweight Distribution)
 
 **Status:** COMPLETED. 8 orders placed, all filled. Fresh, stateless run for

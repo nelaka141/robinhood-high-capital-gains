@@ -6,7 +6,7 @@
                 "liquidatedDate": null,
                 "profitSellPrice": null,
                 "profitSellDate": null,
-                "lastPurchaseDate": "2026-07-10"
+                "lastPurchaseDate": "2026-07-13"
         },
         "INTC": {
                 "peakPrice": 116.203,
@@ -96,16 +96,16 @@
                 "liquidatedDate": null,
                 "profitSellPrice": null,
                 "profitSellDate": null,
-                "lastPurchaseDate": "2026-07-10"
+                "lastPurchaseDate": "2026-07-13"
         },
         "AMZN": {
-                "peakPrice": 246.89,
-                "peakDate": "2026-07-10",
+                "peakPrice": 247.265,
+                "peakDate": "2026-07-13",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
                 "profitSellPrice": null,
                 "profitSellDate": null,
-                "lastPurchaseDate": "2026-07-10"
+                "lastPurchaseDate": "2026-07-13"
         },
         "TSLA": {
                 "peakPrice": 409.36,
@@ -144,12 +144,21 @@
                 "lastPurchaseDate": "2026-07-10"
         },
         "MSFT": {
-                "peakPrice": 386.245,
-                "peakDate": "2026-07-10",
+                "peakPrice": 388.41,
+                "peakDate": "2026-07-13",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
                 "profitSellPrice": null,
                 "profitSellDate": null,
                 "lastPurchaseDate": "2026-07-10"
+        },
+        "META": {
+                "peakPrice": 670.9005,
+                "peakDate": "2026-07-13",
+                "liquidatedPrice": "",
+                "liquidatedDate": null,
+                "profitSellPrice": null,
+                "profitSellDate": null,
+                "lastPurchaseDate": "2026-07-13"
         }
 }
