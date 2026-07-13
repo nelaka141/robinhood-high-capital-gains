@@ -83,8 +83,8 @@
         "IONQ": {
                 "peakPrice": 46.52,
                 "peakDate": "2026-07-07",
-                "liquidatedPrice": "",
-                "liquidatedDate": null,
+                "liquidatedPrice": 38.8001,
+                "liquidatedDate": "2026-07-13",
                 "profitSellPrice": null,
                 "profitSellDate": null,
                 "lastPurchaseDate": null
@@ -99,7 +99,7 @@
                 "lastPurchaseDate": "2026-07-13"
         },
         "AMZN": {
-                "peakPrice": 247.265,
+                "peakPrice": 248.425,
                 "peakDate": "2026-07-13",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
@@ -144,7 +144,7 @@
                 "lastPurchaseDate": "2026-07-13"
         },
         "MSFT": {
-                "peakPrice": 388.41,
+                "peakPrice": 392.04,
                 "peakDate": "2026-07-13",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
@@ -189,7 +189,7 @@
                 "lastPurchaseDate": "2026-07-13"
         },
         "NEE": {
-                "peakPrice": 88.2099,
+                "peakPrice": 88.45,
                 "peakDate": "2026-07-13",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
