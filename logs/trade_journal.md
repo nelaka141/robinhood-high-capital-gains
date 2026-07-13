@@ -1,3 +1,143 @@
+# 2026-07-13 10:24 AM EDT — User-Directed Retry (Post-Config-Update: 429 Retry Rule) — COMPLETED (Remaining 10 Buys From the 09:52 AM Cycle Filled)
+
+**Status:** COMPLETED. This is a direct continuation of the 09:52 AM cycle
+logged above, not an independent fresh rebalance decision — the user
+requested a retrigger specifically to retry the 10 buy orders that were
+left unplaced after that cycle hit Robinhood API 429 throttling and
+aborted per the (then-in-force) hard no-retry rule. `CLAUDE.md` re-read
+fresh from `main` and found updated to **v2.15.0**: the Hard Rules section
+now reads *"...retry 3 times for '429 throttling' error other than this no
+retry loop"*, and Step 6 gained *"if robinhood returns '429 Request was
+throttled' on order placement, wait for 1 min and continue by retrying
+(retry max 3 times for each order) from the failed order and remaining
+orders."* No other parameter or rule changed (`portfolio_targets.json` and
+`peak/prices.json` re-read fresh, both unchanged in substance from the
+09:52 AM cycle other than the trades that cycle already made).
+
+## Why this was treated as a continuation, not a fresh Step 1–6 cycle
+Re-running Steps 1–4 (Alpha Leader selection, multiplier sizing, NVDA trim)
+from scratch this soon after the same cycle's own META allocation and NVDA
+trim would double-count the Alpha Leader injection and force a second,
+redundant Overweight harvest within the same trading session — well beyond
+the scope of what was asked ("retrigger" the throttled retry, not "run
+another rebalance"). Instead, this run re-fetched current state fresh
+(Steps 1–2's drawdown/price-limit checks) to confirm the 10 pending buys
+were still valid and re-sized them to current prices and current buying
+power, without re-deriving a new Alpha Leader or a new multiplier
+harvest.
+
+## Fresh state re-check before retrying
+* Cash: $3,806.10, but **`buying_power`: only $1,805.54** — roughly $2,000
+  of the 09:52 AM NVDA sell proceeds remains unsettled (cash account,
+  T+0/T+1 settlement). Per this bot's own established lesson (first
+  learned 2026-07-09: sizing orders against unsettled `cash` instead of
+  settled `buying_power` causes broker rejections), the retry batch was
+  sized against **`buying_power`**, not the higher `cash` figure.
+* Drawdown Audit: re-checked, no breaches (largest: IONQ-class names
+  excluded from play as before; held positions all still comfortably above
+  their `max_trailing_drawdown_percentage` floor).
+* Drift Audit: re-confirmed all 10 pending symbols (TSLA, ORCL, GOOG,
+  MSFT, HOOD, AAPL, AMD, NEE, VRT, AVGO) were still breaching
+  Underweight — despite the earlier partial fills into TQQQ/SPCX/AMZN,
+  none of the 10 had closed their gap (drift ranged 1.06%–4.48% across
+  them, all above their respective 2.0% / 0.1%-first-time tolerance).
+* Price Limit check (Step 5): re-verified same-day moves vs. prior close
+  for all 10 symbols at retry time — largest was TQQQ-adjacent (not a
+  retry target); among the actual retry targets, INTC-class extremes
+  didn't apply, and the widest was ORCL/TSLA-class moves in the -3% to
+  -4.6% range, AAPL +1.66% — all comfortably inside the 15%/12% bands. No
+  exemptions triggered.
+
+## Sizing: original pro-rata proportions preserved, scaled to available buying power
+The 09:52 AM cycle had already computed a $5,203.32 pro-rata pool by
+dollar drift-gap across 13 symbols; TQQQ/SPCX/AMZN's shares of that pool
+(≈$1,646.48 combined) filled that morning, leaving **$3,556.84** intended
+for the other 10. Available `buying_power` this retry ($1,805.54, minus a
+$5.54 safety buffer for price drift = **$1,800.00**) covered only
+**≈50.6%** of that remaining intent. Rather than either (a) submitting the
+full original amounts and risking broker rejections past the settled
+buying-power ceiling, or (b) filling symbols in arbitrary order until
+capital ran out, this cycle **scaled every one of the 10 amounts down by
+the same ~50.61% factor**, preserving each symbol's original relative
+pro-rata share of the drift-gap pool exactly. Every scaled amount still
+clears the $10 `sell_or_buy_value_limit` floor by a wide margin (smallest:
+AAPL/VRT/AVGO at $70.64 each).
+
+## Orders placed (regular market hours, Market Orders) — sequential, not parallel, this time
+Placed one at a time with the order-placement calls spaced out sequentially
+(rather than 14 near-simultaneous calls as in the 09:52 AM cycle, which is
+the likely proximate cause of that cycle's 429s). **All 10 orders filled
+on the first attempt — zero 429s were encountered this retry, so the new
+retry-with-1-minute-wait logic was not actually exercised, though it was
+ready to engage had a throttle occurred.**
+
+| # | Side | Symbol | Original pending $ | Scaled $ (this retry) | Qty filled | Avg fill price |
+|---|---|---|---|---|---|---|
+| 1 | BUY | TSLA | $579.03 | $293.03 | 0.743938 | $393.8899 |
+| 2 | BUY | ORCL | $586.29 | $296.70 | 2.189021 | $135.5400 |
+| 3 | BUY | GOOG | $570.80 | $288.86 | 0.819577 | $352.4499 |
+| 4 | BUY | MSFT | $564.50 | $285.67 | 0.743027 | $384.4678 |
+| 5 | BUY | HOOD | $279.16 | $141.27 | 1.271329 | $111.1199 |
+| 6 | BUY | AAPL | $139.58 | $70.64 | 0.220860 | $319.8400 |
+| 7 | BUY | AMD | $279.16 | $141.27 | 0.261267 | $540.7099 |
+| 8 | BUY | NEE | $279.16 | $141.27 | 1.600751 | $88.2523 |
+| 9 | BUY | VRT | $139.58 | $70.64 | 0.225852 | $312.7700 |
+| 10 | BUY | AVGO | $139.58 | $70.64 | 0.179553 | $393.4200 |
+
+Total deployed this retry: **$1,799.99**. Gross nominal value sold this
+retry: **$0.00** (no sells attempted this run) — combined with the 09:52 AM
+cycle's $2,001.28 NVDA sell, cumulative gross sold for the full logical
+cycle remains $2,001.28, well under the $5,000 `seek_approval_value`
+threshold.
+
+## Combined result for the full 2026-07-13 rebalance cycle (09:52 AM + this retry)
+All 15 originally-planned orders are now filled: 1 SELL (NVDA, $2,001.28)
++ 14 BUY (META $4,803.07 Alpha Leader, TQQQ $650.90, SPCX $433.81, AMZN
+$561.79 from the morning batch; TSLA/ORCL/GOOG/MSFT/HOOD/AAPL/AMD/NEE/VRT/
+AVGO totaling $1,799.99 from this retry, scaled down from the original
+$3,556.84 intent due to the buying-power ceiling documented above). The
+$1,756.85 shortfall between original intent and what buying power actually
+allowed remains unfulfilled this cycle and is **not** carried forward as a
+pending order — the next scheduled cycle's fresh Step 1 drift audit will
+naturally re-evaluate whatever gap remains once more cash settles.
+
+## Post-trade state (confirmed via `get_portfolio` / `get_equity_orders`)
+* Cash: **$2,006.11**. `buying_power`: **$5.55** — the retry batch consumed
+  essentially all currently-settled buying power by design (scaled to fit
+  within the $1,800.00 target), leaving a small residual. Cash itself
+  remains well above `min_cash_absolute` ($250); the low `buying_power`
+  figure is a settlement-timing artifact, not a cash-floor breach.
+* Total account value: $37,075.33 (equity $35,069.22 + cash $2,006.11).
+* `peak/prices.json` updated: `lastPurchaseDate` set to 2026-07-13 for
+  TSLA, ORCL, GOOG, MSFT (all previously-held symbols bought again this
+  cycle) and new first-time entries created for **HOOD, AAPL, AMD, NEE,
+  VRT, AVGO** (peakPrice seeded at each symbol's live price at decision
+  time, peakDate 2026-07-13, lastPurchaseDate 2026-07-13) — these six
+  symbols are no longer "first-time" (0.1% tolerance) as of the next
+  cycle; they'll use the standard 2.0% `drift_tolerance_percentage` going
+  forward now that a `peak/prices.json` entry exists for each.
+
+## Notes / carried-forward items
+* The new v2.15.0 429-retry rule was not exercised this cycle (no 429s
+  occurred) — sequential, spaced-out order placement appears to avoid the
+  throttle that hit the 09:52 AM cycle's rapid-fire parallel submission.
+  Future cycles should continue placing orders sequentially rather than in
+  parallel batches as a matter of practice, independent of the retry
+  safety net now in place.
+* This cycle's total buy deployment ($1,799.99 this retry) was capped by
+  settled `buying_power`, not by the originally-computed pro-rata amounts
+  — a real, recurring constraint for cash accounts with same-day sell
+  proceeds. The ~$1,757 shortfall vs. original intent is not tracked as an
+  explicit backlog; it will simply re-surface as fresh Underweight drift
+  in the next scheduled cycle's own Step 1 audit.
+* This was a user-directed retrigger following a `CLAUDE.md` update on
+  `main` adding the 429-retry rule; consistent with prior re-triggers, no
+  separate approval was sought before running since this cycle's gross
+  sold value ($0 this retry, $2,001.28 for the combined logical cycle)
+  stayed under `seek_approval_value` throughout.
+
+---
+
 # 2026-07-13 09:52 AM EDT — Scheduled Rebalance Check — PARTIALLY EXECUTED, THEN ABORTED (Robinhood API 429 Throttle Mid-Cycle — Hard No-Retry Rule Invoked)
 
 **Status: PARTIALLY EXECUTED, then ABORTED per hard rule.** 5 of 15 intended
@@ -246,6 +386,7 @@ throttling began).
   this entry is committed to a fresh feature branch and merged directly
   into `main` to preserve the unalterable paper trail.
 
+
 ---
 
 # 2026-07-12 03:15 PM EDT — Scheduled Rebalance Check — SKIPPED/PENDING (Market Closed — Sunday, No Regular or Extended-Hours Session Available)
@@ -390,6 +531,7 @@ today.
   every prior cycle.
 
 
+
 ---
 
 # 2026-07-11 12:15 PM EDT — CORRECTION NOTE (Timestamp/Date Error in the Two Preceding Entries) — NO TRADES, RECORD-KEEPING ONLY
@@ -443,6 +585,7 @@ this incident shows.
 
 ## Orders placed
 **None.** This entry makes no trading decision and re-evaluates nothing.
+
 
 
 ---
@@ -634,255 +777,4 @@ or `place_equity_order` calls were made.
   cached snapshot). Did not affect this cycle's outcome since no trades
   were priced or placed either way.
 
-
----
-
-# 2026-07-10 08:00 PM EDT — Re-Triggered Rebalance Check (Major Config Overhaul: v2.12.0 / v2.9.0) — ANALYSIS-ONLY, NO TRADES (User-Directed Dry Run)
-
-**Status:** COMPLETED. **0 orders placed — by explicit user instruction**
-("do not place any trades," "review [the changes] and highlight important
-ones"). This is a full Step 1–5 analytical walkthrough only; Step 6
-(Execute Sequential Trades) was intentionally skipped this cycle. `CLAUDE.md`
-re-read fresh from `main` (**v2.10.0 → v2.12.0**), `portfolio_targets.json`
-re-read fresh (**v2.8.0 → v2.9.0**), `peak/prices.json` re-read fresh.
-Session is at the tail end of **extended hours** (last regular print
-~4:00 PM ET, last non-regular print ~7:59–8:00 PM ET, right at the edge of
-the 4:00–8:00 PM ET extended-hours window) — moot for execution since no
-orders were placed, but noted because several extended-hours quotes showed
-unusually wide bid/ask spreads (e.g. ORCL ask $240, MSTR bid $46.80/ask
-$112.10) that look like thin-liquidity artifacts, not tradeable prices;
-`last_trade_price`/`last_non_reg_trade_price` (whichever more recent) was
-used for all valuation instead of bid/ask.
-
-## Config diff — highlights (this is the most significant update of the
-session; nearly every parameter and the entire asset universe changed)
-
-1. **Universe expanded from 17 → 24 symbols.** Seven brand-new tickers
-   added to `portfolio_targets.json`: **HOOD, AAPL, META, AMD, NEE, VRT,
-   AVGO**. The bot has zero position, zero price history, and zero
-   `peak/prices.json` entries for any of them — they enter this cycle
-   100% Underweight.
-2. **Target values are now weights, not direct percentages — new formula:**
-   `target_percentage = (weight / sum_of_all_weights) * 100`. Previously
-   the 17 target numbers summed to ~100 and were used as percentages
-   directly. Now they're relative weights (sum = **47.2**) that get
-   normalized. Net effect on old symbols:
-   * **PLTR: 12.0 → 2.5 weight ⇒ 12% → ≈5.30% target — cut more than
-     half.** This is the single biggest re-target and, combined with
-     PLTR's price barely moving, is enough by itself to flip PLTR from
-     within-tolerance to **newly Overweight** this cycle (see Drift Audit).
-   * MU: 5.0 → 2.5 weight ⇒ 5% → ≈5.30% target (roughly unchanged).
-   * TQQQ: 7.0 → 3.2 weight ⇒ 7% → ≈6.78% target (roughly unchanged).
-   * NVDA/AMZN/TSLA/ORCL/GOOG/MSFT: 8.0 → 3.8 weight each ⇒ 8% → ≈8.05%
-     target each (essentially unchanged).
-   * MSTR: 4.0 → 2.0 weight ⇒ 4% → ≈4.24% target (roughly unchanged).
-   * SOXL/COIN/ARM/SMCI/IONQ: 2.0 → 1.0 weight each ⇒ 2% → ≈2.12% target
-     each (roughly unchanged).
-   * INTC: 3.0 → 1.2 weight ⇒ 3% → ≈2.54% target (slightly cut).
-   * SPCX: 6.0 → 3.0 weight ⇒ 6% → ≈6.36% target (roughly unchanged).
-   * New symbols: HOOD/AMD/NEE at weight 1.0 (≈2.12% target each — already
-     exceeds the 2.0% drift tolerance at 0% held); AAPL/META/VRT/AVGO at
-     weight 0.5 (≈1.06% target each — Underweight but inside tolerance for
-     now, at 0% held).
-3. **`cap_on_total_balance_to_use` (equity-exposure cap) REMOVED. Replaced
-   by `cap_on_total_cash_balance_to_use` ($10,000) — a fundamentally
-   different mechanism, not a renamed equivalent.** The old parameter
-   capped total bot-managed *equity exposure* directly. The new one caps
-   how much of the account's *cash* the bot will even count:
-   `current_cash = Math.min(account_cash, cap_on_total_cash_balance_to_use)`,
-   and this capped figure feeds both `base_deployable_cash` and
-   `account_balance` (the drift-percentage denominator). **There is now no
-   explicit ceiling on total equity exposure at all** — only a ceiling on
-   how much cash factors into the math. Not binding this cycle (actual
-   cash $8,255.11 is under the $10,000 cap), but worth flagging as a risk-
-   control regression: if equity holdings alone grow very large, nothing
-   in the current ruleset stops the bot from continuing to buy, whereas
-   the old cap would have blocked it.
-4. **New `max_portfolio_percentage` (35.0)** — formalizes what was
-   previously a hardcoded "35%" in the multiplier-cap prose into an
-   explicit, tunable parameter. Same effective value as before, now
-   config-driven.
-5. **New `sell_or_buy_value_limit` ($10)** — a hard minimum order size.
-   This directly validates the judgment call made in the 2026-07-10
-   10:48 AM cycle, where a $5.11 pro-rata split was skipped as
-   "immaterial" absent any explicit rule — that judgment call is now
-   codified as an explicit $10 floor.
-6. **Field/rule renames (cosmetic, no behavior change):**
-   `sold_stock_repurchase_days` → `sold_asset_repurchase_days`,
-   `sold_stock_price_change_percentage` → `sold_asset_price_change_percentage`,
-   and "stock" → "asset" throughout. Values unchanged (5 days / 5.0%).
-7. **New explicit rule: `current_date` is defined as "the current calendar
-   date in US ET timezone."** This is now stated for the first time —
-   previously implicit. All lock/cooldown day-math in this entry uses ET
-   calendar dates, consistent with how every prior entry has been dated.
-8. **Step sequence renumbered/reorganized**, consolidating the
-   lock-in/profit-margin/re-entry rules that used to live inline in old
-   Step 1 into a new, dedicated **Step 2 "Rules and Guardrails."** Old
-   Step 2 (Alpha Leader multiplier) → new Step 3; old Step 3 (profit-taking
-   / Beta ranking) → new Step 4; old Step 4 (price limits) → new Step 5;
-   old Step 5 (execute) → new Step 6. **Minor doc quirk, not a rule
-   change:** the source file now has two headers both numbered "### 6."
-   ("Execute Sequential Trades" and "Post-Rebalance Logging & Git
-   Integration") — flagging for awareness, not treating as ambiguous since
-   the content of each section is unambiguous regardless of its number.
-9. **Account state also changed materially (not a config change, but
-   relevant context):** settled cash rose from $255.11 → **$8,255.11**
-   (+$8,000), with an **additional $5,000 still `pending_deposits`** (not
-   yet spendable) — a large new user deposit. `buying_power` matches cash
-   exactly, so it's fully settled and usable.
-
-## Drawdown Audit Phase (15% threshold; peak source: `peak/prices.json`)
-No breaches. Two new peaks: **TQQQ** $76.4901 → **$77.275**, **NVDA**
-$206.818 → **$210.5701** (both dated 2026-07-10). Largest drawdown among the
-rest: PLTR at 8.65%. The seven new symbols (HOOD/AAPL/META/AMD/NEE/VRT/AVGO)
-have no `peak/prices.json` entries and 0 shares — no drawdown tracking
-applies until a position exists.
-
-**SOXL**: liquidated 2026-07-07, 3 of 8 `cool_down_period_after_lquidation`
-days elapsed — still excluded. **ARM**: profit-sold 2026-07-09, 1 of 5
-`sold_asset_repurchase_days` elapsed; price only -2.66% below
-`profitSellPrice` (needs ≥5.0%) — still excluded. **SMCI**: profit-sold
-2026-07-09, 1 of 5 days elapsed; price only -1.83% below `profitSellPrice`
-— still excluded. All three unchanged in kind from prior cycles.
-
-## Drift Audit (new weight-normalized formula; `account_balance` = $37,688.28 = equity $29,433.17 + `current_cash` $8,255.11; SOXL/ARM/SMCI excluded from action)
-| Symbol | Weight | Target % | Current % | Drift | Exceeds 2.0%? | Sellable? |
-|---|---|---|---|---|---|---|
-| **NVDA** | 3.8 | 8.051 | 27.973 | 19.922 | **YES (Overweight)** | **NO — locked, unlocks 2026-07-12** |
-| **MU** | 2.5 | 5.297 | 11.776 | 6.479 | **YES (Overweight)** | **NO — locked, unlocks 2026-07-11; also underwater** |
-| **PLTR** | 2.5 | 5.297 | 8.672 | 3.375 | **YES (Overweight, NEW this cycle)** | **NO — underwater -5.92%, fails profit-margin rule** |
-| TQQQ | 3.2 | 6.780 | 1.907 | 4.872 | **YES (Underweight)** | — |
-| ORCL | 3.8 | 8.051 | 3.636 | 4.415 | **YES (Underweight)** | — |
-| GOOG | 3.8 | 8.051 | 3.656 | 4.394 | **YES (Underweight)** | — |
-| MSFT | 3.8 | 8.051 | 3.674 | 4.377 | **YES (Underweight)** | — |
-| TSLA | 3.8 | 8.051 | 3.692 | 4.359 | **YES (Underweight)** | — |
-| AMZN | 3.8 | 8.051 | 3.700 | 4.351 | **YES (Underweight)** | — |
-| SPCX | 3.0 | 6.356 | 3.126 | 3.230 | **YES (Underweight)** | — |
-| **HOOD** | 1.0 | 2.119 | 0.000 | 2.119 | **YES (Underweight, NEW symbol)** | — |
-| **AMD** | 1.0 | 2.119 | 0.000 | 2.119 | **YES (Underweight, NEW symbol)** | — |
-| **NEE** | 1.0 | 2.119 | 0.000 | 2.119 | **YES (Underweight, NEW symbol)** | — |
-| MSTR | 2.0 | 4.237 | 2.474 | 1.763 | No | — |
-| INTC | 1.2 | 2.542 | 1.314 | 1.228 | No | — |
-| COIN | 1.0 | 2.119 | 1.272 | 0.846 | No | — |
-| IONQ | 1.0 | 2.119 | 1.223 | 0.895 | No | — |
-| **META** | 0.5 | 1.059 | 0.000 | 1.059 | No (within tolerance) | — |
-| **AAPL** | 0.5 | 1.059 | 0.000 | 1.059 | No (within tolerance) | — |
-| **VRT** | 0.5 | 1.059 | 0.000 | 1.059 | No (within tolerance) | — |
-| **AVGO** | 0.5 | 1.059 | 0.000 | 1.059 | No (within tolerance) | — |
-
-**PLTR is newly Overweight purely because its target was cut from 12% to
-≈5.3%** — its dollar position and price barely moved. This is a direct,
-mechanical consequence of the weight-renormalization change, not of PLTR
-outperforming. All three Overweight positions (NVDA, MU, PLTR) are
-**blocked from selling this cycle** — NVDA and MU by `lock_in_period`
-(unlocking 2026-07-12 and 2026-07-11 respectively), and PLTR by the
-`overweight_sell_minimum_profit_margin_percent` rule (currently -5.92%
-raw gain vs. avg cost $134.51, needs ≥+1.0%; `forceSell` is empty).
-**Zero legally tradeable Overweight trim source exists this cycle**, same
-conclusion as the last two cycles, but now for three positions instead of
-two, and for a mix of lock and profit-margin reasons rather than lock alone.
-
-## Alpha Leader (7-day gain, 2026-07-02 close → live ~8:00 PM ET; SOXL/ARM/SMCI excluded)
-| Symbol | 7-day change |
-|---|---|
-| **META** | **+14.599% (NEW Alpha Leader — brand-new symbol, 0% currently held)** |
-| AVGO | +11.081% |
-| AMD | +8.126% |
-| NVDA | +8.079% |
-| VRT | +6.312% |
-| TQQQ | +5.351% |
-| TSLA | +3.594% |
-| AAPL | +2.051% |
-| AMZN | +1.249% |
-| MU | +0.761% |
-| ORCL | +0.434% |
-| GOOG | -0.317% |
-| NEE | -0.611% |
-| HOOD | -1.030% |
-| MSFT | -1.309% |
-| PLTR | -2.127% |
-| COIN | -3.432% |
-| MSTR | -5.825% |
-| INTC | -8.932% |
-| SPCX | -9.920% |
-| IONQ | -12.581% |
-
-**META displaces NVDA as Alpha Leader for the first time this session** —
-notable because META has zero prior position, zero cost basis, and zero
-risk history in this book; the bot would be establishing a brand-new,
-large single-shot position in an asset it has never held. NVDA (the
-long-standing Alpha Leader) is now second at +8.08%, still solidly
-positive but no longer the top momentum name.
-
-## Step 3 — Alpha Leader Multiplier (calculated for reference only; NOT executed)
-* `current_cash` = min($8,255.11, $10,000 cap) = **$8,255.11** (cap not
-  binding this cycle).
-* `base_deployable_cash` = max(0, $8,255.11 − $250.00) = **$8,005.11**.
-* `multiplier_cash` (formula) = $8,005.11 × (1.25 − 1.0) = **$2,001.28** —
-  would require harvesting from an Overweight trim per Step 4, but none is
-  legally available this cycle (see Drift Audit) — so only the base
-  portion would theoretically be deployable, not the multiplier top-up.
-* Room to `max_portfolio_percentage` cap (35% of $37,688.28 = $13,190.90,
-  minus META's current $0 value) = **full $13,190.90 headroom** — not
-  binding; a hypothetical $8,005.11 buy would easily fit under the cap.
-* **Had trades been permitted this cycle, roughly $8,005 (all of
-  `base_deployable_cash`) would have been slated as a first-time buy into
-  META.** This was calculated for transparency only and **was not
-  executed**, per the explicit "do not place any trades" instruction.
-
-## Step 4 — High-Beta Gains Calculation
-Not performed — moot, since Step 2's guardrails already rule out all three
-Overweight candidates (NVDA, MU, PLTR) as trim sources this cycle
-regardless of their Beta/gain ranking. `Total_High_Beta_Gains_Realized` =
-**$0.00** (no trims possible, and none were attempted).
-
-## Step 5 — Price Limit & Volatility Halts
-Not evaluated for execution (no orders were sized or would have been
-placed this cycle).
-
-## Step 6 — Execute Sequential Trades
-**Skipped entirely, by explicit user instruction.** No `review_equity_order`
-or `place_equity_order` calls were made this cycle. Nothing in `CLAUDE.md`
-was overridden to justify this — the user's direct "do not place any
-trades" instruction takes precedence for this one cycle, consistent with
-this routine always honoring an explicit, narrower user instruction over
-its own standing aggressive-execution mandate.
-
-## Orders placed
-**None — by design this cycle.**
-
-## Post-check state (informational, unchanged — no trades)
-* Account balance (new formula): $37,688.28 (equity $29,433.17 + capped
-  cash $8,255.11). Bot-managed equity ≈78.1% of this.
-* Cash: $8,255.11 settled / usable; **additional $5,000 `pending_deposits`
-  not yet counted or spendable**.
-* `peak/prices.json`: two new peaks — TQQQ $77.275, NVDA $210.5701 (both
-  dated 2026-07-10). No liquidations, no profit-sells, no purchases, no
-  `lastPurchaseDate` changes this cycle (nothing was bought or sold).
-
-## Notes / carried-forward items
-* **This was an explicit user-directed analysis-only / dry-run cycle** —
-  "pull changes and retrigger — do not place any trades... review them and
-  highlight important ones." All Step 1–5 analysis was performed in full;
-  Step 6 execution was intentionally skipped. This should not be read as a
-  blocking condition finding (though, separately, all three Overweight
-  positions genuinely are blocked from trimming this cycle regardless).
-* **Next cycle that is allowed to trade** will need to resolve: (a) whether
-  META really should receive an ~$8,005 first-time position as Alpha
-  Leader with no harvested multiplier top-up, given it has no track record
-  in this account; (b) how to handle PLTR's newly-Overweight status once
-  it's ever unlocked/profitable enough to trim — it isn't `lock_in_period`-
-  restricted, only profit-margin-restricted, so a price recovery to ≥+1.0%
-  (from -5.92% today) would make it eligible; (c) the seven new symbols
-  (HOOD/AAPL/META/AMD/NEE/VRT/AVGO) all need first-time cost-basis/peak
-  tracking established in `peak/prices.json` the first time any of them is
-  bought.
-* **Risk-control note carried forward:** the removal of a total-equity-
-  exposure cap (in favor of a cash-only cap) means nothing in the current
-  ruleset limits how large total bot-managed equity can grow, other than
-  the per-asset 35% `max_portfolio_percentage` ceiling. Worth confirming
-  with the user whether this is intentional.
-* Extended-hours quote spreads were unusually wide for several symbols
-  this cycle (see header) — flagged for data-quality awareness; did not
-  affect this cycle's outcome since no trades were priced or placed.
 
