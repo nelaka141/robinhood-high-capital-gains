@@ -1,12 +1,5 @@
 {
   "pending_draws": [
-    {
-      "symbol": "NVDA",
-      "saleProceeds": 5498.88,
-      "reserveDrawn": 3000,
-      "saleDate": "2026-07-14",
-      "expectedSettleDate": "2026-07-16",
-      "settled": false
-    }
+
   ]
 }
