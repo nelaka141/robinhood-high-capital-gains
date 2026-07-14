@@ -1,3 +1,144 @@
+# 2026-07-13 10:24 AM EDT — User-Directed Retry (Post-Config-Update: 429 Retry Rule) — COMPLETED (Remaining 10 Buys From the 09:52 AM Cycle Filled)
+
+**Status:** COMPLETED. This is a direct continuation of the 09:52 AM cycle
+logged above, not an independent fresh rebalance decision — the user
+requested a retrigger specifically to retry the 10 buy orders that were
+left unplaced after that cycle hit Robinhood API 429 throttling and
+aborted per the (then-in-force) hard no-retry rule. `CLAUDE.md` re-read
+fresh from `main` and found updated to **v2.15.0**: the Hard Rules section
+now reads *"...retry 3 times for '429 throttling' error other than this no
+retry loop"*, and Step 6 gained *"if robinhood returns '429 Request was
+throttled' on order placement, wait for 1 min and continue by retrying
+(retry max 3 times for each order) from the failed order and remaining
+orders."* No other parameter or rule changed (`portfolio_targets.json` and
+`peak/prices.json` re-read fresh, both unchanged in substance from the
+09:52 AM cycle other than the trades that cycle already made).
+
+## Why this was treated as a continuation, not a fresh Step 1–6 cycle
+Re-running Steps 1–4 (Alpha Leader selection, multiplier sizing, NVDA trim)
+from scratch this soon after the same cycle's own META allocation and NVDA
+trim would double-count the Alpha Leader injection and force a second,
+redundant Overweight harvest within the same trading session — well beyond
+the scope of what was asked ("retrigger" the throttled retry, not "run
+another rebalance"). Instead, this run re-fetched current state fresh
+(Steps 1–2's drawdown/price-limit checks) to confirm the 10 pending buys
+were still valid and re-sized them to current prices and current buying
+power, without re-deriving a new Alpha Leader or a new multiplier
+harvest.
+
+## Fresh state re-check before retrying
+* Cash: $3,806.10, but **`buying_power`: only $1,805.54** — roughly $2,000
+  of the 09:52 AM NVDA sell proceeds remains unsettled (cash account,
+  T+0/T+1 settlement). Per this bot's own established lesson (first
+  learned 2026-07-09: sizing orders against unsettled `cash` instead of
+  settled `buying_power` causes broker rejections), the retry batch was
+  sized against **`buying_power`**, not the higher `cash` figure.
+* Drawdown Audit: re-checked, no breaches (largest: IONQ-class names
+  excluded from play as before; held positions all still comfortably above
+  their `max_trailing_drawdown_percentage` floor).
+* Drift Audit: re-confirmed all 10 pending symbols (TSLA, ORCL, GOOG,
+  MSFT, HOOD, AAPL, AMD, NEE, VRT, AVGO) were still breaching
+  Underweight — despite the earlier partial fills into TQQQ/SPCX/AMZN,
+  none of the 10 had closed their gap (drift ranged 1.06%–4.48% across
+  them, all above their respective 2.0% / 0.1%-first-time tolerance).
+* Price Limit check (Step 5): re-verified same-day moves vs. prior close
+  for all 10 symbols at retry time — largest was TQQQ-adjacent (not a
+  retry target); among the actual retry targets, INTC-class extremes
+  didn't apply, and the widest was ORCL/TSLA-class moves in the -3% to
+  -4.6% range, AAPL +1.66% — all comfortably inside the 15%/12% bands. No
+  exemptions triggered.
+
+## Sizing: original pro-rata proportions preserved, scaled to available buying power
+The 09:52 AM cycle had already computed a $5,203.32 pro-rata pool by
+dollar drift-gap across 13 symbols; TQQQ/SPCX/AMZN's shares of that pool
+(≈$1,646.48 combined) filled that morning, leaving **$3,556.84** intended
+for the other 10. Available `buying_power` this retry ($1,805.54, minus a
+$5.54 safety buffer for price drift = **$1,800.00**) covered only
+**≈50.6%** of that remaining intent. Rather than either (a) submitting the
+full original amounts and risking broker rejections past the settled
+buying-power ceiling, or (b) filling symbols in arbitrary order until
+capital ran out, this cycle **scaled every one of the 10 amounts down by
+the same ~50.61% factor**, preserving each symbol's original relative
+pro-rata share of the drift-gap pool exactly. Every scaled amount still
+clears the $10 `sell_or_buy_value_limit` floor by a wide margin (smallest:
+AAPL/VRT/AVGO at $70.64 each).
+
+## Orders placed (regular market hours, Market Orders) — sequential, not parallel, this time
+Placed one at a time with the order-placement calls spaced out sequentially
+(rather than 14 near-simultaneous calls as in the 09:52 AM cycle, which is
+the likely proximate cause of that cycle's 429s). **All 10 orders filled
+on the first attempt — zero 429s were encountered this retry, so the new
+retry-with-1-minute-wait logic was not actually exercised, though it was
+ready to engage had a throttle occurred.**
+
+| # | Side | Symbol | Original pending $ | Scaled $ (this retry) | Qty filled | Avg fill price |
+|---|---|---|---|---|---|---|
+| 1 | BUY | TSLA | $579.03 | $293.03 | 0.743938 | $393.8899 |
+| 2 | BUY | ORCL | $586.29 | $296.70 | 2.189021 | $135.5400 |
+| 3 | BUY | GOOG | $570.80 | $288.86 | 0.819577 | $352.4499 |
+| 4 | BUY | MSFT | $564.50 | $285.67 | 0.743027 | $384.4678 |
+| 5 | BUY | HOOD | $279.16 | $141.27 | 1.271329 | $111.1199 |
+| 6 | BUY | AAPL | $139.58 | $70.64 | 0.220860 | $319.8400 |
+| 7 | BUY | AMD | $279.16 | $141.27 | 0.261267 | $540.7099 |
+| 8 | BUY | NEE | $279.16 | $141.27 | 1.600751 | $88.2523 |
+| 9 | BUY | VRT | $139.58 | $70.64 | 0.225852 | $312.7700 |
+| 10 | BUY | AVGO | $139.58 | $70.64 | 0.179553 | $393.4200 |
+
+Total deployed this retry: **$1,799.99**. Gross nominal value sold this
+retry: **$0.00** (no sells attempted this run) — combined with the 09:52 AM
+cycle's $2,001.28 NVDA sell, cumulative gross sold for the full logical
+cycle remains $2,001.28, well under the $5,000 `seek_approval_value`
+threshold.
+
+## Combined result for the full 2026-07-13 rebalance cycle (09:52 AM + this retry)
+All 15 originally-planned orders are now filled: 1 SELL (NVDA, $2,001.28)
++ 14 BUY (META $4,803.07 Alpha Leader, TQQQ $650.90, SPCX $433.81, AMZN
+$561.79 from the morning batch; TSLA/ORCL/GOOG/MSFT/HOOD/AAPL/AMD/NEE/VRT/
+AVGO totaling $1,799.99 from this retry, scaled down from the original
+$3,556.84 intent due to the buying-power ceiling documented above). The
+$1,756.85 shortfall between original intent and what buying power actually
+allowed remains unfulfilled this cycle and is **not** carried forward as a
+pending order — the next scheduled cycle's fresh Step 1 drift audit will
+naturally re-evaluate whatever gap remains once more cash settles.
+
+## Post-trade state (confirmed via `get_portfolio` / `get_equity_orders`)
+* Cash: **$2,006.11**. `buying_power`: **$5.55** — the retry batch consumed
+  essentially all currently-settled buying power by design (scaled to fit
+  within the $1,800.00 target), leaving a small residual. Cash itself
+  remains well above `min_cash_absolute` ($250); the low `buying_power`
+  figure is a settlement-timing artifact, not a cash-floor breach.
+* Total account value: $37,075.33 (equity $35,069.22 + cash $2,006.11).
+* `peak/prices.json` updated: `lastPurchaseDate` set to 2026-07-13 for
+  TSLA, ORCL, GOOG, MSFT (all previously-held symbols bought again this
+  cycle) and new first-time entries created for **HOOD, AAPL, AMD, NEE,
+  VRT, AVGO** (peakPrice seeded at each symbol's live price at decision
+  time, peakDate 2026-07-13, lastPurchaseDate 2026-07-13) — these six
+  symbols are no longer "first-time" (0.1% tolerance) as of the next
+  cycle; they'll use the standard 2.0% `drift_tolerance_percentage` going
+  forward now that a `peak/prices.json` entry exists for each.
+
+## Notes / carried-forward items
+* The new v2.15.0 429-retry rule was not exercised this cycle (no 429s
+  occurred) — sequential, spaced-out order placement appears to avoid the
+  throttle that hit the 09:52 AM cycle's rapid-fire parallel submission.
+  Future cycles should continue placing orders sequentially rather than in
+  parallel batches as a matter of practice, independent of the retry
+  safety net now in place.
+* This cycle's total buy deployment ($1,799.99 this retry) was capped by
+  settled `buying_power`, not by the originally-computed pro-rata amounts
+  — a real, recurring constraint for cash accounts with same-day sell
+  proceeds. The ~$1,757 shortfall vs. original intent is not tracked as an
+  explicit backlog; it will simply re-surface as fresh Underweight drift
+  in the next scheduled cycle's own Step 1 audit.
+* This was a user-directed retrigger following a `CLAUDE.md` update on
+  `main` adding the 429-retry rule; consistent with prior re-triggers, no
+  separate approval was sought before running since this cycle's gross
+  sold value ($0 this retry, $2,001.28 for the combined logical cycle)
+  stayed under `seek_approval_value` throughout.
+
+
+---
+
 # 2026-07-13 09:52 AM EDT — Scheduled Rebalance Check — PARTIALLY EXECUTED, THEN ABORTED (Robinhood API 429 Throttle Mid-Cycle — Hard No-Retry Rule Invoked)
 
 **Status: PARTIALLY EXECUTED, then ABORTED per hard rule.** 5 of 15 intended
