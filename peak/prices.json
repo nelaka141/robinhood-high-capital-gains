@@ -63,8 +63,8 @@
                 "lastPurchaseDate": null
         },
         "ARM": {
-                "peakPrice": 334.21,
-                "peakDate": "2026-07-09",
+                "peakPrice": 287.68,
+                "peakDate": "2026-07-14",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
                 "profitSellPrice": 333.5356,
@@ -162,7 +162,7 @@
                 "lastPurchaseDate": "2026-07-14"
         },
         "HOOD": {
-                "peakPrice": 112.65,
+                "peakPrice": 113.69,
                 "peakDate": "2026-07-14",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
