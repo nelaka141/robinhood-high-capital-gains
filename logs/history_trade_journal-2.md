@@ -1,3 +1,147 @@
+# 2026-07-12 03:15 PM EDT — Scheduled Rebalance Check — SKIPPED/PENDING (Market Closed — Sunday, No Regular or Extended-Hours Session Available)
+
+**Status:** COMPLETED. **0 orders placed — market closed.** Fresh, stateless
+run for the scheduled 3:15 PM ET check. `CLAUDE.md` re-read fresh from
+`main` (unchanged text, still v2.13.0) alongside `portfolio_targets.json`
+(unchanged — the same 24-symbol universe, weight sum 47.2) and
+`peak/prices.json` (unchanged byte-for-byte from the last push).
+`current_date` is anchored to the session's own authoritative calendar date
+(2026-07-12), not to any quote timestamp, per the process fix logged in the
+2026-07-11 12:15 PM correction note below.
+
+## Why this cycle could not execute
+Today, **2026-07-12, is a Sunday.** Live quotes for all 24 target symbols
+returned prints timestamped **2026-07-10** (last regular-session trade at
+19:59:59 UTC, last extended-hours trade at 23:59:xx UTC — Friday's close) —
+identical, tick-for-tick, to the snapshot used in the last two logged
+cycles. There have been no new prints since, because the market has been
+closed continuously since Friday's extended-hours session ended and remains
+closed through this Sunday check. Per `CLAUDE.md`'s Order Type / Extended
+Hours Execution rules, trading is only permitted during **regular market
+hours** or the specific **7:00–9:30 AM ET / 4:00–8:00 PM ET** extended-hours
+windows — none of which exist on a Sunday. **Step 6 (Execute Sequential
+Trades) is therefore blocked for the entire cycle, regardless of what Steps
+1–5 compute.** This is a hard market-hours restriction, not a judgment
+call, and no order was sized or attempted.
+
+## State fetched (informational — Steps 1–5 performed in full for the record)
+* Account `795732718` ("Agentic"), the only `agentic_allowed=true` account.
+* Cash: **$8,255.11** (`buying_power` matches exactly — fully settled),
+  unchanged from the last two cycles. `current_cash` = min($8,255.11,
+  $10,000 cap) = $8,255.11 (cap not binding). Additional $5,000
+  `pending_deposits` still not counted/spendable.
+* Equity value: **$29,433.17**. `account_balance` = equity + `current_cash`
+  = **$37,688.28** — identical to the last two logged cycles (no price
+  movement, no trades since).
+
+### Drawdown Audit Phase (15% threshold; peak source: `peak/prices.json`)
+No breaches. TQQQ ($77.275) and NVDA ($210.5701) sit exactly at their
+recorded peaks; all other held symbols remain below peak (largest: IONQ at
+7.70% below its $46.52 peak). **SOXL** (liquidated 2026-07-07): 5 of 8
+`cool_down_period_after_lquidation` days elapsed, recovery condition
+already met (+23.16% above liquidation price) but the cooldown-days
+condition still not met — excluded. **ARM** (profit-sold 2026-07-09): 3 of
+5 `sold_asset_repurchase_days` elapsed, price only -2.66% below
+`profitSellPrice` (needs ≥5.0%) — excluded. **SMCI** (profit-sold
+2026-07-09): 3 of 5 days elapsed, price only -1.83% below `profitSellPrice`
+— excluded. All three unchanged in kind from prior cycles. No
+`peak/prices.json` updates needed this cycle (no new peaks, no
+liquidations, no profit-sells, no purchases).
+
+### Drift Audit (`account_balance` = $37,688.28; SOXL/ARM/SMCI excluded)
+| Symbol | Target % | Current % | Drift | Tolerance | Breach? | Sellable? |
+|---|---|---|---|---|---|---|
+| **NVDA** | 8.051 | 27.972 | 19.921 | 2.0% | **YES (Overweight)** | **NO — locked, `lastPurchaseDate` 2026-07-10, 2 of 2 lock days elapsed (still within `lock_in_period`), unlocks 2026-07-13** |
+| **MU** | 5.297 | 11.776 | 6.479 | 2.0% | **YES (Overweight)** | **NO — unlocked (3 days since 2026-07-09 purchase) but underwater -3.63% vs. avg cost $1,020.00, fails `overweight_sell_minimum_profit_margin_percent` (needs ≥+1.0%)** |
+| **PLTR** | 5.297 | 8.672 | 3.375 | 2.0% | **YES (Overweight)** | **NO — no lock on record, but underwater -5.92% vs. avg cost $134.51, fails profit-margin rule** |
+| TQQQ | 6.780 | 1.905 | 4.875 | 2.0% | YES (Underweight) | — |
+| ORCL | 8.051 | 3.636 | 4.415 | 2.0% | YES (Underweight) | — |
+| GOOG | 8.051 | 3.657 | 4.394 | 2.0% | YES (Underweight) | — |
+| MSFT | 8.051 | 3.675 | 4.376 | 2.0% | YES (Underweight) | — |
+| TSLA | 8.051 | 3.692 | 4.359 | 2.0% | YES (Underweight) | — |
+| AMZN | 8.051 | 3.700 | 4.351 | 2.0% | YES (Underweight) | — |
+| SPCX | 6.356 | 3.126 | 3.230 | 2.0% | YES (Underweight) | — |
+| HOOD | 2.119 | 0.000 | 2.119 | 0.1% (first-time) | YES (Underweight) | — |
+| AMD | 2.119 | 0.000 | 2.119 | 0.1% (first-time) | YES (Underweight) | — |
+| NEE | 2.119 | 0.000 | 2.119 | 0.1% (first-time) | YES (Underweight) | — |
+| META | 1.059 | 0.000 | 1.059 | 0.1% (first-time) | YES (Underweight) | — |
+| AAPL | 1.059 | 0.000 | 1.059 | 0.1% (first-time) | YES (Underweight) | — |
+| VRT | 1.059 | 0.000 | 1.059 | 0.1% (first-time) | YES (Underweight) | — |
+| AVGO | 1.059 | 0.000 | 1.059 | 0.1% (first-time) | YES (Underweight) | — |
+| MSTR | 4.237 | 2.474 | 1.763 | 2.0% | No | — |
+| INTC | 2.542 | 1.314 | 1.228 | 2.0% | No | — |
+| COIN | 2.119 | 1.272 | 0.847 | 2.0% | No | — |
+| IONQ | 2.119 | 1.223 | 0.896 | 2.0% | No | — |
+
+17 of 21 in-play symbols breach tolerance — same pattern as the last logged
+cycle (identical prices/positions). All three Overweight positions (NVDA,
+MU, PLTR) remain **blocked from selling** for the same reasons as before:
+NVDA by `lock_in_period` (unlocks tomorrow, 2026-07-13), MU and PLTR by the
+profit-margin rule while underwater. **Zero legally tradeable Overweight
+trim source exists this cycle**, same conclusion as every recent cycle.
+
+### Alpha Leader (7-day gain)
+Computed off the same frozen quote snapshot used above (no new prints since
+Friday). **META remains Alpha Leader at +14.599%** (NVDA second at
++8.079%) — unchanged from the last two logged cycles, since no price has
+moved.
+
+### Steps 3–5 (Multiplier sizing, High-Beta trim ranking, price-limit halts)
+Not executed — moot. Even absent the market-closure block, Step 3's
+multiplier/pro-rata math would depend on harvesting `multiplier_cash` from
+an Overweight trim, and Step 2's guardrails already rule out all three
+Overweight candidates (NVDA, MU, PLTR) as trim sources this cycle.
+`Total_High_Beta_Gains_Realized` = **$0.00**. No amounts were sized or
+fabricated.
+
+## Orders placed
+**None.**
+
+## Proposed trade matrix — SKIPPED/PENDING
+**Blocking reason: market closed.** Today (2026-07-12) is a Sunday — no
+regular-hours or 7:00–9:30 AM / 4:00–8:00 PM ET extended-hours session
+exists, per `CLAUDE.md`'s Order Type / Extended Hours Execution rule. This
+blocks execution independent of, and in addition to, the pre-existing
+lock-in/profit-margin blocks on NVDA/MU/PLTR documented above. No trade
+sizing was finalized since there is no window to route any order into
+today.
+
+## Post-check state (informational, unchanged — no trades)
+* Account balance: $37,688.28 (equity $29,433.17 + capped cash $8,255.11),
+  unchanged from the last two cycles. Additional $5,000 `pending_deposits`
+  still not counted/spendable.
+* `peak/prices.json`: **no changes** this cycle (nothing bought, sold, or
+  newly peaked — prices are identical to the last recorded snapshot).
+
+## Notes / carried-forward items
+* This is the **third consecutive check to see this exact frozen quote
+  snapshot** (Friday 2026-07-10's close) — the prior two cycles ran during
+  Friday's tail-end extended hours and this Sunday's scheduled check both
+  landed on the same closed-market data. The next cycle able to trade will
+  need Monday's (2026-07-13) regular session to open before any of the 17
+  breaching positions can be addressed.
+* NVDA unlocks for selling **2026-07-13** (Monday) — first day it clears
+  `lock_in_period`. MU and PLTR remain blocked by the profit-margin rule
+  regardless of lock status; either needs its price to recover to ≥+1.0%
+  gain, or an explicit `forceSell` entry (currently empty), to become
+  sellable.
+* SOXL's cooldown (5 of 8 days elapsed) and ARM/SMCI's cooldowns (3 of 5
+  days elapsed each) will each cross their day-count thresholds by
+  2026-07-15 (SOXL) and 2026-07-14 (ARM/SMCI) respectively, assuming no new
+  liquidation/profit-sell resets them first — SOXL's price-recovery
+  condition is already independently satisfied, so its cooldown day-count
+  is now the sole remaining gate; ARM/SMCI still need both their day-count
+  and price-drop conditions to clear.
+* No approval halt was relevant this cycle (`seek_approval_value` $5,000) —
+  zero sells were sized, let alone attempted.
+* This was an unattended scheduled run (3:15 PM ET). Per repo convention,
+  this entry is committed to a fresh feature branch and merged directly
+  into `main` to preserve the unalterable paper trail, consistent with
+  every prior cycle.
+
+
+---
+
 # 2026-07-11 12:15 PM EDT — CORRECTION NOTE (Timestamp/Date Error in the Two Preceding Entries) — NO TRADES, RECORD-KEEPING ONLY
 
 **Status:** COMPLETED. This is a correction addendum, not a new rebalance
