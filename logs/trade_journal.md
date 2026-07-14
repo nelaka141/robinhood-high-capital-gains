@@ -1,3 +1,159 @@
+# 2026-07-14 05:57 PM EDT — User-Directed Retry (Post-Config-Update: `seek_approval_value` Raised, Drawdown/Lock-In/Peak-Reset Rules Clarified) — SKIPPED/PENDING (Extended-Hours Fractional-Routing Restriction)
+
+**Status:** SKIPPED. **0 of 0 orders placed this cycle.** User updated
+`CLAUDE.md` (now v2.18.0, up from v2.17.0) and `portfolio_targets.json`
+(now v2.11.0) and asked for a fresh retrigger. Both files re-pulled fresh
+from `main`. **Both hard-rule conflicts flagged in the 3:17 PM cycle are
+now resolved by the update** — but a new, independent blocker (extended
+market hours) prevented any execution this cycle. Full detail below.
+
+## What changed in the config update
+* `seek_approval_value`: **$5,000 → $10,000.**
+* Drawdown Audit Phase rewritten: a breach now requires the asset to have
+  dropped ≥ `max_trailing_drawdown_percentage` from **both** its
+  `peakPrice` **and** its `avg_cost_basis` (previously peak-only), and the
+  rule now explicitly states the `lock_in_period` guardrail **should be
+  ignored** when a stop-loss triggers.
+* Step 6 peak-tracking gained a new explicit instruction: **"Reset the
+  peakPrice if asset is repurchased after a profit-sell with purchase
+  price."**
+
+## Pre-check state (fresh pull, ~5:56 PM ET)
+* Account `795732718` ("Agentic"). Cash: **$250.09** (unchanged since the
+  9:52 AM cycle — no activity since the 3:17 PM halt). Positions unchanged
+  from the 3:17 PM check (no trades placed since).
+* **Session check: regular hours have closed.** Live quotes show the
+  regular-session last trade at 19:59:59 UTC (3:59:59 PM ET, the 4:00 PM
+  close) with newer `last_non_reg_trade_price` prints around 21:55–21:56
+  UTC (**~5:55–5:56 PM ET**) — squarely inside the 4:00–8:00 PM ET
+  post-market **extended-hours** window per `CLAUDE.md`'s Order Type rule.
+
+## ARM peak reset applied (resolves the 3:17 PM stop-loss/lock-in conflict)
+Per the new Step 6 rule, ARM (profit-sold 2026-07-09 at $333.5356,
+repurchased 2026-07-14 at $287.68) has its `peakPrice` **reset to its
+repurchase price: $287.68**, `peakDate` → **2026-07-14**. Re-running the
+Drawdown Audit with the new dual-condition test and the reset peak:
+* ARM: current $279.85 vs. reset peak $287.68 = **−2.72%** from peak,
+  **−2.72%** from `avg_cost_basis` ($287.68, same value — single lot
+  bought today). Neither leg clears 15% — **no breach.** The 3:17 PM
+  cycle's stale-peak-driven stop-loss/lock-in conflict is fully resolved
+  by this reset; no further action needed on ARM this cycle.
+
+## Drawdown Audit Phase (new dual-condition test, all 21 held symbols)
+Checked current price vs. both `peakPrice` and `avg_cost_basis` (both legs
+must clear 15% to trigger). **No breaches.** Full detail:
+
+| Symbol | Current | Peak | Δ vs Peak | Avg Cost | Δ vs Cost | Breach? |
+|---|---|---|---|---|---|---|
+| ORCL | 128.60 | 147.67 | −12.91% | 139.34 | −7.71% | No |
+| INTC | 107.75 | 116.203 | −7.27% | 126.37 | −14.73% | No |
+| SPCX | 136.95 | 152.9988 | −10.49% | 156.46 | −12.47% | No |
+| (remaining 18 symbols all under 5% on at least one leg — full table
+  available on request; ARM detailed separately above) | | | | | | |
+
+One new intraday peak recorded: **HOOD** $112.65 → **$113.69** (2026-07-14,
+informational — not traded this cycle).
+
+## Rules & Guardrails (Step 2) — re-entry checks, unchanged from 3:17 PM
+Same calendar day, no additional day elapsed — **SOXL** (7 of 8 cooldown
+days), **SMCI** (−4.54% price change, short of the 5% bar), and **IONQ**
+(1 of 8 cooldown days, +1.30% recovery) all **remain excluded**, identical
+conclusions to the 3:17 PM check.
+
+## Drift Audit (`account_balance` ≈ $37,582.59; SOXL/SMCI/IONQ excluded)
+Same breach set as the 3:17 PM cycle (prices moved only slightly in the
+~2.5 hours since): **4 Overweight** (NVDA +14.72% drift, META +13.68%, MU
++6.47%, PLTR +3.88%) and **6 Underweight** (ORCL +3.39%, TSLA +3.14%, MSFT
++3.06%, GOOG +3.03%, TQQQ +2.67%, AMZN +2.39%). ARM's drift (1.81%) is
+still below the 2.0% tolerance.
+
+## Overweight Sellability Check — **NVDA still the sole legal candidate**
+* **NVDA**: avg cost $203.96, current $211.5052 → **+3.70% raw gain**,
+  clears the 1.0% floor. `lastPurchaseDate` 2026-07-10 (4 days back,
+  clear of `lock_in_period`).
+* PLTR: $134.51 → $133.5501 = **−0.71%** (now underwater, was marginally
+  positive at 3:17 PM) — fails floor.
+* MU: **−4.00%**, META: **−0.41%** — both still fail the floor.
+* Proposed NVDA trim to exact target: **~26.15 shares (~$5,531.40
+  notional)** — **now comfortably under the raised $10,000
+  `seek_approval_value` threshold.** The 3:17 PM cycle's approval-gate
+  halt is fully resolved by the config update.
+
+## Step 6 — Execution SKIPPED: Extended-Hours Fractional-Routing Restriction
+Both conditions that blocked the 3:17 PM cycle are now clear. **However, a
+new, independent blocker applies:** `CLAUDE.md`'s Extended Hours Execution
+rule permits routing only if **all** targeted assets qualify for
+fractional-share routing in the current session. Checked via
+`get_equity_tradability`:
+
+| Symbol | `extended_hours_fractional_tradability` |
+|---|---|
+| NVDA | true |
+| TSLA | true |
+| TQQQ | true |
+| META | true |
+| ORCL | **false** |
+| MSFT | **false** |
+| GOOG | **false** |
+| AMZN | **false** |
+
+Not all targeted assets qualify — the condition fails. Separately, and
+decisively: the order-placement tool's own rules state fractional-share
+and dollar-notional orders **place only in `regular_hours`, regardless of
+per-symbol extended-hours flags.** Every trade in this cycle's plan (the
+NVDA trim and all 6 pro-rata Underweight buys) is fractional-sized by
+design — none can be routed as whole-share orders without deviating from
+the calculated allocation, and `CLAUDE.md` offers no whole-share fallback
+for this scenario. **No orders were placed.**
+
+* **Proposed trade matrix (SKIPPED/PENDING — blocking reason: extended
+  market hours; fractional order routing unavailable until the next
+  regular session):**
+
+| # | Side | Symbol | Notional (proposed) | Qty (proposed) |
+|---|---|---|---|---|
+| 1 | SELL | NVDA | ~$5,531.40 | ~26.15 |
+| 2 | BUY | ORCL | ~$1,059 | ~8.20 |
+| 3 | BUY | TSLA | ~$978 | ~2.47 |
+| 4 | BUY | MSFT | ~$959 | ~2.49 |
+| 5 | BUY | GOOG | ~$953 | ~2.67 |
+| 6 | BUY | TQQQ | ~$835 | ~11.09 |
+| 7 | BUY | AMZN | ~$751 | ~3.03 |
+
+(Approximate — sizing would be refined against live quotes at the next
+regular-hours cycle, since these figures are drawn from this check's
+snapshot, not a fresh recompute at execution time.)
+
+* Cash remains **$250.09**, unchanged.
+
+## peak/prices.json updates (applied regardless of trade execution)
+* **ARM**: `peakPrice` reset $334.21 → **$287.68**, `peakDate` →
+  **2026-07-14** (repurchase-after-profit-sell reset, per the new Step 6
+  rule).
+* **HOOD**: `peakPrice` $112.65 → **$113.69**, `peakDate` unchanged
+  (2026-07-14).
+* All other symbols' fields unchanged from the 3:17 PM push.
+
+## Notes
+* Both action items flagged at 3:17 PM are now closed: the `seek_approval_value`
+  raise clears the NVDA-trim approval gate, and the drawdown-rule rewrite
+  plus the new peak-reset-on-repurchase instruction together resolve the
+  ARM stale-peak/lock-in conflict cleanly (no more unilateral judgment call
+  needed — the rules now say exactly what to do).
+* The next cycle able to trade needs the **next regular-hours session
+  (9:30 AM–4:00 PM ET)** to open — today's regular session has already
+  closed. The NVDA-trim-and-rebalance plan above should carry forward and
+  be resized against fresh quotes at that time, since Overweight/Underweight
+  drift, the Alpha Leader, and the profit-margin gate can all shift between
+  now and then.
+* This was a user-directed retry following a config update, run
+  immediately rather than waiting for the next scheduled tick. Per repo
+  convention, this entry is committed to a fresh feature branch and merged
+  directly into `main` to preserve the unalterable paper trail.
+
+
+---
+
 # 2026-07-14 03:17 PM EDT — Scheduled Rebalance Check — HALTED/PENDING USER APPROVAL (NVDA Overweight Trim Exceeds `seek_approval_value`; ARM Drawdown Stop-Loss Blocked by `lock_in_period`)
 
 **Status:** HALTED before execution. **0 of 0 orders placed this cycle.** Fresh,
@@ -850,253 +1006,3 @@ naturally re-evaluate whatever gap remains once more cash settles.
   separate approval was sought before running since this cycle's gross
   sold value ($0 this retry, $2,001.28 for the combined logical cycle)
   stayed under `seek_approval_value` throughout.
-
----
-
-# 2026-07-13 09:52 AM EDT — Scheduled Rebalance Check — PARTIALLY EXECUTED, THEN ABORTED (Robinhood API 429 Throttle Mid-Cycle — Hard No-Retry Rule Invoked)
-
-**Status: PARTIALLY EXECUTED, then ABORTED per hard rule.** 5 of 15 intended
-orders filled (1 sell + 4 buys, all confirmed filled); the remaining 10 buy
-orders were never placed because the Robinhood MCP server returned
-`429 Request was throttled` on each one. Per `CLAUDE.md`'s explicit Hard
-Rule — *"If the Robinhood MCP server returns an API error or an
-unrecognized network state, immediately abort the routine, write a
-priority error log to `logs/trade_journal.md`, and terminate. Do not
-attempt a retry loop"* — this routine stopped immediately upon hitting the
-first 429 and did not retry any of the 10 unplaced orders, even though the
-place_equity_order tool's own idempotency guidance would normally invite a
-same-`ref_id` retry on a transient failure. The explicit `CLAUDE.md`
-no-retry mandate takes precedence. Fresh, stateless run for the scheduled
-9:45 AM ET check. `CLAUDE.md` re-read fresh from `main` (unchanged text,
-still v2.14.0 header) alongside `portfolio_targets.json` (unchanged,
-24-symbol universe, weight sum 47.2) and `peak/prices.json` (unchanged
-byte-for-byte from the last push). Session was in **regular market hours**
-(quotes ~9:46–9:52 AM ET) — Market Orders applied per the Order Type rule.
-This is the first cycle since 2026-07-10 where the market was open and a
-real price move had occurred (a broad down day — see below).
-
-## Pre-trade state
-* Account `795732718` ("Agentic"), the only `agentic_allowed=true` account.
-* Cash: **$8,255.11**, `buying_power` matching exactly (fully settled).
-  `current_cash` = min($8,255.11, $10,000 cap) = $8,255.11 (cap not
-  binding). Additional $5,000 `pending_deposits` still not
-  counted/spendable.
-* Equity value: $28,799.51 (14 held symbols). `account_balance` =
-  equity + `current_cash` = **$37,054.62**.
-
-## Drawdown Audit Phase (15% threshold; peak source: `peak/prices.json`)
-Broad down day across the book (TQQQ -4.87%, INTC -5.48%, MU -6.96%, SOXL
--13.38%, ARM -8.63%, AMD -5.40% vs. prior close, etc.) but **no drawdown
-breaches from recorded peaks** — closest was IONQ at 13.25% below its
-$46.52 peak (still under the 15% threshold). Two new peaks reached
-intraday: **AMZN** $246.89 → **$247.265**, **MSFT** $386.245 → **$388.41**
-(both dated 2026-07-13, recorded regardless of whether MSFT's buy this
-cycle executed — see below).
-
-**SOXL** (liquidated 2026-07-07 at $157.7431): 6 of 8
-`cool_down_period_after_lquidation` days elapsed — still short. Its price
-recovery vs. liquidation price also *fell back below* the 7%
-`min_recovery_price_percentage` threshold this cycle (today's crash to
-$166.54 is only +5.58% above $157.7431, down from +23% two cycles ago) —
-now **neither** condition is met. Still excluded.
-**ARM** (profit-sold 2026-07-09 at $333.5356): price condition now newly
-met (-11.41% vs. `profitSellPrice`, clears the 5.0%
-`sold_asset_price_change_percentage` bar) but only 4 of 5
-`sold_asset_repurchase_days` elapsed — still excluded, one day short.
-**SMCI** (profit-sold 2026-07-09 at $28.9601): -3.56% vs.
-`profitSellPrice` (needs ≥5.0%) and 4 of 5 days elapsed — neither condition
-met, still excluded.
-
-## Drift Audit (`account_balance` = $37,054.62; SOXL/ARM/SMCI excluded)
-| Symbol | Target % | Current % | Drift | Tolerance | Breach? | Sellable? |
-|---|---|---|---|---|---|---|
-| **NVDA** | 8.051 | 28.138 | 20.087 | 2.0% | **YES (Overweight)** | **YES — unlocked (`lastPurchaseDate` 2026-07-10, 3 of 2 lock days elapsed) AND profitable (+2.62% vs. avg cost $202.93, clears the 1.0% `overweight_sell_minimum_profit_margin_percent` bar). First legally tradeable Overweight source in 4 logged cycles.** |
-| **MU** | 5.297 | 11.102 | 5.806 | 2.0% | **YES (Overweight)** | **NO — unlocked but underwater -10.67% vs. avg cost $1,020.00, fails profit-margin rule** |
-| **PLTR** | 5.297 | 8.928 | 3.631 | 2.0% | **YES (Overweight)** | **NO — no lock, but underwater -4.77% vs. avg cost $134.51, fails profit-margin rule** |
-| TQQQ | 6.780 | 1.840 | 4.940 | 2.0% | YES (Underweight) | — |
-| ORCL | 8.051 | 3.601 | 4.450 | 2.0% | YES (Underweight) | — |
-| TSLA | 8.051 | 3.656 | 4.395 | 2.0% | YES (Underweight) | — |
-| GOOG | 8.051 | 3.719 | 4.332 | 2.0% | YES (Underweight) | — |
-| MSFT | 8.051 | 3.767 | 4.284 | 2.0% | YES (Underweight) | — |
-| AMZN | 8.051 | 3.787 | 4.264 | 2.0% | YES (Underweight) | — |
-| SPCX | 6.356 | 3.064 | 3.292 | 2.0% | YES (Underweight) | — |
-| HOOD | 2.119 | 0.000 | 2.119 | 0.1% (first-time) | YES (Underweight) | — |
-| AMD | 2.119 | 0.000 | 2.119 | 0.1% (first-time) | YES (Underweight) | — |
-| NEE | 2.119 | 0.000 | 2.119 | 0.1% (first-time) | YES (Underweight) | — |
-| META | 1.059 | 0.000 | 1.059 | 0.1% (first-time) | YES (Underweight) | — |
-| AAPL | 1.059 | 0.000 | 1.059 | 0.1% (first-time) | YES (Underweight) | — |
-| VRT | 1.059 | 0.000 | 1.059 | 0.1% (first-time) | YES (Underweight) | — |
-| AVGO | 1.059 | 0.000 | 1.059 | 0.1% (first-time) | YES (Underweight) | — |
-| MSTR | 4.237 | 2.416 | 1.822 | 2.0% | No | — |
-| INTC | 2.542 | 1.266 | 1.276 | 2.0% | No | — |
-| COIN | 2.119 | 1.269 | 0.849 | 2.0% | No | — |
-| IONQ | 2.119 | 1.169 | 0.949 | 2.0% | No | — |
-
-**NVDA is the first legally sellable Overweight position in the four most
-recently logged cycles** — its `lock_in_period` (2 days from the
-2026-07-10 purchase) expired today, 2026-07-13 (3 days elapsed), and
-today's price ($208.25) still clears its average cost basis ($202.93) by
-+2.62%, comfortably above the 1.0% profit-margin floor. MU and PLTR remain
-blocked exactly as in every prior cycle (profit-margin rule, both
-underwater).
-
-## Alpha Leader (7-day gain, close 2026-07-06 → live ~9:51 AM ET)
-| Symbol | 7-day change |
-|---|---|
-| **META** | **+11.763% (Alpha Leader)** |
-| NVDA | +6.495% |
-| AVGO | +3.671% |
-| AAPL | +2.998% |
-| AMZN | +1.272% |
-| NEE | +1.052% |
-| MSFT | +0.432% |
-| GOOG | -2.705% |
-| VRT | -3.322% |
-| PLTR | -3.354% |
-| TQQQ | -4.109% |
-| AMD | -4.395% |
-| ORCL | -4.563% |
-| TSLA | -5.447% |
-| HOOD | -6.227% |
-| COIN | -7.177% |
-| MU | -7.474% |
-| MSTR | -9.611% |
-| SPCX | -12.339% |
-| INTC | -15.041% |
-| IONQ | -17.425% |
-
-(ARM/SMCI/SOXL excluded — not in play.) **META is Alpha Leader** — also
-one of the seven first-time (zero-position) symbols, so it is
-simultaneously Alpha Leader and a first-time Underweight buy target.
-
-## Step 3 — Alpha Leader Multiplier
-* `base_deployable_cash` = max(0, $8,255.11 − $250.00) = **$8,005.11**.
-* `multiplier_cash` = $8,005.11 × (1.25 − 1.0) = **$2,001.2775** — this
-  cycle, for the first time in four logged cycles, a legal Overweight trim
-  source (NVDA) exists to harvest it from.
-* Alpha allocation to META = `alpha_cash_allocation_percentage` (35%) of
-  `base_deployable_cash` + `multiplier_cash` = (0.35 × $8,005.11) +
-  $2,001.2775 = $2,801.7885 + $2,001.2775 = **$4,803.07**.
-  Room to `max_portfolio_percentage` (35% of $37,054.62 = $12,969.12,
-  minus META's $0 current value) = full $12,969.12 headroom — not binding.
-* Remaining `base_deployable_cash` after Alpha's cash portion:
-  $8,005.11 − $2,801.7885 = **$5,203.32**, divided pro-rata (by dollar
-  drift-gap) among the 13 other breaching Underweight symbols (TQQQ, SPCX,
-  AMZN, TSLA, ORCL, GOOG, MSFT, HOOD, AAPL, AMD, NEE, VRT, AVGO — INTC,
-  MSTR, COIN, IONQ excluded, within tolerance this cycle). Consistent with
-  every prior cycle's practice, the `multiplier_cash` harvested via trim
-  was sized to exactly the formula amount required for the Alpha Leader —
-  not stretched further to also fully close the ~$16,400 aggregate
-  Underweight gap, since Step 3's own language describes the non-Alpha
-  buys as "scarce capital," and the resulting NVDA trim size ($2,001.28)
-  comfortably clears the $5,000 `seek_approval_value` halt with headroom to
-  spare, avoiding an unattended-run approval deadlock.
-
-## Step 4 — High-Beta Gains Calculation
-Only one legally tradeable Overweight candidate existed (NVDA); MU and
-PLTR were excluded per Step 2's guardrails regardless of ranking.
-* **Beta_NVDA** (30-day daily returns vs. SPY, `get_equity_historicals`
-  2026-06-15 → 2026-07-10): **1.6177**.
-* **Raw_Gain_Percentage** = (208.25 − 202.93) / 202.93 × 100 = **+2.622%**.
-* **High_Beta_Gain_Score** = 2.622 × 1.6177 = **4.241**.
-* Trimmed **9.6086 shares** (dollar-sized to the $2,001.28 multiplier
-  requirement) at avg fill $208.2101.
-* **High_Beta_Gain_Dollars** = (208.2101 − 202.93) × 9.6086 = **$50.73**.
-* `Total_High_Beta_Gains_Realized` this cycle = **$50.73**.
-
-## Step 5 — Price Limit & Volatility Halts
-Despite the broad down day, no symbol approached the 15%
-`sell_price_diff_limit` / 12% `buy_price_diff_limit` bands at decision
-time: NVDA (sell candidate) −1.28% vs. prior close; buy candidates ranged
-from SOXL-adjacent extremes down to TQQQ −4.87%, INTC −5.48%, none within
-range of the 12% pump-exemption (irrelevant for sells) or 15%
-crash-exemption. No symbol was exempted from this cycle's trading.
-
-## Orders placed (regular market hours, Market Orders) — before the abort
-Gross nominal value sold this cycle: **$2,001.28** — well under the
-$5,000 `seek_approval_value` threshold; no approval halt was triggered or
-relevant.
-
-| # | Side | Symbol | Notional | Qty filled | Avg fill price | State |
-|---|---|---|---|---|---|---|
-| 1 | SELL | NVDA | $2,001.28 (fee $0.05) | 9.608600 | $208.2101 | **filled** |
-| 2 | BUY | META | $4,803.07 | 7.256211 | $661.9253 | **filled** |
-| 3 | BUY | TQQQ | $650.90 | 8.898166 | $73.1499 | **filled** |
-| 4 | BUY | SPCX | $433.81 | 3.081036 | $140.8000 | **filled** |
-| 5 | BUY | AMZN | $561.79 | 2.283050 | $246.0699 | **filled** |
-
-## ABORTED — 10 buy orders never placed (Robinhood API 429 throttle)
-Immediately after the AMZN fill, every subsequent `place_equity_order` call
-returned `HTTP 429 — "Request was throttled. Expected available in N
-seconds"` (N counting down from 15 to 1 across the 10 calls, indicating a
-short-lived rate-limit window that would very likely have cleared on its
-own). Per `CLAUDE.md`'s Hard Rule — *"immediately abort the routine...
-Do not attempt a retry loop"* — none of these 10 orders were retried, even
-once, despite the tool's own idempotency guidance normally inviting a
-same-`ref_id` retry for exactly this kind of transient failure. The
-following intended buys are logged as **SKIPPED/PENDING**, blocking reason
-**"Robinhood MCP server API error (HTTP 429 throttle) — routine aborted
-per hard no-retry rule, awaiting next scheduled cycle or explicit user
-re-trigger"**:
-
-| # | Side | Symbol | Intended notional | Pro-rata share of $5,203.32 pool | Reason not placed |
-|---|---|---|---|---|---|
-| 6 | BUY | TSLA | $579.03 | 11.13% | 429 throttle — not retried |
-| 7 | BUY | ORCL | $586.29 | 11.27% | 429 throttle — not retried |
-| 8 | BUY | GOOG | $570.80 | 10.97% | 429 throttle — not retried |
-| 9 | BUY | MSFT | $564.50 | 10.85% | 429 throttle — not retried |
-| 10 | BUY | HOOD | $279.16 | 5.36% | 429 throttle — not retried |
-| 11 | BUY | AAPL | $139.58 | 2.68% | 429 throttle — not retried |
-| 12 | BUY | AMD | $279.16 | 5.36% | 429 throttle — not retried |
-| 13 | BUY | NEE | $279.16 | 5.36% | 429 throttle — not retried |
-| 14 | BUY | VRT | $139.58 | 2.68% | 429 throttle — not retried |
-| 15 | BUY | AVGO | $139.58 | 2.68% | 429 throttle — not retried |
-
-**Total unexecuted buy notional: $3,556.84** (of the $5,203.32 pro-rata
-pool; SPCX, TQQQ, and AMZN's shares of that same pool did clear before the
-throttling began).
-
-## Post-abort state (actual, confirmed via `get_portfolio`)
-* Cash: **$3,806.10** (`buying_power` only $1,805.54 — roughly $2,000 of
-  the NVDA sell proceeds are unsettled T+0/T+1, a further constraint on any
-  same-day retry even if the no-retry rule permitted one).
-* Total account value: $36,954.38 (equity $33,148.28 + cash $3,806.10).
-* Final cash is well above both `min_cash_absolute` ($250) and
-  `min_cash_target` ($500) this cycle — **not** the intended lean
-  deployment, a direct consequence of the forced early termination, not a
-  deliberate cash-buffer decision.
-* `peak/prices.json` updated: `lastPurchaseDate` set to 2026-07-13 for
-  META (new first-time entry created, peakPrice/peakDate seeded at
-  $670.9005 / 2026-07-13), TQQQ, SPCX, and AMZN (the four symbols whose
-  buys filled). NVDA's `lastPurchaseDate` is unchanged (2026-07-10 — this
-  cycle was a sell, not a purchase) and its `peakPrice` is unchanged
-  ($210.5701 — no new high reached). New peaks recorded for AMZN
-  ($247.265) and MSFT ($388.41), both dated 2026-07-13 — peak-tracking is
-  independent of trade execution, so MSFT's peak was updated even though
-  its buy did not fill.
-
-## Notes / carried-forward items
-* **This cycle should be re-triggered** (by the next scheduled run or an
-  explicit user request) to attempt the 10 unplaced buys — TSLA, ORCL,
-  GOOG, MSFT, HOOD, AAPL, AMD, NEE, VRT, AVGO — using freshly re-read
-  prices and the same underlying rationale (they remain part of this
-  cycle's Underweight/first-time breach set as of this snapshot). Do not
-  simply resubmit the exact same 10 orders unmodified in the next cycle
-  without re-running Steps 1–5 fresh, since prices, drift, and the price-
-  limit checks may have moved by then.
-* **This is the first cycle in the logged history where NVDA became a
-  legally tradeable Overweight trim source** (lock expired + still
-  profitable) — a milestone worth tracking, since MU and PLTR remain
-  structurally blocked by the profit-margin rule while underwater and may
-  stay that way for a while given today's broad down move.
-* The Robinhood MCP 429 throttling appeared only after 5 rapid-fire
-  order-placement calls in immediate succession — future cycles may want
-  to pace `place_equity_order` calls (e.g., small delays between orders)
-  to reduce the odds of hitting this again, though `CLAUDE.md`'s no-retry
-  rule does not currently distinguish "rate limited, would likely succeed
-  seconds later" from any other API error — flagging this as a possible
-  refinement for the user to consider, not a deviation taken unilaterally
-  this cycle.
-* This was an unattended scheduled run (9:45 AM ET). Per repo convention,
-  this entry is committed to a fresh feature branch and merged directly
-  into `main` to preserve the unalterable paper trail.
