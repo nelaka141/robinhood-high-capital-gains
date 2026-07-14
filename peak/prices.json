@@ -4,8 +4,8 @@
                 "peakDate": "2026-07-10",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
-                "profitSellPrice": null,
-                "profitSellDate": null,
+                "profitSellPrice": 76.83,
+                "profitSellDate": "2026-07-09",
                 "lastPurchaseDate": "2026-07-14"
         },
         "INTC": {
@@ -31,8 +31,8 @@
                 "peakDate": "2026-07-09",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
-                "profitSellPrice": null,
-                "profitSellDate": null,
+                "profitSellPrice": 1017.31,
+                "profitSellDate": "026-07-09",
                 "lastPurchaseDate": "2026-07-09"
         },
         "SOXL": {
@@ -121,8 +121,8 @@
                 "peakDate": "2026-07-10",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
-                "profitSellPrice": null,
-                "profitSellDate": null,
+                "profitSellPrice": 208.21,
+                "profitSellDate": "2026-07-13",
                 "lastPurchaseDate": "2026-07-10"
         },
         "ORCL": {
