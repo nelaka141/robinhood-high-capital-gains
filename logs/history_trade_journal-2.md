@@ -1,3 +1,58 @@
+# 2026-07-11 12:15 PM EDT — CORRECTION NOTE (Timestamp/Date Error in the Two Preceding Entries) — NO TRADES, RECORD-KEEPING ONLY
+
+**Status:** COMPLETED. This is a correction addendum, not a new rebalance
+cycle — **0 orders placed, none evaluated.** The user observed that the two
+preceding entries ("2026-07-10 08:00 PM EDT" and "2026-07-10 08:15 PM EDT")
+were mislabeled: the review was actually run on **2026-07-11 ~12:15 PM
+EDT**, not 2026-07-10 evening. This entry documents the root cause and
+corrects the specific downstream facts affected. Per the "unalterable paper
+trail" principle, the two prior entries are left as-written below/in
+history — this is an appended correction, not a rewrite.
+
+## Root cause
+Both prior entries derived "current time" from the live quote data's venue
+print timestamps (`venue_last_trade_time` / `venue_last_non_reg_trade_time`,
+~19:59–23:59 UTC on 2026-07-10) rather than from an authoritative clock.
+Because markets were closed by the time those cycles actually ran (no new
+prints since Friday 2026-07-10's ~8:00 PM ET extended-hours close), the
+"most recent quote timestamp" was ~16 hours stale relative to the real
+wall-clock time. Both entries were mislabeled "2026-07-10" as a result, and
+the same stale date was used as `current_date` for that cycle's
+`lock_in_period` / cooldown day-math (per `CLAUDE.md` v2.13.0's explicit
+"`current_date` is the current calendar date in US ET timezone" rule).
+
+## What changed with the correct date (2026-07-11, not 2026-07-10)
+| Check | As originally written (wrong: 2026-07-10) | Corrected (right: 2026-07-11) | Outcome changed? |
+|---|---|---|---|
+| MU lock diff (`lastPurchaseDate` 2026-07-09, lock 2 days) | 1 day elapsed — "still locked, unlocks 2026-07-11 (tomorrow)" | **2 days elapsed — MU had already unlocked as of this review** | **Yes, description was wrong** — but MU remained non-tradeable regardless, blocked separately by the `overweight_sell_minimum_profit_margin_percent` rule (MU was underwater, roughly -3.6% to -4.5% depending on the cycle's prices, needing ≥+1.0%). **No trade would have resulted either way.** |
+| NVDA lock diff (`lastPurchaseDate` 2026-07-10, lock 2 days) | 0 days elapsed — "locked, unlocks 2026-07-12" | 1 day elapsed — still locked, unlocks 2026-07-12 | No — conclusion and unlock date were already correct. |
+| SOXL cooldown (`liquidatedDate` 2026-07-07, needs 8 days) | "3 of 8 days elapsed" | "4 of 8 days elapsed" | No — still short of 8 either way, still excluded. |
+| ARM cooldown (`profitSellDate` 2026-07-09, needs 5 days) | "1 of 5 days elapsed" | "2 of 5 days elapsed" | No — still short of 5 either way, still excluded. |
+| SMCI cooldown (`profitSellDate` 2026-07-09, needs 5 days) | "1 of 5 days elapsed" | "2 of 5 days elapsed" | No — still short of 5 either way, still excluded. |
+
+**Net effect: the "0 trades" outcome of both prior entries is unchanged.**
+The only materially wrong statement was describing MU as still
+`lock_in_period`-locked when it had, in fact, already unlocked — it was
+simply blocked by a different, independent rule (profit margin) instead.
+All dollar figures, drift percentages, Alpha Leader identification, and the
+config-diff review in both prior entries are unaffected (none of those
+depend on the exact calendar date).
+
+## Process fix going forward
+This routine will no longer infer `current_date` from live quote print
+timestamps. It will anchor to the date given in its own session context
+(authoritative) and, when time-of-day precision matters (e.g. determining
+whether a session is regular/extended/closed), ask the user or use an
+explicit time source rather than treating "the newest available quote
+timestamp" as "now" — closed markets make that inference unreliable, as
+this incident shows.
+
+## Orders placed
+**None.** This entry makes no trading decision and re-evaluates nothing.
+
+
+---
+
 # 2026-07-10 08:15 PM EDT — Re-Triggered Rebalance Check (Behavioral Config Update: v2.13.0 / v2.10.0) — ANALYSIS-ONLY, NO TRADES (User-Directed Dry Run)
 
 **Status:** COMPLETED. **0 orders placed — by explicit user instruction**

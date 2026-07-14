@@ -6,7 +6,7 @@
                 "liquidatedDate": null,
                 "profitSellPrice": null,
                 "profitSellDate": null,
-                "lastPurchaseDate": "2026-07-13"
+                "lastPurchaseDate": "2026-07-14"
         },
         "INTC": {
                 "peakPrice": 116.203,
@@ -69,7 +69,7 @@
                 "liquidatedDate": null,
                 "profitSellPrice": 333.5356,
                 "profitSellDate": "2026-07-09",
-                "lastPurchaseDate": null
+                "lastPurchaseDate": "2026-07-14"
         },
         "SMCI": {
                 "peakPrice": 28.8652,
@@ -96,7 +96,7 @@
                 "liquidatedDate": null,
                 "profitSellPrice": null,
                 "profitSellDate": null,
-                "lastPurchaseDate": "2026-07-13"
+                "lastPurchaseDate": "2026-07-14"
         },
         "AMZN": {
                 "peakPrice": 248.425,
@@ -105,7 +105,7 @@
                 "liquidatedDate": null,
                 "profitSellPrice": null,
                 "profitSellDate": null,
-                "lastPurchaseDate": "2026-07-13"
+                "lastPurchaseDate": "2026-07-14"
         },
         "TSLA": {
                 "peakPrice": 409.36,
@@ -114,7 +114,7 @@
                 "liquidatedDate": null,
                 "profitSellPrice": null,
                 "profitSellDate": null,
-                "lastPurchaseDate": "2026-07-13"
+                "lastPurchaseDate": "2026-07-14"
         },
         "NVDA": {
                 "peakPrice": 210.5701,
@@ -132,7 +132,7 @@
                 "liquidatedDate": null,
                 "profitSellPrice": null,
                 "profitSellDate": null,
-                "lastPurchaseDate": "2026-07-13"
+                "lastPurchaseDate": "2026-07-14"
         },
         "GOOG": {
                 "peakPrice": 362.27,
@@ -141,7 +141,7 @@
                 "liquidatedDate": null,
                 "profitSellPrice": null,
                 "profitSellDate": null,
-                "lastPurchaseDate": "2026-07-13"
+                "lastPurchaseDate": "2026-07-14"
         },
         "MSFT": {
                 "peakPrice": 392.04,
@@ -150,7 +150,7 @@
                 "liquidatedDate": null,
                 "profitSellPrice": null,
                 "profitSellDate": null,
-                "lastPurchaseDate": "2026-07-13"
+                "lastPurchaseDate": "2026-07-14"
         },
         "META": {
                 "peakPrice": 670.9005,
@@ -159,7 +159,7 @@
                 "liquidatedDate": null,
                 "profitSellPrice": null,
                 "profitSellDate": null,
-                "lastPurchaseDate": "2026-07-13"
+                "lastPurchaseDate": "2026-07-14"
         },
         "HOOD": {
                 "peakPrice": 110.96,
@@ -180,8 +180,8 @@
                 "lastPurchaseDate": "2026-07-13"
         },
         "AMD": {
-                "peakPrice": 539.365,
-                "peakDate": "2026-07-13",
+                "peakPrice": 558.10,
+                "peakDate": "2026-07-14",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
                 "profitSellPrice": null,
@@ -189,8 +189,8 @@
                 "lastPurchaseDate": "2026-07-13"
         },
         "NEE": {
-                "peakPrice": 88.45,
-                "peakDate": "2026-07-13",
+                "peakPrice": 88.99,
+                "peakDate": "2026-07-14",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
                 "profitSellPrice": null,

@@ -1,3 +1,241 @@
+# 2026-07-14 09:52 AM EDT — Scheduled Rebalance Check — EXECUTED (Buy-Only Cycle: Alpha Leader Multiplier + Pro-Rata Underweight; All Four Overweight Candidates Blocked From Selling)
+
+**Status:** COMPLETED. **9 of 9 intended orders filled** — all BUY orders,
+**zero sells**. Fresh, stateless run for the scheduled 9:45 AM ET check.
+`CLAUDE.md` re-read fresh from `main` (unchanged text, still v2.16.0
+header) alongside `portfolio_targets.json` (unchanged, 24-symbol universe,
+weight sum 47.2) and `peak/prices.json` (unchanged from the last push).
+Session was in **regular market hours** (quotes/orders ~9:46–9:51 AM ET) —
+Market Orders applied per the Order Type rule.
+
+## Pre-trade state
+* Account `795732718` ("Agentic"), the only `agentic_allowed=true` account.
+* Cash: **$2,422.69**, fully settled (`buying_power` matched `cash`
+  exactly at the start of this cycle). `current_cash` (formula) =
+  min($2,422.69, $10,000 cap) = $2,422.69 (cap not binding).
+* Equity value (target-listed symbols only, priced off decision-time
+  quotes): **$34,731.31**. `account_balance` = equity + `current_cash` =
+  **$37,154.00** (close to `get_portfolio`'s $37,171.64 total_value;
+  the ~$18 gap is normal quote-timing drift between the positions pull and
+  the quotes pull a few seconds later — no non-target holdings present).
+* Additional $5,000 `pending_deposits` still not counted/spendable.
+
+## Drawdown Audit Phase (15% threshold; peak source: `peak/prices.json`)
+Checked all 24 target symbols' current price against their recorded peak.
+**No breaches.** Closest: ORCL at 11.92% below its $147.67 peak (2026-07-09).
+Two new intraday peaks recorded (informational, no position held):
+**AMD** $539.365 → **$558.10**, **NEE** $88.45 → **$88.99** (both dated
+2026-07-14) — neither symbol was bought or sold this cycle; peak-tracking
+is independent of trade activity.
+
+## Rules & Guardrails (Step 2) — re-entry checks for out-of-play symbols
+* **SOXL** (liquidated 2026-07-07 at $157.7431): recovery = (179.8695 −
+  157.7431)/157.7431 = **+14.03%**, clears the 7% `min_recovery_price_percentage`
+  bar, but only **7 of 8** `cool_down_period_after_lquidation` days
+  elapsed — **still excluded, one day short**.
+* **ARM** (profit-sold 2026-07-09 at $333.5356): price change =
+  (288.77 − 333.5356)/333.5356 = **−13.42%**, clears the 5.0%
+  `sold_asset_price_change_percentage` bar; **5 of 5**
+  `sold_asset_repurchase_days` elapsed — **both conditions met, ARM
+  re-enters play this cycle** (first time back since its 2026-07-09
+  profit-sell).
+* **SMCI** (profit-sold 2026-07-09 at $28.9601): price change = **−4.32%**,
+  below the 5.0% bar — condition not met, **still excluded** regardless of
+  day-count.
+* **IONQ** (liquidated 2026-07-13 at $38.8001): recovery = **+2.96%**,
+  below the 7% bar, and only **1 of 8** cooldown days elapsed — **still
+  excluded**.
+
+## Drift Audit (`account_balance` = $37,154.00; SOXL/SMCI/IONQ excluded, ARM back in play)
+| Symbol | Target % | Current % | Drift | Tolerance | Breach? | Sellable this cycle? |
+|---|---|---|---|---|---|---|
+| **NVDA** | 8.051 | 22.329 | 14.278 | 2.0% | **YES (Overweight)** | **NO — +0.534% vs. avg cost $203.96, a technical gain but short of the ≥+1.0% `overweight_sell_minimum_profit_margin_percent` floor** |
+| **META** | 1.059 | 12.912 | 11.853 | 2.0% | **YES (Overweight)** | **NO — −0.122% vs. avg cost $661.93, fails profit-margin rule (underwater)** |
+| **MU** | 5.297 | 11.841 | 6.544 | 2.0% | **YES (Overweight)** | **NO — −4.473% vs. avg cost $1,020.00, fails profit-margin rule** |
+| **PLTR** | 5.297 | 8.866 | 3.570 | 2.0% | **YES (Overweight)** | **NO — −5.174% vs. avg cost $134.51, fails profit-margin rule** |
+| ORCL | 8.051 | 4.171 | 3.880 | 2.0% | YES (Underweight) | — |
+| TSLA | 8.051 | 4.443 | 3.608 | 2.0% | YES (Underweight) | — |
+| GOOG | 8.051 | 4.451 | 3.600 | 2.0% | YES (Underweight) | — |
+| MSFT | 8.051 | 4.466 | 3.585 | 2.0% | YES (Underweight) | — |
+| TQQQ | 6.780 | 3.671 | 3.109 | 2.0% | YES (Underweight) | — |
+| AMZN | 8.051 | 5.261 | 2.790 | 2.0% | YES (Underweight) | — |
+| **ARM** | 2.119 | 0.000 | 2.119 | 2.0% (not first-time — has a `peak/prices.json` entry) | **YES (Underweight, freshly back in play)** | — |
+| SPCX | 6.356 | 4.255 | 2.101 | 2.0% | YES (Underweight) | — |
+| HOOD | 2.119 | 0.380 | 1.739 | 2.0% | No | — |
+| NEE | 2.119 | 0.383 | 1.735 | 2.0% | No | — |
+| MSTR | 4.237 | 2.508 | 1.729 | 2.0% | No | — |
+| AMD | 2.119 | 0.393 | 1.726 | 2.0% | No | — |
+| INTC | 2.542 | 1.304 | 1.238 | 2.0% | No | — |
+| AAPL | 1.059 | 0.187 | 0.872 | 2.0% | No | — |
+| VRT | 1.059 | 0.188 | 0.872 | 2.0% | No | — |
+| AVGO | 1.059 | 0.189 | 0.871 | 2.0% | No | — |
+| COIN | 2.119 | 1.282 | 0.837 | 2.0% | No | — |
+
+**4 Overweight breaches** (NVDA, META, MU, PLTR) and **7 Underweight
+breaches** (ORCL, TSLA, GOOG, MSFT, TQQQ, AMZN, SPCX), plus **ARM**
+freshly back in play as an 8th Underweight target. **All four Overweight
+positions fail the `overweight_sell_minimum_profit_margin_percent` (≥+1.0%)
+guardrail** — PLTR, MU, and META are outright underwater; NVDA is
+technically positive (+0.534%) but still short of the 1.0% floor. None are
+listed in `forceSell` (empty list). **Zero legal Overweight trim source
+exists this cycle — no `multiplier_cash` can be harvested from trims.**
+This is a hard guardrail from Step 2 and takes precedence over the Step 3/4
+aggressive re-investment logic; it is not treated as a bug or an override
+opportunity.
+
+## Alpha Leader (7-day gain, 2026-07-06 open → live ~9:50 AM ET)
+| Symbol | 7-day change |
+|---|---|
+| **META** | **+11.14% (Alpha Leader)** |
+| NVDA | +5.47% |
+| AVGO | +4.40% |
+| AMD | +4.25% |
+| AAPL | +2.38% |
+| NEE | +0.92% |
+| AMZN | +0.74% |
+| SMCI | +0.76% (excluded from play) |
+| PLTR | +0.24% |
+| TSLA | −0.11% |
+| MSTR | −0.31% |
+| TQQQ | −0.79% |
+| VRT | −0.96% |
+| HOOD | −0.40% |
+| COIN | −1.61% |
+| GOOG | −1.79% |
+| MSFT | −1.13% |
+| MU | −3.24% |
+| SOXL | −8.79% (excluded) |
+| ORCL | −9.86% |
+| ARM | −10.95% (freshly back in play, but not Alpha Leader) |
+| INTC | −12.51% |
+| SPCX | −14.59% |
+| IONQ | −18.54% (excluded) |
+
+**META is Alpha Leader** for the second consecutive logged cycle, despite
+already being 12.9% overweight vs. its own 1.06% target — per `CLAUDE.md`'s
+explicit design, the Alpha Leader allocation is capped only by
+`max_portfolio_percentage` (35% of total portfolio), not by the leader's
+own target weight; this is the intended aggressive-momentum behavior, not
+a miscalculation.
+
+## Step 3 — Alpha Leader & Re-investment Multiplier
+* `base_deployable_cash` = max(0, $2,422.69 − $250.00) = **$2,172.69**.
+* `multiplier_cash` formula value = $2,172.69 × (1.25 − 1.0) = $543.17 —
+  **but this cannot actually be harvested**, since the formula's own
+  design requires it to be "harvested by safely trimming the most
+  overweight or lowest-momentum positions," and Step 2 has already
+  disqualified every Overweight position from selling this cycle. Per the
+  Hard Rules guardrails taking precedence, **no multiplier boost was
+  applied** — only the un-multiplied base allocation was routed to the
+  Alpha Leader.
+* Alpha allocation to META = `alpha_cash_allocation_percentage` (35%) of
+  `base_deployable_cash` = 0.35 × $2,172.69 = **$760.44**. Room to
+  `max_portfolio_percentage` (35% of $37,154.00 = $13,003.90, vs. META's
+  current $4,797.26) — full headroom, not binding.
+* Remaining `base_deployable_cash` after Alpha: $2,172.69 − $760.44 =
+  **$1,412.25**, divided pro-rata by dollar drift-gap among the 8
+  breaching Underweight symbols (TQQQ, ARM, SPCX, AMZN, TSLA, ORCL, GOOG,
+  MSFT — aggregate dollar drift-gap ≈ $9,210.69, so the pool covers
+  ≈15.33% of the total Underweight gap).
+
+## Step 4 — High-Beta Gains Calculation
+**Not performed — moot.** No Overweight candidate was legally sellable
+this cycle (all four blocked by the profit-margin guardrail), so there was
+no trim to rank or score. `Total_High_Beta_Gains_Realized` = **$0.00**.
+
+## Step 5 — Price Limit & Volatility Halts
+Checked same-day move vs. prior close for all 9 buy targets: largest
+moves were AMD-adjacent extremes (not a buy target) and, among actual buy
+targets, TQQQ +3.17%, INTC-class n/a, MU-class n/a — the widest among the
+9 was TQQQ at +3.17% and ARM at −3.42%. All comfortably inside the 12%
+`buy_price_diff_limit` band. No symbol was exempted from buying this cycle.
+
+## Step 6 — Execute Sequential Trades
+Gross nominal value **sold** this cycle: **$0.00** — the
+`seek_approval_value` ($5,000) halt only gates sells, so it was never
+triggered regardless of the $2,172.60 total deployed on the buy side.
+Orders placed **sequentially** (one review + one place per symbol, in
+turn) to avoid throttling, per `CLAUDE.md`. **No 429s encountered; all 9
+orders filled on the first attempt.**
+
+| # | Side | Symbol | Notional | Qty filled | Avg fill price | State |
+|---|---|---|---|---|---|---|
+| 1 | BUY | META (Alpha Leader) | $760.44 | 1.150665 | $660.8699 | **filled** |
+| 2 | BUY | TQQQ | $177.03 | 2.361977 | $74.9499 | **filled** |
+| 3 | BUY | ARM | $120.70 | 0.419568 | $287.6764 | **filled** |
+| 4 | BUY | SPCX | $119.68 | 0.845496 | $141.5499 | **filled** |
+| 5 | BUY | AMZN | $158.94 | 0.650700 | $244.2600 | **filled** |
+| 6 | BUY | TSLA | $205.55 | 0.516603 | $397.8876 | **filled** |
+| 7 | BUY | ORCL | $221.02 | 1.700155 | $129.9999 | **filled** |
+| 8 | BUY | GOOG | $205.05 | 0.583573 | $351.3699 | **filled** |
+| 9 | BUY | MSFT | $204.19 | 0.532540 | $383.4265 | **filled** |
+
+Total deployed this cycle: **$2,172.60**. Confirmed via `get_equity_orders`
+(all 9 orders `state: filled`, `placed_agent: agentic`).
+
+## Post-trade state (confirmed via `get_portfolio`)
+* Cash: **$250.09** (down from $2,422.69 by exactly the $2,172.60
+  deployed). `buying_power`: **$250.09**, matching cash exactly (buys are
+  same-day debits, no settlement lag on the spend side).
+* Equity value: **$36,923.71**. Total account value: **$37,173.80** (up
+  ~$2.16 from pre-trade, reflecting favorable fill-vs-quote slippage
+  across the 9 buys net of the small bid/ask spread paid).
+* **Final cash landed at $250.09 — essentially exactly at
+  `min_cash_absolute` ($250), not near the lean `min_cash_target` ($500)
+  this cycle.** This is a direct, mechanical consequence of Step 3's
+  `base_deployable_cash = current_cash − min_cash_absolute` formula: with
+  zero harvestable multiplier cash (all Overweight trims blocked) and no
+  other cash source, the entire deployable pool by definition drains cash
+  down to the `min_cash_absolute` floor rather than stopping at the higher
+  `min_cash_target` buffer. Flagging this as a structural tension between
+  the Step 3 formula and the Step 7 "keep cash close to `min_cash_target`"
+  aspiration for the user's awareness — not a rule violation, since
+  `min_cash_absolute` was never breached (ended $0.09 above it).
+* `peak/prices.json` updated: `lastPurchaseDate` set to **2026-07-14** for
+  META, TQQQ, ARM, SPCX, AMZN, TSLA, ORCL, MSFT, GOOG (all nine symbols
+  bought this cycle). New peaks recorded for **AMD** ($539.365 → $558.10)
+  and **NEE** ($88.45 → $88.99), both dated 2026-07-14 (peak-tracking
+  independent of trade activity — neither was bought or sold). All other
+  peaks unchanged.
+
+## Notes / carried-forward items
+* **ARM re-entered play this cycle after its 2026-07-09 profit-sell.**
+  Its `peak/prices.json` entry still carries the pre-sale peak ($334.21,
+  2026-07-09) — `CLAUDE.md` only specifies resetting peak tracking when
+  `peakPrice` is null, and does not address whether a repurchase after a
+  profit-sell (or a liquidation-recovery) should reset the trailing-peak
+  baseline. Applying the literal rule, the stale $334.21 peak was
+  preserved (not reset to today's $287.68 entry price). **Flagging a real
+  risk this creates:** at today's re-entry price, ARM is already ~13.9%
+  below that stale peak — within roughly 1 percentage point of the 15%
+  `max_trailing_drawdown_percentage` stop-loss, which could trigger an
+  emergency liquidation on the very next cycle almost immediately after
+  today's repurchase, even absent any further price decline. This
+  ambiguity (reset-on-repurchase vs. preserve-stale-peak) is worth an
+  explicit decision from the user; no unilateral change was made to the
+  documented peak-tracking behavior this cycle.
+* **All four Overweight positions (NVDA, META, MU, PLTR) remain
+  structurally overweight and undiminished** — none could be trimmed this
+  cycle or, most likely, several recent cycles, because all four are at or
+  below the 1.0% profit-margin floor simultaneously. NVDA is the closest
+  to clearing it (+0.534%, needs +1.0%). Until at least one clears the
+  gate (or price action pushes MU/PLTR/META back to profitability), this
+  strategy has no legal mechanism to harvest `multiplier_cash` for the
+  Alpha Leader beyond the un-multiplied base allocation, and Underweight
+  drift (currently ~$9,210 aggregate dollar-gap across 8 symbols) will
+  keep re-accumulating faster than the ~$1,400/cycle base-cash pool can
+  close it.
+* SOXL's cooldown (7 of 8 days) should clear by the next cycle
+  (2026-07-15) if its price-recovery condition (currently +14.03%, already
+  well past the 7% bar) still holds. IONQ's cooldown (1 of 8 days) and
+  recovery (+2.96%, below the 7% bar) both remain far short.
+* This was an unattended scheduled run (9:45 AM ET). Per repo convention,
+  this entry is committed to a fresh feature branch and merged directly
+  into `main` to preserve the unalterable paper trail.
+
+
+---
+
 # 2026-07-13 03:16 PM EDT — Scheduled Rebalance Check — DRAWDOWN STOP-LOSS EXECUTED (IONQ Liquidated); ALL OTHER ACTIONS SKIPPED/PENDING (Settled Buying Power Below Order-Size Floor)
 
 **Status:** COMPLETED. **1 of 1 mandatory action executed** (IONQ emergency
@@ -776,59 +1014,3 @@ today.
   this entry is committed to a fresh feature branch and merged directly
   into `main` to preserve the unalterable paper trail, consistent with
   every prior cycle.
-
-
-
----
-
-# 2026-07-11 12:15 PM EDT — CORRECTION NOTE (Timestamp/Date Error in the Two Preceding Entries) — NO TRADES, RECORD-KEEPING ONLY
-
-**Status:** COMPLETED. This is a correction addendum, not a new rebalance
-cycle — **0 orders placed, none evaluated.** The user observed that the two
-preceding entries ("2026-07-10 08:00 PM EDT" and "2026-07-10 08:15 PM EDT")
-were mislabeled: the review was actually run on **2026-07-11 ~12:15 PM
-EDT**, not 2026-07-10 evening. This entry documents the root cause and
-corrects the specific downstream facts affected. Per the "unalterable paper
-trail" principle, the two prior entries are left as-written below/in
-history — this is an appended correction, not a rewrite.
-
-## Root cause
-Both prior entries derived "current time" from the live quote data's venue
-print timestamps (`venue_last_trade_time` / `venue_last_non_reg_trade_time`,
-~19:59–23:59 UTC on 2026-07-10) rather than from an authoritative clock.
-Because markets were closed by the time those cycles actually ran (no new
-prints since Friday 2026-07-10's ~8:00 PM ET extended-hours close), the
-"most recent quote timestamp" was ~16 hours stale relative to the real
-wall-clock time. Both entries were mislabeled "2026-07-10" as a result, and
-the same stale date was used as `current_date` for that cycle's
-`lock_in_period` / cooldown day-math (per `CLAUDE.md` v2.13.0's explicit
-"`current_date` is the current calendar date in US ET timezone" rule).
-
-## What changed with the correct date (2026-07-11, not 2026-07-10)
-| Check | As originally written (wrong: 2026-07-10) | Corrected (right: 2026-07-11) | Outcome changed? |
-|---|---|---|---|
-| MU lock diff (`lastPurchaseDate` 2026-07-09, lock 2 days) | 1 day elapsed — "still locked, unlocks 2026-07-11 (tomorrow)" | **2 days elapsed — MU had already unlocked as of this review** | **Yes, description was wrong** — but MU remained non-tradeable regardless, blocked separately by the `overweight_sell_minimum_profit_margin_percent` rule (MU was underwater, roughly -3.6% to -4.5% depending on the cycle's prices, needing ≥+1.0%). **No trade would have resulted either way.** |
-| NVDA lock diff (`lastPurchaseDate` 2026-07-10, lock 2 days) | 0 days elapsed — "locked, unlocks 2026-07-12" | 1 day elapsed — still locked, unlocks 2026-07-12 | No — conclusion and unlock date were already correct. |
-| SOXL cooldown (`liquidatedDate` 2026-07-07, needs 8 days) | "3 of 8 days elapsed" | "4 of 8 days elapsed" | No — still short of 8 either way, still excluded. |
-| ARM cooldown (`profitSellDate` 2026-07-09, needs 5 days) | "1 of 5 days elapsed" | "2 of 5 days elapsed" | No — still short of 5 either way, still excluded. |
-| SMCI cooldown (`profitSellDate` 2026-07-09, needs 5 days) | "1 of 5 days elapsed" | "2 of 5 days elapsed" | No — still short of 5 either way, still excluded. |
-
-**Net effect: the "0 trades" outcome of both prior entries is unchanged.**
-The only materially wrong statement was describing MU as still
-`lock_in_period`-locked when it had, in fact, already unlocked — it was
-simply blocked by a different, independent rule (profit margin) instead.
-All dollar figures, drift percentages, Alpha Leader identification, and the
-config-diff review in both prior entries are unaffected (none of those
-depend on the exact calendar date).
-
-## Process fix going forward
-This routine will no longer infer `current_date` from live quote print
-timestamps. It will anchor to the date given in its own session context
-(authoritative) and, when time-of-day precision matters (e.g. determining
-whether a session is regular/extended/closed), ask the user or use an
-explicit time source rather than treating "the newest available quote
-timestamp" as "now" — closed markets make that inference unreliable, as
-this incident shows.
-
-## Orders placed
-**None.** This entry makes no trading decision and re-evaluates nothing.
