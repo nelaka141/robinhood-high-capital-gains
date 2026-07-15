@@ -1,3 +1,113 @@
+# 2026-07-14 06:11 PM EDT — User-Directed Retry (Post-Config-Update: Extended-Hours Execution Now Per-Asset, v2.19.0) — SKIPPED/PENDING (Fractional Orders Confirmed Unavailable Outside Regular Hours, Platform-Wide)
+
+**Status:** SKIPPED. **0 of 0 orders placed this cycle.** User updated
+`CLAUDE.md` again (v2.18.0 → **v2.19.0**) and asked for another retrigger.
+Re-pulled fresh from `main`. `portfolio_targets.json` and `peak/prices.json`
+unchanged from the 5:57 PM cycle.
+
+## What changed in this config update
+The Extended Hours Execution rule was rewritten from an all-or-nothing gate
+to a **per-asset** one: *"Only route orders during extended hours for
+targeted assets that qualify for fractional share routing during those
+time windows[;] other targeted assets mark them as SKIPPED/PENDING in the
+journal."* Previously, if even one targeted asset failed to qualify, the
+whole cycle was blocked; now each asset is meant to be evaluated
+independently.
+
+## Pre-check state (~6:10 PM ET)
+* Account `795732718` ("Agentic"). Cash: **$250.09**, positions unchanged
+  since the 5:57 PM check — no trades placed since. Still solidly inside
+  the 4:00–8:00 PM ET post-market extended-hours window (regular session
+  closed at 4:00 PM ET; latest prints ~6:10 PM ET).
+* Re-verified the ARM peak reset from the 5:57 PM cycle still holds at
+  current prices: $279.25 vs. reset peak/avg-cost $287.68 = **−2.96%** on
+  both legs — no drawdown breach. No other symbol breaches the
+  dual-condition drawdown test at current prices. **No peak/prices.json
+  changes needed this cycle** — no current price exceeds its recorded
+  peak.
+* Drift audit: same breach set as the last two cycles (prices moved only
+  fractionally) — **4 Overweight** (NVDA, META, MU, PLTR) and **6
+  Underweight** (ORCL, TSLA, MSFT, GOOG, TQQQ, AMZN). NVDA remains the
+  sole overweight candidate clearing the profit-margin floor
+  (avg cost $203.96 vs. current $211.50 = **+3.70%**).
+
+## Testing the new per-asset extended-hours rule
+Checked `get_equity_tradability` for all Overweight/Underweight symbols
+this cycle would touch:
+
+| Symbol | `extended_hours_fractional_tradability` |
+|---|---|
+| NVDA | **true** |
+| TSLA | **true** |
+| TQQQ | **true** |
+| META | **true** |
+| ORCL | false |
+| MSFT | false |
+| GOOG | false |
+| AMZN | false |
+| ARM | false |
+| MU | false |
+
+Per the new rule, NVDA (the sell candidate) qualifies — so before assuming
+it could route, its sell was tested with a **dry-run** `review_equity_order`
+call (no live order placed): `sell NVDA, type=limit, quantity=26.15,
+limit_price=$211.45 (pegged to bid), market_hours=extended_hours`.
+
+**Result: rejected outright —** `"fractional and dollar-based orders are
+only allowed in regular_hours"`. This confirms the order-placement tool
+enforces a **platform-wide, unconditional** restriction: fractional-share
+orders cannot route in extended hours for *any* symbol, regardless of that
+symbol's individual `extended_hours_fractional_tradability` flag. The flag
+appears to describe a different capability than what this order-routing
+integration actually exposes.
+
+**Practical consequence:** since every trade in this cycle's plan (the
+NVDA trim and all Underweight buys) is fractional-sized by the pro-rata
+allocation formula — as it is in every cycle — **the new per-asset rule's
+"qualifies for fractional routing" condition cannot be satisfied by any
+symbol in extended hours on this platform.** The rule's intended effect
+(partial execution this cycle) does not materialize; the outcome is
+unchanged from the 5:57 PM cycle. **No orders were placed.**
+
+## Step 6 — Proposed trade matrix (SKIPPED/PENDING — blocking reason: extended hours; fractional-order routing confirmed unavailable platform-wide, verified via dry-run rejection)
+| # | Side | Symbol | Notional (proposed) | Qty (proposed) |
+|---|---|---|---|---|
+| 1 | SELL | NVDA | ~$5,527 | ~26.14 |
+| 2 | BUY | ORCL | ~$1,059 | ~8.24 |
+| 3 | BUY | TSLA | ~$978 | ~2.47 |
+| 4 | BUY | MSFT | ~$958 | ~2.49 |
+| 5 | BUY | GOOG | ~$953 | ~2.67 |
+| 6 | BUY | TQQQ | ~$835 | ~11.15 |
+| 7 | BUY | AMZN | ~$751 | ~3.04 |
+
+Cash remains **$250.09**, unchanged.
+
+## Flagging for the user
+The `seek_approval_value` raise and the drawdown/lock-in/peak-reset
+clarifications from the prior two updates are confirmed working as
+intended. This update's extended-hours change does not change today's
+outcome, because the blocker turned out to be a hard platform constraint
+(fractional orders unconditionally require `regular_hours`) rather than a
+per-symbol eligibility question — no `CLAUDE.md` wording change can route
+around that from this side. Two paths forward, for an explicit decision:
+1. **Wait** for the next regular-hours session (tomorrow 9:30 AM–4:00 PM
+   ET) — the proposed matrix above would carry forward and be resized
+   against fresh quotes.
+2. **Explicitly authorize a whole-share fallback** for extended-hours
+   trading (e.g., round proposed fractional quantities down to whole
+   shares and route as limit orders) — this is **not** currently
+   specified in `CLAUDE.md`, so no such orders were placed unilaterally
+   this cycle; it would need to be an explicit rule addition if wanted.
+
+## Notes
+* This was a user-directed retry following a config update, run
+  immediately. Per repo convention, this entry is committed to a fresh
+  feature branch and merged directly into `main` to preserve the
+  unalterable paper trail.
+
+
+---
+
 # 2026-07-14 05:57 PM EDT — User-Directed Retry (Post-Config-Update: `seek_approval_value` Raised, Drawdown/Lock-In/Peak-Reset Rules Clarified) — SKIPPED/PENDING (Extended-Hours Fractional-Routing Restriction)
 
 **Status:** SKIPPED. **0 of 0 orders placed this cycle.** User updated
