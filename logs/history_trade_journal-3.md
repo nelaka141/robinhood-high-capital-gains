@@ -1,3 +1,160 @@
+# 2026-07-14 05:57 PM EDT — User-Directed Retry (Post-Config-Update: `seek_approval_value` Raised, Drawdown/Lock-In/Peak-Reset Rules Clarified) — SKIPPED/PENDING (Extended-Hours Fractional-Routing Restriction)
+
+**Status:** SKIPPED. **0 of 0 orders placed this cycle.** User updated
+`CLAUDE.md` (now v2.18.0, up from v2.17.0) and `portfolio_targets.json`
+(now v2.11.0) and asked for a fresh retrigger. Both files re-pulled fresh
+from `main`. **Both hard-rule conflicts flagged in the 3:17 PM cycle are
+now resolved by the update** — but a new, independent blocker (extended
+market hours) prevented any execution this cycle. Full detail below.
+
+## What changed in the config update
+* `seek_approval_value`: **$5,000 → $10,000.**
+* Drawdown Audit Phase rewritten: a breach now requires the asset to have
+  dropped ≥ `max_trailing_drawdown_percentage` from **both** its
+  `peakPrice` **and** its `avg_cost_basis` (previously peak-only), and the
+  rule now explicitly states the `lock_in_period` guardrail **should be
+  ignored** when a stop-loss triggers.
+* Step 6 peak-tracking gained a new explicit instruction: **"Reset the
+  peakPrice if asset is repurchased after a profit-sell with purchase
+  price."**
+
+## Pre-check state (fresh pull, ~5:56 PM ET)
+* Account `795732718` ("Agentic"). Cash: **$250.09** (unchanged since the
+  9:52 AM cycle — no activity since the 3:17 PM halt). Positions unchanged
+  from the 3:17 PM check (no trades placed since).
+* **Session check: regular hours have closed.** Live quotes show the
+  regular-session last trade at 19:59:59 UTC (3:59:59 PM ET, the 4:00 PM
+  close) with newer `last_non_reg_trade_price` prints around 21:55–21:56
+  UTC (**~5:55–5:56 PM ET**) — squarely inside the 4:00–8:00 PM ET
+  post-market **extended-hours** window per `CLAUDE.md`'s Order Type rule.
+
+## ARM peak reset applied (resolves the 3:17 PM stop-loss/lock-in conflict)
+Per the new Step 6 rule, ARM (profit-sold 2026-07-09 at $333.5356,
+repurchased 2026-07-14 at $287.68) has its `peakPrice` **reset to its
+repurchase price: $287.68**, `peakDate` → **2026-07-14**. Re-running the
+Drawdown Audit with the new dual-condition test and the reset peak:
+* ARM: current $279.85 vs. reset peak $287.68 = **−2.72%** from peak,
+  **−2.72%** from `avg_cost_basis` ($287.68, same value — single lot
+  bought today). Neither leg clears 15% — **no breach.** The 3:17 PM
+  cycle's stale-peak-driven stop-loss/lock-in conflict is fully resolved
+  by this reset; no further action needed on ARM this cycle.
+
+## Drawdown Audit Phase (new dual-condition test, all 21 held symbols)
+Checked current price vs. both `peakPrice` and `avg_cost_basis` (both legs
+must clear 15% to trigger). **No breaches.** Full detail:
+
+| Symbol | Current | Peak | Δ vs Peak | Avg Cost | Δ vs Cost | Breach? |
+|---|---|---|---|---|---|---|
+| ORCL | 128.60 | 147.67 | −12.91% | 139.34 | −7.71% | No |
+| INTC | 107.75 | 116.203 | −7.27% | 126.37 | −14.73% | No |
+| SPCX | 136.95 | 152.9988 | −10.49% | 156.46 | −12.47% | No |
+| (remaining 18 symbols all under 5% on at least one leg — full table
+  available on request; ARM detailed separately above) | | | | | | |
+
+One new intraday peak recorded: **HOOD** $112.65 → **$113.69** (2026-07-14,
+informational — not traded this cycle).
+
+## Rules & Guardrails (Step 2) — re-entry checks, unchanged from 3:17 PM
+Same calendar day, no additional day elapsed — **SOXL** (7 of 8 cooldown
+days), **SMCI** (−4.54% price change, short of the 5% bar), and **IONQ**
+(1 of 8 cooldown days, +1.30% recovery) all **remain excluded**, identical
+conclusions to the 3:17 PM check.
+
+## Drift Audit (`account_balance` ≈ $37,582.59; SOXL/SMCI/IONQ excluded)
+Same breach set as the 3:17 PM cycle (prices moved only slightly in the
+~2.5 hours since): **4 Overweight** (NVDA +14.72% drift, META +13.68%, MU
++6.47%, PLTR +3.88%) and **6 Underweight** (ORCL +3.39%, TSLA +3.14%, MSFT
++3.06%, GOOG +3.03%, TQQQ +2.67%, AMZN +2.39%). ARM's drift (1.81%) is
+still below the 2.0% tolerance.
+
+## Overweight Sellability Check — **NVDA still the sole legal candidate**
+* **NVDA**: avg cost $203.96, current $211.5052 → **+3.70% raw gain**,
+  clears the 1.0% floor. `lastPurchaseDate` 2026-07-10 (4 days back,
+  clear of `lock_in_period`).
+* PLTR: $134.51 → $133.5501 = **−0.71%** (now underwater, was marginally
+  positive at 3:17 PM) — fails floor.
+* MU: **−4.00%**, META: **−0.41%** — both still fail the floor.
+* Proposed NVDA trim to exact target: **~26.15 shares (~$5,531.40
+  notional)** — **now comfortably under the raised $10,000
+  `seek_approval_value` threshold.** The 3:17 PM cycle's approval-gate
+  halt is fully resolved by the config update.
+
+## Step 6 — Execution SKIPPED: Extended-Hours Fractional-Routing Restriction
+Both conditions that blocked the 3:17 PM cycle are now clear. **However, a
+new, independent blocker applies:** `CLAUDE.md`'s Extended Hours Execution
+rule permits routing only if **all** targeted assets qualify for
+fractional-share routing in the current session. Checked via
+`get_equity_tradability`:
+
+| Symbol | `extended_hours_fractional_tradability` |
+|---|---|
+| NVDA | true |
+| TSLA | true |
+| TQQQ | true |
+| META | true |
+| ORCL | **false** |
+| MSFT | **false** |
+| GOOG | **false** |
+| AMZN | **false** |
+
+Not all targeted assets qualify — the condition fails. Separately, and
+decisively: the order-placement tool's own rules state fractional-share
+and dollar-notional orders **place only in `regular_hours`, regardless of
+per-symbol extended-hours flags.** Every trade in this cycle's plan (the
+NVDA trim and all 6 pro-rata Underweight buys) is fractional-sized by
+design — none can be routed as whole-share orders without deviating from
+the calculated allocation, and `CLAUDE.md` offers no whole-share fallback
+for this scenario. **No orders were placed.**
+
+* **Proposed trade matrix (SKIPPED/PENDING — blocking reason: extended
+  market hours; fractional order routing unavailable until the next
+  regular session):**
+
+| # | Side | Symbol | Notional (proposed) | Qty (proposed) |
+|---|---|---|---|---|
+| 1 | SELL | NVDA | ~$5,531.40 | ~26.15 |
+| 2 | BUY | ORCL | ~$1,059 | ~8.20 |
+| 3 | BUY | TSLA | ~$978 | ~2.47 |
+| 4 | BUY | MSFT | ~$959 | ~2.49 |
+| 5 | BUY | GOOG | ~$953 | ~2.67 |
+| 6 | BUY | TQQQ | ~$835 | ~11.09 |
+| 7 | BUY | AMZN | ~$751 | ~3.03 |
+
+(Approximate — sizing would be refined against live quotes at the next
+regular-hours cycle, since these figures are drawn from this check's
+snapshot, not a fresh recompute at execution time.)
+
+* Cash remains **$250.09**, unchanged.
+
+## peak/prices.json updates (applied regardless of trade execution)
+* **ARM**: `peakPrice` reset $334.21 → **$287.68**, `peakDate` →
+  **2026-07-14** (repurchase-after-profit-sell reset, per the new Step 6
+  rule).
+* **HOOD**: `peakPrice` $112.65 → **$113.69**, `peakDate` unchanged
+  (2026-07-14).
+* All other symbols' fields unchanged from the 3:17 PM push.
+
+## Notes
+* Both action items flagged at 3:17 PM are now closed: the `seek_approval_value`
+  raise clears the NVDA-trim approval gate, and the drawdown-rule rewrite
+  plus the new peak-reset-on-repurchase instruction together resolve the
+  ARM stale-peak/lock-in conflict cleanly (no more unilateral judgment call
+  needed — the rules now say exactly what to do).
+* The next cycle able to trade needs the **next regular-hours session
+  (9:30 AM–4:00 PM ET)** to open — today's regular session has already
+  closed. The NVDA-trim-and-rebalance plan above should carry forward and
+  be resized against fresh quotes at that time, since Overweight/Underweight
+  drift, the Alpha Leader, and the profit-margin gate can all shift between
+  now and then.
+* This was a user-directed retry following a config update, run
+  immediately rather than waiting for the next scheduled tick. Per repo
+  convention, this entry is committed to a fresh feature branch and merged
+  directly into `main` to preserve the unalterable paper trail.
+
+
+---
+
+
 # 2026-07-14 03:17 PM EDT — Scheduled Rebalance Check — HALTED/PENDING USER APPROVAL (NVDA Overweight Trim Exceeds `seek_approval_value`; ARM Drawdown Stop-Loss Blocked by `lock_in_period`)
 
 **Status:** HALTED before execution. **0 of 0 orders placed this cycle.** Fresh,

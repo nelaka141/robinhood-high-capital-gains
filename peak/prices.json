@@ -42,7 +42,7 @@
                 "liquidatedDate": "2026-07-07",
                 "profitSellPrice": null,
                 "profitSellDate": null,
-                "lastPurchaseDate": null
+                "lastPurchaseDate": "2026-07-15"
         },
         "MSTR": {
                 "peakPrice": 101.97,
@@ -51,7 +51,7 @@
                 "liquidatedDate": null,
                 "profitSellPrice": null,
                 "profitSellDate": null,
-                "lastPurchaseDate": null
+                "lastPurchaseDate": "2026-07-15"
         },
         "COIN": {
                 "peakPrice": 166.71,
@@ -72,13 +72,13 @@
                 "lastPurchaseDate": "2026-07-14"
         },
         "SMCI": {
-                "peakPrice": 28.8652,
-                "peakDate": "2026-07-09",
+                "peakPrice": 27.457,
+                "peakDate": "2026-07-15",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
                 "profitSellPrice": 28.9601,
                 "profitSellDate": "2026-07-09",
-                "lastPurchaseDate": null
+                "lastPurchaseDate": "2026-07-15"
         },
         "IONQ": {
                 "peakPrice": 46.52,
@@ -99,8 +99,8 @@
                 "lastPurchaseDate": "2026-07-14"
         },
         "AMZN": {
-                "peakPrice": 248.425,
-                "peakDate": "2026-07-13",
+                "peakPrice": 251.47,
+                "peakDate": "2026-07-15",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
                 "profitSellPrice": null,
@@ -114,7 +114,7 @@
                 "liquidatedDate": null,
                 "profitSellPrice": null,
                 "profitSellDate": null,
-                "lastPurchaseDate": "2026-07-14"
+                "lastPurchaseDate": "2026-07-15"
         },
         "NVDA": {
                 "peakPrice": 211.875,
@@ -132,7 +132,7 @@
                 "liquidatedDate": null,
                 "profitSellPrice": null,
                 "profitSellDate": null,
-                "lastPurchaseDate": "2026-07-14"
+                "lastPurchaseDate": "2026-07-15"
         },
         "GOOG": {
                 "peakPrice": 362.27,
@@ -141,7 +141,7 @@
                 "liquidatedDate": null,
                 "profitSellPrice": null,
                 "profitSellDate": null,
-                "lastPurchaseDate": "2026-07-14"
+                "lastPurchaseDate": "2026-07-15"
         },
         "MSFT": {
                 "peakPrice": 392.04,
@@ -150,7 +150,7 @@
                 "liquidatedDate": null,
                 "profitSellPrice": null,
                 "profitSellDate": null,
-                "lastPurchaseDate": "2026-07-14"
+                "lastPurchaseDate": "2026-07-15"
         },
         "META": {
                 "peakPrice": 670.9005,
@@ -159,7 +159,7 @@
                 "liquidatedDate": null,
                 "profitSellPrice": null,
                 "profitSellDate": null,
-                "lastPurchaseDate": "2026-07-14"
+                "lastPurchaseDate": "2026-07-15"
         },
         "HOOD": {
                 "peakPrice": 114.19,
@@ -171,8 +171,8 @@
                 "lastPurchaseDate": "2026-07-13"
         },
         "AAPL": {
-                "peakPrice": 320.5399,
-                "peakDate": "2026-07-13",
+                "peakPrice": 321.34,
+                "peakDate": "2026-07-15",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
                 "profitSellPrice": null,
@@ -207,8 +207,8 @@
                 "lastPurchaseDate": "2026-07-13"
         },
         "AVGO": {
-                "peakPrice": 391.71,
-                "peakDate": "2026-07-13",
+                "peakPrice": 396.12,
+                "peakDate": "2026-07-15",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
                 "profitSellPrice": null,
