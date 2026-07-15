@@ -1,6 +1,6 @@
 {
   "portfolio_metadata": {
-    "version": "2.12.0",
+    "version": "2.13.0",
     "last_updated": "2026-07-14",
     "drift_tolerance_percentage": 2.0,
     "drift_tolerance_percentage_for_first_time_trades": 0.1,
@@ -18,8 +18,8 @@
     "cool_down_period_after_lquidation": 8,
     "beta_benchmark_symbol": "SPY",
     "beta_calculation_lookback_days": 30,
-    "sold_asset_repurchase_days" : 5,
-    "sold_asset_price_change_percentage": 5.0,
+    "sold_asset_repurchase_days" : 2,
+    "sold_asset_price_change_percentage": 1.5,
     "lock_in_period": 2,
     "overweight_sell_minimum_profit_margin_percent": 1.0,
     "sell_or_buy_value_limit": 10,
