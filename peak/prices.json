@@ -54,8 +54,8 @@
                 "lastPurchaseDate": "2026-07-15"
         },
         "COIN": {
-                "peakPrice": 166.71,
-                "peakDate": "2026-07-07",
+                "peakPrice": 167.12,
+                "peakDate": "2026-07-15",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
                 "profitSellPrice": null,
@@ -99,7 +99,7 @@
                 "lastPurchaseDate": "2026-07-14"
         },
         "AMZN": {
-                "peakPrice": 251.47,
+                "peakPrice": 254.13,
                 "peakDate": "2026-07-15",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
@@ -135,8 +135,8 @@
                 "lastPurchaseDate": "2026-07-15"
         },
         "GOOG": {
-                "peakPrice": 362.27,
-                "peakDate": "2026-07-08",
+                "peakPrice": 369.48,
+                "peakDate": "2026-07-15",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
                 "profitSellPrice": null,
@@ -144,8 +144,8 @@
                 "lastPurchaseDate": "2026-07-15"
         },
         "MSFT": {
-                "peakPrice": 392.04,
-                "peakDate": "2026-07-13",
+                "peakPrice": 395.03,
+                "peakDate": "2026-07-15",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
                 "profitSellPrice": null,
@@ -153,8 +153,8 @@
                 "lastPurchaseDate": "2026-07-15"
         },
         "META": {
-                "peakPrice": 670.9005,
-                "peakDate": "2026-07-13",
+                "peakPrice": 676.67,
+                "peakDate": "2026-07-15",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
                 "profitSellPrice": null,
@@ -162,8 +162,8 @@
                 "lastPurchaseDate": "2026-07-15"
         },
         "HOOD": {
-                "peakPrice": 114.19,
-                "peakDate": "2026-07-14",
+                "peakPrice": 115.155,
+                "peakDate": "2026-07-15",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
                 "profitSellPrice": null,
@@ -171,7 +171,7 @@
                 "lastPurchaseDate": "2026-07-13"
         },
         "AAPL": {
-                "peakPrice": 321.34,
+                "peakPrice": 327.6451,
                 "peakDate": "2026-07-15",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
