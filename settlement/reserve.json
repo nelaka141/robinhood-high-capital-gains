@@ -1,3 +1,20 @@
 {
-  "pending_draws": []
+  "pending_draws": [
+    {
+      "symbol": "MU",
+      "saleProceeds": 3895.52,
+      "saleDate": "2026-07-16",
+      "expectedSettleDate": "2026-07-17",
+      "reserveDrawn": 3895.52,
+      "settled": false
+    },
+    {
+      "symbol": "SOXL",
+      "saleProceeds": 54.86,
+      "saleDate": "2026-07-16",
+      "expectedSettleDate": "2026-07-17",
+      "reserveDrawn": 54.86,
+      "settled": false
+    }
+  ]
 }
