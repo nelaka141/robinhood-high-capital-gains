@@ -1,3 +1,194 @@
+# 2026-07-16 04:49 PM EDT — User-Directed Retrigger (Post-Config-Update: `sell_price_diff_limit`/`buy_price_diff_limit` Tightened 15%/12% → 10%/10%; Profit-Materialization Rule Clarified to Override `lock_in_period` and Suppress Same-Cycle Buys; New Same-Asset Buy/Sell Exclusivity Rule) — NO TRADES (Zero Legal Sell Source Persists; Zero Underweight Breaches; Zero Organic Deployable Cash)
+
+**Status:** NO TRADES. **0 of 0 intended orders** — fresh, stateless
+retrigger for a user-directed config update. `CLAUDE.md` re-pulled from
+`main`, now **v2.23.0**: (1) the Step 4 "GET THE PROFITS" rule is now
+explicit that triggering it overrides `lock_in_period` and, when
+triggered, **suppresses all buys for the rest of the cycle** ("do not
+buy any new assets in the same cycle"); (2) new Step 6 rule — never buy
+and sell the same asset in the same cycle; if a sale is warranted
+(stop-loss or profit-take), execute the sale and skip that asset's buy,
+otherwise skip both. `portfolio_targets.json` now **v2.15.0**:
+`sell_price_diff_limit` tightened **15% → 10%**, `buy_price_diff_limit`
+tightened **12% → 10%** (both now equal). `max_trailing_drawdown_percentage`
+(25%), `materialize_profit_percentage` (4.0%), and `profit_sell_percentage`
+(40.0%) all unchanged from the 11:33 AM cycle. This retrigger lands
+**after** the previously-logged 3:15 PM scheduled cycle (which ran under
+the pre-update v2.22.0 config and also found no trades) — `peak/prices.json`
+and `settlement/reserve.json` re-pulled fresh, reflecting that cycle's
+state.
+
+## Pre-check state (~4:48 PM ET — now in **extended hours**, regular
+session closed at 4:00 PM ET; session runs to 8:00 PM ET)
+* Account `795732718` ("Agentic", `cash`-type). `buying_power` =
+  **$5,299.55**, `cash` (ledger) = **$9,249.93** — the $3,950.38 gap
+  still matches the 9:55 AM MU ($3,895.52) + SOXL ($54.86) stop-loss
+  proceeds exactly, still unsettled (`expectedSettleDate` 2026-07-17,
+  tomorrow — not yet reached).
+* `current_cash` = Math.min($5,299.55, `cap_on_total_cash_balance_to_use`
+  $10,000) = **$5,299.55**.
+* Equity value (live, using the more-recent extended-hours trade price
+  for each of the 20 held target symbols with an off-hours print; MU,
+  SOXL, IONQ, PLTR quoted flat/at-position but PLTR/META held): **$37,349.97**.
+  `account_balance` = **$42,649.52**.
+
+## Settlement Reserve reconciliation
+* `settlement/reserve.json` holds the same two `pending_draws` entries
+  (MU $3,895.52, SOXL $54.86), both `settled: false`. Empirical check:
+  `cash` ($9,249.93) − `buying_power` ($5,299.55) = **$3,950.38** —
+  unchanged, confirming neither sale has settled. Both entries left
+  pending.
+* `reserve_available_to_draw` = $9,000 − $3,950.38 = **$5,049.62**.
+
+## Drawdown Audit Phase (25% threshold, unchanged) — no breaches
+Re-checked all 20 held target symbols (MU, SOXL, IONQ all at zero
+shares) under the dual-condition test. Closest approaches: ORCL
+(−15.76% vs. peak, −7.48% vs. avg cost), SPCX (−14.02%/−13.24%), INTC
+(−16.87%/−23.56%) — none clear both legs at the 25% bar. **No emergency
+liquidations this cycle.** No new intraday peaks — today's late-session
+pullback (broad weakness into the extended-hours open) pulled every
+held symbol below its recorded peak, including MSFT and AAPL which had
+set fresh highs earlier today.
+
+## Step 5 — Price Limit Checks (now 10%/10%, tightened from 15%/12%)
+Checked all 20 held symbols' extended-hours price vs. official prior
+close: largest single-day moves were HOOD (−8.47%), AMD (−5.49%), IONQ
+(−5.44%), TQQQ (−5.43%) on the downside and AAPL (+1.65%), MSFT (+1.20%)
+on the upside — **every symbol stayed inside the new ±10% band**, so no
+`sell_price_diff_limit`/`buy_price_diff_limit` exemptions were needed
+this cycle (moot anyway, since no trade candidates were generated — see
+below). Flagging for the record: this is meaningfully tighter than the
+old 15%/12% bars and would have started exempting symbols from routine
+drift trading somewhere between HOOD's −8.47% and a hypothetical −10%
+move; worth watching on a more volatile day.
+
+## Rules & Guardrails (Step 2)
+* **MU** and **SOXL** (liquidated 2026-07-16, this morning):
+  `current_date` − `liquidatedDate` = **0 days**, short of
+  `cool_down_period_after_lquidation` (8 days) — **both remain
+  excluded**.
+* **IONQ** (liquidated 2026-07-13 @ $38.8001): current $35.4698 is a
+  **−8.58%** move — still a decline, not the required ≥7% recovery.
+  **Remains excluded.**
+* **PLTR** (`lastPurchaseDate`: null): no lock-in date to test against;
+  not locked in for selling.
+* **META** (`lastPurchaseDate` 2026-07-16, today): `current_date` −
+  `lastPurchaseDate` = **0 days** ≤ `lock_in_period` (2) → would
+  normally be locked-in for selling, but per the clarified v2.23.0 text
+  the "GET THE PROFITS" rule explicitly overrides lock-in when it
+  fires. Moot this cycle regardless — see below, META is underwater,
+  not in profit.
+
+## Drift Audit (`account_balance` = $42,649.52, `drift_tolerance_percentage` = 2.0%)
+**2 Overweight breaches:** **PLTR** (8.101% vs. 5.297% target, drift
+2.804%), **META** (17.307% vs. 1.059%, drift 16.248% — Alpha Leader, see
+below). **Zero Underweight breaches** — every other held symbol closed
+inside tolerance (largest remaining gaps: SMCI 1.982%, ARM 1.861%, AMD
+1.812%, HOOD 1.803%, NEE 1.783%), same pattern as the two prior cycles
+today.
+
+## Overweight Sellability Check — none legal this cycle
+| Symbol | Avg Cost | Current | Raw Gain % | Sellable? |
+|---|---|---|---|---|
+| PLTR | $134.51 | $133.78 | −0.543% | No — underwater, fails ≥1.0% floor |
+| META | $664.01 | $663.00 | −0.152% | No — underwater (also would be locked-in, but that's moot — see below) |
+
+**Zero legal trim source.** No High-Beta ranking to compute this cycle
+(no sells); `Total_High_Beta_Gains_Realized` = **$0.00**.
+
+## Alpha Leader (7-day gain, 2026-07-09 open → live ~4:48 PM ET, extended hours)
+| Symbol | 7-Day Gain |
+|---|---|
+| **META** | **+13.531%** |
+| AAPL | +7.226% |
+| MSFT | +6.912% |
+| AMZN | +4.331% |
+| NVDA | +1.194% |
+
+**META remains Alpha Leader**, though its intraday lead has compressed
+somewhat as the broader late-session pullback ate into its gain (from
++15.85% at 11:33 AM to +13.53% now).
+
+## Step 4 "GET THE PROFITS" Check (Alpha Leader profit-materialization, clarified rule)
+* META's raw unrealized gain on its blended average cost has now turned
+  **negative**: **−0.152%** ((663.00 − 664.01) / 664.01 × 100) —
+  META slipped from this morning's +1.89% into today's broad afternoon
+  weakness and is now marginally underwater.
+* `materialize_profit_percentage` = **4.0%**. **−0.152% is nowhere near
+  4.0% — the profit-taking rule does NOT trigger.** No sell of
+  `profit_sell_percentage` (40%) of the META position was executed, and
+  since the rule didn't fire, its new "suppress all buys this cycle"
+  clause and its lock-in override are both moot — there was no organic
+  cash to buy with anyway (see Step 3).
+
+## Step 3 — Alpha Leader & Re-investment Multiplier
+* `base_deployable_cash` = Max(0, $5,299.55 − $250 − $9,000) = **$0.00**
+  (raw calc −$3,950.45, floored) — the reserve wall, still drawn down
+  from this morning's MU/SOXL bridging (unsettled until 2026-07-17),
+  leaves no organic deployable cash this cycle.
+
+## Step 4 — Underweight / Multiplier Funding
+* **No Underweight breaches exist this cycle**, so there is no
+  drift-driven buying need.
+* **No Overweight position is legally sellable** (PLTR and META both
+  underwater), so there is no harvestable capital even if a need
+  existed.
+* Net result: **no buy or sell orders were calculated this cycle** —
+  the new same-asset buy/sell exclusivity rule (Step 6) and the
+  profit-materialization suppress-buys clause (Step 4) were both
+  evaluated but never came into play, since nothing was eligible to
+  trade in either direction.
+
+## Step 6 — Execution
+**No orders placed.** Session is now in **extended hours** (4:00–8:00
+PM ET) — had any order been warranted, it would have required a limit
+order pegged to bid/ask with the whole-share fallback per the standing
+extended-hours rules, but this was never reached since zero trade
+candidates existed. Gross nominal value **sold** this cycle: $0.
+`seek_approval_value` never in play.
+
+## Post-check state
+* `buying_power`/`cash` unchanged: **$5,299.55** / **$9,249.93**.
+  `min_cash_absolute` ($250) never at risk (nothing spent).
+* Equity value: **$37,349.97** (live extended-hours prices, down from
+  $37,426.52 at the 3:16 PM check, consistent with continued late-session
+  softness). Total account value: **$42,649.52**.
+
+## peak/prices.json updates
+* **None.** No held symbol printed a new high this cycle (broad
+  late-session pullback pulled everything, including this afternoon's
+  MSFT/AAPL leaders, back below their recorded peaks). No re-entry
+  triggers, no purchases/liquidations. File left untouched.
+
+## Settlement Reserve — status unchanged
+* Both MU and SOXL `pending_draws` entries remain `settled: false` —
+  `expectedSettleDate` 2026-07-17 has not yet arrived. No reconciliation
+  action this cycle.
+* `reserve_available_to_draw` unchanged at **$5,049.62** for the next
+  cycle.
+
+## Notes
+* This was a user-directed retrigger following a `CLAUDE.md`/
+  `portfolio_targets.json` config update: tighter price-limit bands
+  (10%/10%, down from 15%/12%) and a clarified profit-materialization
+  rule (explicit lock-in override, suppress-buys-on-trigger, plus a new
+  standing rule against buying and selling the same asset in one
+  cycle). None of the new mechanics were actually exercised this cycle
+  — the tighter price limits didn't bind (largest move was HOOD at
+  −8.47%, still inside ±10%), and the profit-materialization rule still
+  didn't clear its 4.0% threshold (META is now slightly underwater,
+  down from this morning's +1.89% peak reading). The account remains in
+  the same structural state as the 11:33 AM and 3:15 PM cycles: two
+  Overweight positions (PLTR, META) both blocked from selling by being
+  underwater, zero Underweight breaches to fund, and zero organic
+  deployable cash while the MU/SOXL stop-loss proceeds remain unsettled
+  (expected to free up tomorrow, 2026-07-17).
+* Per repo convention, this entry is committed to a fresh feature branch
+  and merged directly into `main` to preserve the unalterable paper
+  trail.
+
+---
+
 # 2026-07-16 03:16 PM EDT — Scheduled Rebalance Check — NO TRADES (Broad Afternoon Selloff; Zero Legal Sell Source Persists — PLTR Underwater, META Locked-In/Below Profit-Materialization Floor; Zero Underweight Breaches; Zero Organic Deployable Cash)
 
 **Status:** NO TRADES. **0 of 0 intended orders** — fresh, stateless run
@@ -731,170 +922,6 @@ cycle: $0 — `seek_approval_value` never in play.
 
 ## Notes
 * This was the scheduled 3:15 PM ET tick, run fresh with no memory of
-  prior cycles. Per repo convention, this entry is committed to a fresh
-  feature branch and merged directly into `main` to preserve the
-  unalterable paper trail.
-
----
-
-
-# 2026-07-15 09:50 AM EDT — Scheduled Rebalance Check — EXECUTED (7 Underweight Buys + Alpha Leader Top-Up Filled; SOXL and SMCI Re-Enter Play; No Legal Overweight Trims)
-
-**Status:** EXECUTED. **8 of 8 intended orders filled**, all buys, placed
-sequentially in regular market hours with standard Market Orders
-(`dollar_amount`, `market_hours=regular_hours`). Fresh, stateless run for
-the 9:45 AM ET scheduled tick. `CLAUDE.md` (v2.21.0, unchanged text),
-`portfolio_targets.json`, `peak/prices.json`, and `settlement/reserve.json`
-all re-pulled fresh from `main`.
-
-## Pre-trade state (~9:46 AM ET, regular hours)
-* Account `795732718` ("Agentic"). `buying_power` = **$10,525.75**, `cash`
-  (ledger) = **$10,525.75** — the two are now equal, confirming the NVDA
-  sale from the 07:46 PM cycle (2026-07-14) has settled overnight.
-* `current_cash` = Math.min($10,525.75, `cap_on_total_cash_balance_to_use`
-  $10,000) = **$10,000**.
-* Equity value (live quotes, 24 target symbols): **$37,105.82**.
-  `account_balance` = **$47,105.82**.
-
-## Settlement Reserve reconciliation
-* `settlement/reserve.json` held one `pending_draws` entry: NVDA,
-  `saleProceeds` $5,499.00, `reserveDrawn` $4,740.11, `saleDate`
-  2026-07-14, `expectedSettleDate` 2026-07-15, `settled: false`.
-* Empirical check: `cash` ($10,525.75) − `buying_power` ($10,525.75) =
-  **$0.00** → the sale has settled. Entry marked `settled: true` and
-  **removed** from `pending_draws`.
-* `reserve_available_to_draw` for this cycle = $9,000 − $0 (no remaining
-  pending entries) = **$9,000** (full headroom restored).
-
-## Drawdown Audit Phase — no breaches
-Checked all 21 currently-held target symbols under the dual-condition
-test (≥15% down from both `peakPrice` and `avg_cost_basis`). Largest
-drawdowns: INTC −8.30% vs. peak, ORCL −12.29% vs. peak (both fail the
-avg-cost leg). No symbol clears both legs. **No emergency liquidations
-triggered.** Two new peaks recorded (informational, not yet a trade
-factor): **AMZN** $248.425 → **$251.47**, **AAPL** $320.5399 →
-**$321.34**, **AVGO** $391.71 → **$396.12** (all 2026-07-15).
-
-## Rules & Guardrails (Step 2) — re-entry checks
-* **SOXL** (liquidated 2026-07-07 @ $157.7431): current $173.515 is
-  **+9.999%** above the liquidated price (≥ `min_recovery_price_percentage`
-  7%), and `current_date` − `liquidatedDate` = **8 days** (≥
-  `cool_down_period_after_lquidation` 8). **Both conditions met — SOXL
-  re-enters play this cycle.**
-* **SMCI** (profit-sold 2026-07-09 @ $28.9601): current $27.475 is
-  **−5.13%** below the profit-sell price (≥ `sold_asset_price_change_percentage`
-  1.5% drop), and `current_date` − `profitSellDate` = **6 days** (≥
-  `sold_asset_repurchase_days` 2). **Both conditions met — SMCI re-enters
-  play this cycle.**
-* **IONQ** (liquidated 2026-07-13 @ $38.8001): current $38.22 is
-  **−1.49%** — a drop, not the required ≥7% recovery. **Condition not
-  met — IONQ remains excluded from drift calculations and this cycle's
-  trading**, per the standing rule.
-* **META** (`lastPurchaseDate` 2026-07-14): `current_date` − `lastPurchaseDate`
-  = **1 day** ≤ `lock_in_period` (2) → **locked-in, cannot be sold this
-  cycle** regardless of profit margin.
-
-## Drift Audit (`account_balance` = $47,105.82, `drift_tolerance_percentage` = 2.0%)
-**3 Overweight breaches:** PLTR (7.318% vs. 5.297% target, drift 2.021%),
-MU (9.140% vs. 5.297%, drift 3.843%), **META** (11.740% vs. 1.059%, drift
-10.681% — locked-in, see above). **7 Underweight breaches (actionable):**
-MSTR (drift 2.189%), TSLA (2.353%), ORCL (2.383%), GOOG (2.456%), MSFT
-(2.402%), **SOXL** (2.119%, re-entering), **SMCI** (2.119%, re-entering).
-IONQ (2.119% nominal drift) excluded per the guardrail above. Aggregate
-actionable dollar-gap: **$7,546.25**.
-
-## Overweight Sellability Check — none legal this cycle
-| Symbol | Avg Cost | Current | Raw Gain % | Sellable? |
-|---|---|---|---|---|
-| PLTR | $134.51 | $133.4701 | −0.773% | No — underwater, fails ≥1.0% floor |
-| MU | $1,020.00 | $953.58 | −6.512% | No — underwater, fails floor |
-| META | $661.78 | $657.82 | −0.598% | No — locked-in (1-day-old purchase) *and* underwater |
-
-**Zero legal trim source.** Step 4's High-Beta ranking is moot;
-`Total_High_Beta_Gains_Realized` = **$0.00** this cycle.
-
-## Alpha Leader (7-day gain, 2026-07-06 open → live ~9:46 AM ET)
-| Symbol | 7-Day Gain |
-|---|---|
-| **META** | **+10.588%** |
-| NVDA | +8.888% |
-| AVGO | +6.025% |
-| PLTR | +4.896% |
-
-**META remains Alpha Leader.**
-
-## Step 3 — Alpha Leader & Re-investment Multiplier
-* `base_deployable_cash` = Max(0, $10,000 − $250 − $9,000) = **$750.00**.
-* `multiplier_cash` formula value = $750 × 0.25 = $187.50, but **not
-  harvestable** — no Overweight position is legally sellable this cycle
-  (PLTR/MU underwater, META locked-in). Only the un-multiplied base
-  allocation routes to the Alpha Leader.
-* Alpha allocation to META = 35% × $750 = **$262.50** (well within the
-  35% `max_portfolio_percentage` single-asset cap even after adding to
-  META's already-overweight 11.74% position).
-* Remaining **$487.50** divided pro-rata by dollar-gap across the 7
-  actionable Underweight symbols (aggregate gap $7,546.25).
-
-## Step 5 — Price Limit Checks
-All buy candidates checked against `buy_price_diff_limit` (12%) vs. prior
-close: largest single-day move was META (−0.487%, a decline, not a
-pump). No `sell_price_diff_limit` check applicable (no sells this cycle).
-No exemptions triggered.
-
-## Step 6 — Execution (all Market Orders, regular hours, sequential)
-| # | Side | Symbol | Alloc $ | Fill Qty | Avg Fill Price | State |
-|---|---|---|---|---|---|---|
-| 1 | BUY | MSTR | $66.60 | 0.683568 | $97.4299 | **filled** |
-| 2 | BUY | TSLA | $71.60 | 0.178808 | $400.4290 | **filled** |
-| 3 | BUY | ORCL | $72.50 | 0.560972 | $129.2399 | **filled** |
-| 4 | BUY | GOOG | $74.75 | 0.207035 | $361.0499 | **filled** |
-| 5 | BUY | MSFT | $73.10 | 0.188130 | $388.5599 | **filled** |
-| 6 | BUY | SOXL | $64.47 | 0.371581 | $173.5016 | **filled** (re-entry) |
-| 7 | BUY | SMCI | $64.47 | 2.348035 | $27.4570 | **filled** (re-entry) |
-| 8 | BUY | META | $262.50 | 0.398702 | $658.3850 | **filled** (Alpha Leader) |
-
-**Total deployed: $749.99.** No 429 throttling encountered; no retries
-needed. All allocations cleared the $10 `sell_or_buy_value_limit` floor.
-Gross nominal value **sold** this cycle: $0 — `seek_approval_value` never
-in play.
-
-## Post-trade state (confirmed via `get_portfolio` / `get_equity_orders`)
-* `buying_power`/`cash`: $10,525.75 → **$9,775.76** (drop of $749.99,
-  matching total deployed). `min_cash_absolute` ($250) never at risk.
-* Equity value: $37,105.82 → **$37,799.35** (live). Total account value:
-  **$47,575.11**.
-* Of the final $9,775.76 buying power, $9,000 remains permanently walled
-  off as `settlement_reserve_target` (fully available headroom, no pending
-  draws) — true freely-deployable cash is near `min_cash_absolute`,
-  consistent with the "keep cash lean" objective given this cycle's
-  `base_deployable_cash` was fully deployed (only $0.01 of the $750 pool
-  left unspent to rounding).
-
-## peak/prices.json updates
-* **SMCI**: repurchased after a profit-sell → `peakPrice` reset to the
-  repurchase fill price **$27.457**, `peakDate` → **2026-07-15**, per the
-  standing reset-on-repurchase-after-profit-sell rule.
-* **AMZN**: `peakPrice` $248.425 → **$251.47**, `peakDate` → 2026-07-15.
-* **AAPL**: `peakPrice` $320.5399 → **$321.34**, `peakDate` → 2026-07-15.
-* **AVGO**: `peakPrice` $391.71 → **$396.12**, `peakDate` → 2026-07-15.
-* `lastPurchaseDate` → **2026-07-15** for all 8 symbols bought this cycle:
-  MSTR, TSLA, ORCL, GOOG, MSFT, SOXL (new), SMCI (new), META.
-* SOXL's `liquidatedPrice`/`liquidatedDate` fields left unchanged
-  (historical record of the prior stop-loss; `CLAUDE.md`'s explicit
-  peak-reset instruction covers profit-sell repurchases only, not
-  liquidation repurchases — no unilateral change made there).
-* All other symbols' fields unchanged (no new highs, no re-entry
-  triggers).
-
-## Settlement Reserve — end-of-cycle status
-* NVDA `pending_draws` entry reconciled and removed (settled).
-* No new draws this cycle — the full $750 base-deployable-cash pool was
-  real, already-settled cash; no reserve bridging was needed.
-* `settlement/reserve.json` → `{"pending_draws": []}`. Full $9,000
-  headroom available for the next cycle.
-
-## Notes
-* This was the scheduled 9:45 AM ET tick, run fresh with no memory of
   prior cycles. Per repo convention, this entry is committed to a fresh
   feature branch and merged directly into `main` to preserve the
   unalterable paper trail.
