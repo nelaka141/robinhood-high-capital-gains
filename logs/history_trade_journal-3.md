@@ -1,3 +1,121 @@
+# 2026-07-14 06:22 PM EDT — User-Directed Retry (Post-Config-Update: Whole-Share Extended-Hours Fallback, v2.20.0) — PARTIALLY EXECUTED (NVDA Trim Filled; All 6 Underweight Buys SKIPPED — Unsettled Cash-Account Buying Power)
+
+**Status:** PARTIALLY EXECUTED. **1 of 7 intended orders filled** (NVDA
+sell). **6 of 7 SKIPPED/PENDING** — not due to any `CLAUDE.md` rule, but a
+brokerage account-type constraint discovered live this cycle. User updated
+`CLAUDE.md` to v2.20.0, adding: *"whole-share fallback in extended hours —
+if any of the orders requires (after verifying through review_equity_order)
+whole share, round them to whole shares and route as limit orders."* Full
+detail below.
+
+## Pre-trade state (~6:20 PM ET, extended hours)
+* Account `795732718` ("Agentic", **type: `cash`**, not margin). Cash:
+  **$250.09**. Positions unchanged since the 6:11 PM check.
+* Re-verified drawdown audit (dual-condition test) and drift audit at
+  fresh prices — same conclusions as the 6:11 PM cycle: no drawdown
+  breaches (ARM's reset peak holds), **4 Overweight** (NVDA, META, MU,
+  PLTR — only NVDA clears the profit-margin floor at **+3.667%** raw
+  gain), **6 Underweight** (TQQQ, AMZN, TSLA, ORCL, GOOG, MSFT, aggregate
+  dollar-gap **$6,644.02**).
+
+## Testing the new whole-share fallback
+Per the new rule, verified NVDA's proposed sell via a **dry-run**
+`review_equity_order` call first at the fractional size — same rejection
+as before ("fractional and dollar-based orders are only allowed in
+regular_hours"). Rounded down to **26 whole shares** (from the fractional
+target of ~26.14) and re-verified via `review_equity_order`: **accepted**
+this time, confirming the whole-share extended-hours limit-order path
+works. `market_data_disclosure` (compliance quote, shown verbatim per
+policy): *"Bid $211.50 × 100 P · Ask $211.60 × 200 K · Last $211.45 × 100.
+Updated 6:20 PM ET."*
+
+## Step 4 — High-Beta Gains Calculation (NVDA)
+* **Beta_NVDA** (30-day lookback vs. `SPY`, unchanged from the 3:17 PM
+  computation): **2.053**.
+* **Raw_Gain_Percentage** = (211.50 − 203.96) / 203.96 × 100 = **+3.697%**.
+* **High_Beta_Gain_Score** = 3.697 × 2.053 = **7.59**.
+* **High_Beta_Gain_Dollars** = (211.50 − 203.96) × 26 shares = **$196.04**.
+* `Total_High_Beta_Gains_Realized` this cycle = **$196.04**.
+
+## Step 6 — Execution
+* **Order 1 — SELL NVDA, 26 shares (whole-share fallback), limit @ $211.42
+  (pegged to bid), `extended_hours`: FILLED** at average price **$211.50**,
+  fee $0.12. Proceeds: **$5,498.88**. Gross nominal sold ($5,499) is well
+  under the $10,000 `seek_approval_value` — no approval halt triggered.
+* **Post-sell buying-power check — blocked.** `get_portfolio` immediately
+  after the fill showed `cash` jump to $5,748.97 (reflecting the sale) but
+  **`buying_power` remained $250.09**, unchanged. Attempting the first
+  planned buy (TQQQ, 11 whole shares, limit @ $75.01, extended_hours)
+  returned a live API rejection: **`"Not enough buying power."`**
+  Re-checked `get_portfolio` a second time ~15 seconds later —
+  `buying_power` still $250.09. This is consistent with a **cash-account
+  settlement restriction**: unlike a margin account, this account (`type:
+  cash`) does not treat same-day, not-yet-settled sale proceeds as usable
+  buying power. `CLAUDE.md`'s Step 6 design ("Execute all necessary sell
+  and liquidation orders... first to generate immediate buying power")
+  implicitly assumes same-day reinvestment is possible; this account type
+  does not support that. **No further orders were attempted** — with only
+  $250.09 in real buying power (at `min_cash_absolute`), there is $0.09
+  of genuinely spendable cash, far below the $10 `sell_or_buy_value_limit`
+  floor for any of the 6 planned buys.
+
+## Proposed trade matrix — remaining 6 legs SKIPPED/PENDING (blocking reason: cash-account settlement — sale proceeds not yet usable as buying power)
+| # | Side | Symbol | Notional (proposed) | Qty (proposed) | State |
+|---|---|---|---|---|---|
+| 1 | SELL | NVDA | $5,498.88 | 26 | **FILLED** |
+| 2 | BUY | ORCL | ~$1,029 | 8 | SKIPPED — insufficient settled buying power |
+| 3 | BUY | TQQQ | ~$825 | 11 | SKIPPED — insufficient settled buying power |
+| 4 | BUY | TSLA | ~$791 | 2 | SKIPPED — insufficient settled buying power |
+| 5 | BUY | MSFT | ~$772 | 2 | SKIPPED — insufficient settled buying power |
+| 6 | BUY | AMZN | ~$741 | 3 | SKIPPED — insufficient settled buying power |
+| 7 | BUY | GOOG | ~$713 | 2 | SKIPPED — insufficient settled buying power |
+
+(Sizing shown was pro-rata against NVDA's $5,498.88 proceeds, rounded down
+to whole shares — ~$628 would have gone unspent to whole-share rounding
+even had settlement not blocked execution; not material to the outcome.)
+
+## Post-trade state (confirmed via `get_portfolio` / `get_equity_positions`)
+* Cash (ledger): **$5,748.97**. **Buying power (spendable): $250.09**
+  (unchanged — $5,498.88 unsettled). Equity value: **$31,830.24**
+  (dropped from ~$37,315 due to the NVDA trim). Total account value:
+  **$37,579.21**.
+* NVDA position: **14.458171 shares remaining** (down from 40.458171),
+  average cost basis now shown as **$206.06** (broker-computed post-trim
+  figure; likely reflects FIFO lot accounting, not a simple pro-rata
+  average).
+* `peak/prices.json` updated: NVDA's `profitSellPrice` → **$211.50**,
+  `profitSellDate` → **2026-07-14** (this was a profitable partial trim,
+  not a full liquidation, so `peakPrice` ($211.875, 2026-07-14) is
+  **unchanged** — the new "reset peak on repurchase after profit-sell"
+  rule applies to full exits followed by a repurchase, not partial trims
+  of an still-open position). No other symbol's peak changed this cycle
+  (no new highs at current prices).
+
+## Flagging for the user
+This is a **new, structural finding**, not a one-off glitch: this account
+is a `cash`-type brokerage account, and Robinhood cash accounts generally
+do not make same-day sale proceeds available as buying power until
+settlement (commonly T+1). `CLAUDE.md`'s "sell overweight to fund
+underweight same cycle" design (Steps 3, 4, 6) implicitly assumes a margin
+account's same-day reinvestment capability. Every future cycle that needs
+to trim an Overweight position to fund Underweight buys will hit this same
+wall **unless** `CLAUDE.md` is updated to either (a) explicitly defer
+funded buys to the next cycle once proceeds settle, or (b) source buying
+power from settled cash only and size trims independent of same-day
+reinvestment. No unilateral change was made to this logic this cycle —
+flagging for an explicit decision. The remaining 6 buys above should
+become executable once NVDA's sale proceeds settle (typically the next
+business day).
+
+## Notes
+* This was a user-directed retry following a config update, run
+  immediately. Per repo convention, this entry is committed to a fresh
+  feature branch and merged directly into `main` to preserve the
+  unalterable paper trail.
+
+
+---
+
 # 2026-07-14 06:11 PM EDT — User-Directed Retry (Post-Config-Update: Extended-Hours Execution Now Per-Asset, v2.19.0) — SKIPPED/PENDING (Fractional Orders Confirmed Unavailable Outside Regular Hours, Platform-Wide)
 
 **Status:** SKIPPED. **0 of 0 orders placed this cycle.** User updated
