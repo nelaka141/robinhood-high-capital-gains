@@ -1,6 +1,6 @@
 {
   "portfolio_metadata": {
-    "version": "2.14.0",
+    "version": "2.15.0",
     "last_updated": "2026-07-16",
     "drift_tolerance_percentage": 2.0,
     "drift_tolerance_percentage_for_first_time_trades": 0.1,
@@ -12,8 +12,8 @@
     "min_cash_absolute": 250,
     "min_cash_target": 500,
     "seek_approval_value": 10000,
-    "sell_price_diff_limit": 15,
-    "buy_price_diff_limit": 12,
+    "sell_price_diff_limit": 10,
+    "buy_price_diff_limit": 10,
     "cap_on_total_cash_balance_to_use": 10000,
     "cool_down_period_after_lquidation": 8,
     "beta_benchmark_symbol": "SPY",
