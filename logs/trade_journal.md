@@ -1,3 +1,178 @@
+# 2026-07-16 11:33 AM EDT — User-Directed Retrigger (Post-Config-Update: Alpha Leader Profit-Materialization Rule Added, `max_trailing_drawdown_percentage` Loosened 15% → 25%) — NO TRADES (Zero Legal Sell Source; No Underweight Buys Needed; Zero Organic Deployable Cash)
+
+**Status:** NO TRADES. **0 of 0 intended orders** — after re-auditing under
+the new config, no leg of the framework called for action this cycle.
+Fresh, stateless retrigger. `CLAUDE.md` re-pulled from `main`, now
+**v2.22.0**: adds a new Step 4 rule — *"GET THE PROFITS: if the Alpha
+Leader profit exceeds `materialize_profit_percentage` instead of
+purchasing (even if asset is Underweight) sell `profit_sell_percentage`
+percentage of assets to realize the profits"* — plus two new
+`portfolio_targets.json` parameters (`materialize_profit_percentage` =
+4.0%, `profit_sell_percentage` = 40.0%). `portfolio_targets.json` also
+raised `max_trailing_drawdown_percentage` from **15% → 25%**.
+`peak/prices.json` and `settlement/reserve.json` re-pulled fresh
+(reflecting this morning's 9:55 AM MU/SOXL stop-loss cycle).
+
+## Pre-check state (~11:33 AM ET, regular hours)
+* Account `795732718` ("Agentic", `cash`-type). `buying_power` =
+  **$5,299.55**, `cash` (ledger) = **$9,249.93** — the $3,950.38 gap
+  matches this morning's MU ($3,895.52) + SOXL ($54.86) stop-loss
+  proceeds exactly, still unsettled (`expectedSettleDate` 2026-07-17,
+  tomorrow — not yet reached).
+* `current_cash` = Math.min($5,299.55, `cap_on_total_cash_balance_to_use`
+  $10,000) = **$5,299.55**.
+* Equity value (live quotes, 21 held target symbols; MU, SOXL, IONQ all
+  at zero shares): **$37,925.87**. `account_balance` = **$43,225.42**.
+
+## Settlement Reserve reconciliation
+* `settlement/reserve.json` holds two `pending_draws` entries (MU
+  $3,895.52, SOXL $54.86), both `settled: false`. Empirical check:
+  `cash` ($9,249.93) − `buying_power` ($5,299.55) = **$3,950.38** —
+  exactly matches the combined `reserveDrawn`, confirming **neither sale
+  has settled yet**. Both entries left pending, unchanged.
+* `reserve_available_to_draw` = $9,000 − $3,950.38 = **$5,049.62**.
+
+## Drawdown Audit Phase (new 25% threshold) — no breaches
+Re-checked all 21 held target symbols under the **loosened** dual-condition
+test (≥25% down from both `peakPrice` and `avg_cost_basis`). Closest
+approach: INTC (−14.93% vs. peak, −21.78% vs. avg cost — fails the peak
+leg by a wide margin now that the bar moved from 15% to 25%). ARM and
+SPCX both around −11%, well clear. **No symbol clears both legs at the
+new threshold — no emergency liquidations this cycle**, in contrast to
+this morning's 9:55 AM cycle where MU and SOXL both cleared the old 15%
+bar. Four new intraday peaks recorded (informational): **AMZN** $254.13
+→ $255.495, **GOOG** $369.48 → $370.95, **MSFT** $395.03 → $398.85,
+**AAPL** $328.99 → $330.665 (all 2026-07-16).
+
+## Rules & Guardrails (Step 2)
+* **MU** and **SOXL** (both freshly liquidated this morning, 2026-07-16):
+  `current_date` − `liquidatedDate` = **0 days**, far short of
+  `cool_down_period_after_lquidation` (8 days) — **both remain excluded**
+  from drift calculations and trading this cycle regardless of price
+  action.
+* **IONQ** (liquidated 2026-07-13 @ $38.8001): current $35.83 is a
+  **−7.66%** move — a further decline, not the required ≥7% recovery.
+  **Condition not met — remains excluded.**
+* **PLTR** (`lastPurchaseDate`: null — no purchase ever recorded by this
+  system): no lock-in date to test against; treated as not locked in.
+* **META** (`lastPurchaseDate` 2026-07-16, today): `current_date` −
+  `lastPurchaseDate` = **0 days** ≤ `lock_in_period` (2) → locked-in for
+  *selling* purposes (moot this cycle regardless — see the new
+  profit-materialization check below, which doesn't clear its own
+  threshold either).
+
+## Drift Audit (`account_balance` = $43,225.42, `drift_tolerance_percentage` = 2.0%)
+**2 Overweight breaches:** **PLTR** (7.933% vs. 5.297% target, drift
+2.636%), **META** (17.425% vs. 1.059%, drift 16.366% — Alpha Leader, see
+below). **Zero Underweight breaches** — every other held symbol closed
+inside tolerance this cycle (largest remaining gaps: SMCI 1.981%, ARM
+1.869%, AMD 1.811%, HOOD 1.791%, NEE 1.787% — all still under 2.0%),
+a direct result of this morning's 9:55 AM cycle's buys having already
+closed most of the drift.
+
+## Overweight Sellability Check — none legal this cycle
+| Symbol | Avg Cost | Current | Raw Gain % | Sellable? |
+|---|---|---|---|---|
+| PLTR | $134.51 | $132.77 | −1.29% | No — underwater, fails ≥1.0% floor |
+| META | $664.01 | $676.545 | +1.89% | No — locked-in (0-day-old purchase); also below the new 4.0% `materialize_profit_percentage` floor (see below) |
+
+**Zero legal trim source.** No High-Beta ranking to compute this cycle
+(no sells); `Total_High_Beta_Gains_Realized` = **$0.00**.
+
+## Alpha Leader (7-day gain, 2026-07-09 open → live ~11:33 AM ET)
+| Symbol | 7-Day Gain |
+|---|---|
+| **META** | **+15.85%** |
+| AMZN | +6.54% |
+| MSFT | +6.52% |
+| AAPL | +6.49% |
+| GOOG | +5.66% |
+
+**META remains Alpha Leader**, extending its lead from this morning's
++14.4% reading.
+
+## NEW — Step 4 "GET THE PROFITS" Check (Alpha Leader profit-materialization)
+* META's raw unrealized gain on its blended average cost = **+1.89%**
+  ((676.545 − 664.01) / 664.01 × 100).
+* `materialize_profit_percentage` = **4.0%**. **1.89% < 4.0% — the new
+  profit-taking rule does NOT trigger this cycle.** No sell of
+  `profit_sell_percentage` (40%) of the META position was executed; had
+  it triggered, this would have overridden the normal
+  "purchase the Underweight/Alpha target" behavior with a forced partial
+  sell instead, per the new rule's explicit wording, superseding (for
+  META specifically) the Overweight/lock-in analysis above. Flagging for
+  future cycles: this new rule doesn't explicitly state whether it
+  overrides `lock_in_period` the way the drawdown-audit stop-loss does;
+  since it didn't clear its own 4.0% threshold this cycle, that
+  interaction was never tested and no unilateral interpretation was
+  needed today.
+
+## Step 3 — Alpha Leader & Re-investment Multiplier
+* `base_deployable_cash` = Max(0, $5,299.55 − $250 − $9,000) = **$0.00**
+  (raw calc −$3,950.45, floored) — the reserve wall (still drawn down
+  from this morning's bridging) leaves no organic deployable cash this
+  cycle. No base or multiplier allocation to the Alpha Leader.
+
+## Step 4 — Underweight / Multiplier Funding
+* **No Underweight breaches exist this cycle** (all closed inside
+  tolerance — see Drift Audit above), so there is no drift-driven buying
+  need to fund in the first place.
+* **No Overweight position is legally sellable** (PLTR underwater, META
+  locked-in and below the profit-materialization floor), so there is no
+  harvestable capital even if a need existed.
+* Net result: **no buy or sell orders were calculated this cycle.**
+
+## Step 5 — Price Limit Checks
+Not applicable — no trade candidates were generated this cycle.
+
+## Step 6 — Execution
+**No orders placed.** Not a rule violation or a blocked/SKIPPED trade
+matrix in the usual sense — the audit genuinely produced zero actionable
+legs: no drawdown breach, no legal Overweight trim, no Underweight gap
+to fund, no organic cash to deploy, and the new profit-materialization
+rule didn't clear its threshold. Gross nominal value **sold** this
+cycle: $0. `seek_approval_value` never in play.
+
+## Post-check state
+* `buying_power`/`cash` unchanged: **$5,299.55** / **$9,249.93**.
+  `min_cash_absolute` ($250) never at risk (nothing spent).
+* Equity value unchanged from live quotes at check time: **$37,925.87**.
+  Total account value: **$43,225.42**.
+
+## peak/prices.json updates
+* **AMZN**: `peakPrice` $254.13 → **$255.495**, `peakDate` → 2026-07-16.
+* **GOOG**: `peakPrice` $369.48 → **$370.95**, `peakDate` → 2026-07-16.
+* **MSFT**: `peakPrice` $395.03 → **$398.85**, `peakDate` → 2026-07-16.
+* **AAPL**: `peakPrice` $328.99 → **$330.665**, `peakDate` → 2026-07-16
+  (second new high today, following this morning's update).
+* All other symbols' fields unchanged (no new highs, no re-entry
+  triggers, no purchases/liquidations this cycle).
+
+## Settlement Reserve — status unchanged
+* Both MU and SOXL `pending_draws` entries remain `settled: false` —
+  `expectedSettleDate` 2026-07-17 has not yet arrived. No reconciliation
+  action this cycle.
+* `reserve_available_to_draw` unchanged at **$5,049.62** for the next
+  cycle.
+
+## Notes
+* This was a user-directed retrigger following a `CLAUDE.md`/
+  `portfolio_targets.json` config update (Alpha Leader profit-taking
+  rule added; drawdown stop-loss loosened 15% → 25%). The net effect
+  this cycle: the looser drawdown bar meant no repeat of this morning's
+  MU/SOXL-style stop-loss, and the morning cycle's aggressive buying had
+  already closed essentially all Underweight drift, leaving nothing
+  further to fund even had cash been available. The new profit-taking
+  rule was evaluated but did not fire (META's 1.89% gain sits well under
+  the 4.0% trigger) — worth revisiting once META's unrealized gain
+  builds further, at which point the lock-in-override question flagged
+  above will need an explicit answer.
+* Per repo convention, this entry is committed to a fresh feature branch
+  and merged directly into `main` to preserve the unalterable paper
+  trail.
+
+---
+
 # 2026-07-16 09:55 AM EDT — Scheduled Rebalance Check — DRAWDOWN STOP-LOSS EXECUTED (MU + SOXL Liquidated on Market-Wide Selloff); Alpha Leader Top-Up + 6 Underweight Buys Filled via Settlement-Reserve Bridging
 
 **Status:** EXECUTED. **9 of 9 intended orders filled** — 2 mandatory
@@ -696,155 +871,3 @@ when the peg goes stale is the intended behavior, not a rule violation.
 * This was a user-directed retrigger. Per repo convention, this entry is
   committed to a fresh feature branch and merged directly into `main` to
   preserve the unalterable paper trail.
-
-
----
-
-# 2026-07-14 07:27 PM EDT — User-Directed Retrigger (Post-Config-Update: Settlement Reserve Finalized, AND-Verified Reconciliation) — SKIPPED/PENDING (Fresh $10K Deposit Unlocked Deployable Cash, But Extended-Hours Whole-Share Rounding Zeroed Every Allocation)
-
-**Status:** SKIPPED. **0 of 8 intended orders placed this cycle.** Fresh,
-stateless run. `CLAUDE.md` re-read from `main` (unchanged v2.21.0 text,
-reconciliation now empirical-`buying_power`-only per the day's final
-edit), `portfolio_targets.json` (`settlement_reserve_target` = $9,000,
-confirmed), `settlement/reserve.json` (still `{"pending_draws": []}` —
-nothing to reconcile this cycle), and `peak/prices.json` all pulled fresh.
-
-## Pre-check state (~7:26 PM ET, still extended hours — session ends 8:00 PM ET)
-* Account `795732718` ("Agentic", `cash`-type). **A fresh $10,000 settled
-  deposit landed** since the last cycle: `buying_power` jumped from
-  $250.09 → **$10,250.09**; `cash` (ledger) jumped from $5,748.87 →
-  $15,748.97 — both by exactly $10,000.00, confirming this is new settled
-  money, not the earlier NVDA sale settling. `pending_deposits` moved
-  $5,000 → $9,000 (still not counted/spendable per the standing rule).
-* **The 6:22 PM cycle's NVDA sale ($5,498.88) is still unsettled** —
-  `cash − buying_power` = $5,498.88, unchanged from three cycles ago. No
-  `settlement/reserve.json` entry exists for it (correctly — no reserve
-  was drawn for that sale; the buys were simply skipped that cycle, so
-  there was nothing to advance against).
-* `current_cash` = Math.min($10,250.09, `cap_on_total_cash_balance_to_use`
-  $10,000) = **$10,000** — the cap now binds for the first time.
-* `base_deployable_cash` = Math.max(0, $10,000 − $250 − $9,000) =
-  **$750.00** — the first cycle with positive ordinary deployable cash
-  since the settlement-reserve mechanism was introduced, exactly matching
-  the design: the $9,000 reserve stayed walled off, and the fresh deposit
-  supplied real headroom above it.
-* Equity value (target-listed symbols, live quotes): **$31,911.02**.
-  `account_balance` = equity + `current_cash` = **$41,911.02**.
-
-## Drawdown Audit Phase (dual-condition test: peak AND avg_cost_basis)
-Checked all 21 held target symbols. **No breaches.** ARM's reset peak
-($287.68, 2026-07-14) continues to hold clean (current $280.50, −2.50%
-from both legs). Two new intraday peaks recorded (informational): **HOOD**
-$113.69 → **$114.00**, **NEE** $89.54 → **$89.62** (both 2026-07-14,
-neither traded this cycle).
-
-## Rules & Guardrails (Step 2) — re-entry checks, unchanged
-SOXL, SMCI, IONQ all remain excluded (same conclusions as every cycle
-today — no new calendar day has passed to advance cooldown counters).
-
-## Drift Audit (`account_balance` = $41,911.02)
-**NVDA no longer breaches drift** — the 6:22 PM trim brought it back
-within tolerance (current 14.458171 shares ≈ target weight now). Overweight
-breaches shrank to three: **PLTR** (−2.927% drift, target 5.297% vs.
-current 8.224%), **MU** (−5.328%), **META** (Alpha Leader, +12.200%
-overweight vs. its 1.059% target). **7 Underweight breaches**: TQQQ
-($1,288 gap), SPCX ($1,020), AMZN ($1,244), TSLA ($1,524), ORCL ($1,623),
-GOOG ($1,488), MSFT ($1,496) — aggregate **$9,683.08**.
-
-## Overweight Sellability Check — **none legal this cycle**
-| Symbol | Avg Cost | Current | Raw Gain % | Sellable? |
-|---|---|---|---|---|
-| PLTR | $134.51 | $133.46 | −0.781% | No — underwater |
-| MU | $1,020.00 | $986.20 | −3.314% | No — underwater |
-| META | $661.78 | $661.00 | −0.118% | No — underwater |
-
-All three fail the ≥1.0% `overweight_sell_minimum_profit_margin_percent`
-floor; none in `forceSell`. **Zero legal trim source** — Step 4's
-High-Beta ranking is moot, `Total_High_Beta_Gains_Realized` = $0.00. Since
-nothing sells this cycle, **no new settlement-reserve draw applies** — the
-reserve stays fully available at $9,000 headroom, untouched.
-
-## Alpha Leader (7-day gain, 2026-07-06 open → live ~7:26 PM ET)
-**META remains Alpha Leader at +11.12%** (NVDA second at +8.79%, PLTR
-+4.89%) — unchanged leader all day.
-
-## Step 3 — Alpha Leader & Re-investment Multiplier
-* `multiplier_cash` formula value = $750 × 0.25 = $187.50, but **not
-  harvestable** — no Overweight position is legally sellable this cycle
-  (see above), so per the Hard Rules guardrail precedence, only the
-  un-multiplied base allocation routes to the Alpha Leader.
-* Alpha allocation to META = 35% × $750 = **$262.50**.
-* Remaining $487.50 divided pro-rata by dollar-gap across the 7
-  Underweight symbols (aggregate gap $9,683.08 — pool covers ≈5.03% of
-  total gap).
-
-## Step 6 — Execution SKIPPED: whole-share rounding zeroed every order
-Session remains in **extended hours** (regular close was 4:00 PM ET;
-session runs to 8:00 PM ET). Verified via a dry-run `review_equity_order`
-for the META allocation at its fractional size (0.397 shares) — rejected
-as expected: `"fractional and dollar-based orders are only allowed in
-regular_hours."` Applying the whole-share fallback to every planned order:
-
-| Symbol | Alloc $ | Ask (approx) | Fractional shares | Whole shares | Notional |
-|---|---|---|---|---|---|
-| META (Alpha) | $262.50 | $661.88 | 0.397 | **0** | $0.00 |
-| ORCL | $81.70 | $128.70 | 0.635 | **0** | $0.00 |
-| TSLA | $76.71 | $395.85 | 0.194 | **0** | $0.00 |
-| GOOG | $74.91 | $357.22 | 0.210 | **0** | $0.00 |
-| MSFT | $75.34 | $385.77 | 0.195 | **0** | $0.00 |
-| TQQQ | $64.85 | $75.48 | 0.859 | **0** | $0.00 |
-| SPCX | $51.33 | $137.05 | 0.375 | **0** | $0.00 |
-| AMZN | $62.65 | $248.09 | 0.253 | **0** | $0.00 |
-
-**Every single allocation rounds down to 0 whole shares** — the $750 pool,
-divided across 8 positions per the pro-rata/Alpha-allocation formulas,
-produces per-symbol allocations ($51–$263) smaller than one share at
-current per-share prices ($75–$662). A 0-share order is not a valid order
-(and would fall under the `sell_or_buy_value_limit` $10 floor regardless).
-**No orders were placed.** This is a distinct blocking reason from the
-6:11/6:22 PM cycles' fractional-routing restriction — it's specifically an
-allocation-size-vs-share-price mismatch under the whole-share fallback,
-not a routing restriction per se.
-
-* **Proposed trade matrix — SKIPPED/PENDING (blocking reason: extended-hours
-  whole-share rounding produces zero-share orders at current allocation
-  sizes):** the table above; all 8 legs pending, to be resized against
-  fresh quotes and (fractional) sizing once the next regular-hours session
-  opens.
-* Cash remains **$10,250.09** buying power, unchanged; `min_cash_absolute`
-  never at risk since nothing was spent.
-
-## Settlement Reserve status
-* `reserve_available_to_draw` = $9,000 (unchanged — no draws this cycle).
-* No entries in `pending_draws`; nothing to reconcile.
-* The still-unsettled $5,498.88 NVDA sale from the 6:22 PM cycle continues
-  to sit outside reserve tracking (never drawn against) — it will simply
-  show up as additional `buying_power` once it settles, on its own,
-  independent of the reserve mechanism.
-
-## peak/prices.json updates
-* **HOOD**: `peakPrice` $113.69 → **$114.00**, `peakDate` unchanged
-  (2026-07-14).
-* **NEE**: `peakPrice` $89.54 → **$89.62**, `peakDate` unchanged
-  (2026-07-14).
-* All other symbols unchanged.
-
-## Flagging for the user
-This cycle surfaces a new, narrower version of the extended-hours
-whole-share problem: even with real deployable cash ($750) and a working
-whole-share fallback mechanism, splitting it 8 ways under the existing
-pro-rata formula produces allocations too small to buy even one share of
-any target at current prices. `CLAUDE.md` has no fallback for this
-specific case (e.g., concentrating available cash into the
-fewest/cheapest positions that can clear one whole share, versus skipping
-entirely). No unilateral change was made to the allocation formula this
-cycle — flagging for an explicit decision on whether extended-hours
-cycles should ever deviate from strict pro-rata sizing when it zeroes out
-every leg, or whether skipping and waiting for the next regular-hours
-session (as done here) is the intended behavior.
-
-## Notes
-* This was a user-directed retrigger, run immediately following config
-  verification. Per repo convention, this entry is committed to a fresh
-  feature branch and merged directly into `main` to preserve the
-  unalterable paper trail.
