@@ -1,8 +1,8 @@
 {
   "portfolio_metadata": {
-    "version": "2.15.0",
+    "version": "2.16.0",
     "last_updated": "2026-07-16",
-    "drift_tolerance_percentage": 2.0,
+    "drift_tolerance_percentage": 1.5,
     "drift_tolerance_percentage_for_first_time_trades": 0.1,
     "max_trailing_drawdown_percentage": 25,
     "min_recovery_price_percentage": 7,
@@ -29,8 +29,8 @@
     "profit_sell_percentage": 40.0
   },
   "targets": {
-    "TQQQ": 3.2,
-    "INTC": 1.2,
+    "TQQQ": 1.5,
+    "INTC": 1.0,
     "PLTR": 2.5,
     "MU": 2.5,
     "SOXL": 1.0,
@@ -39,7 +39,7 @@
     "ARM": 1.0,
     "SMCI": 1.0,
     "IONQ": 1.0,
-    "SPCX": 3.0,
+    "SPCX": 2.0,
     "AMZN": 3.8,
     "TSLA": 3.8,
     "NVDA": 3.8,
@@ -47,12 +47,18 @@
     "GOOG": 3.8,
     "MSFT": 3.8,
     "HOOD": 1.0,
-    "AAPL": 0.5,
-    "META": 0.5,
+    "AAPL": 1.0,
+    "META": 1.0,
     "AMD": 1.0,
     "NEE": 1.0,
-    "VRT": 0.5,
-    "AVGO": 0.5
+    "VRT": 1.0,
+    "AVGO": 1.0,
+    "F": 1.0,
+    "GM": 1.0, 
+    "IBM": 1.0,
+    "NFLX": 1.0,
+    "UNH": 1.0,
+    "GE": 1.0
   },
   "forceSell": []
 }
