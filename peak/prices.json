@@ -99,8 +99,8 @@
                 "lastPurchaseDate": "2026-07-14"
         },
         "AMZN": {
-                "peakPrice": 254.13,
-                "peakDate": "2026-07-15",
+                "peakPrice": 255.495,
+                "peakDate": "2026-07-16",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
                 "profitSellPrice": null,
@@ -135,8 +135,8 @@
                 "lastPurchaseDate": "2026-07-16"
         },
         "GOOG": {
-                "peakPrice": 369.48,
-                "peakDate": "2026-07-15",
+                "peakPrice": 370.95,
+                "peakDate": "2026-07-16",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
                 "profitSellPrice": null,
@@ -144,8 +144,8 @@
                 "lastPurchaseDate": "2026-07-16"
         },
         "MSFT": {
-                "peakPrice": 395.03,
-                "peakDate": "2026-07-15",
+                "peakPrice": 398.85,
+                "peakDate": "2026-07-16",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
                 "profitSellPrice": null,
@@ -171,7 +171,7 @@
                 "lastPurchaseDate": "2026-07-13"
         },
         "AAPL": {
-                "peakPrice": 328.99,
+                "peakPrice": 330.665,
                 "peakDate": "2026-07-16",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,

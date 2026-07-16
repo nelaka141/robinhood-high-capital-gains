@@ -1,3 +1,154 @@
+# 2026-07-14 07:27 PM EDT — User-Directed Retrigger (Post-Config-Update: Settlement Reserve Finalized, AND-Verified Reconciliation) — SKIPPED/PENDING (Fresh $10K Deposit Unlocked Deployable Cash, But Extended-Hours Whole-Share Rounding Zeroed Every Allocation)
+
+**Status:** SKIPPED. **0 of 8 intended orders placed this cycle.** Fresh,
+stateless run. `CLAUDE.md` re-read from `main` (unchanged v2.21.0 text,
+reconciliation now empirical-`buying_power`-only per the day's final
+edit), `portfolio_targets.json` (`settlement_reserve_target` = $9,000,
+confirmed), `settlement/reserve.json` (still `{"pending_draws": []}` —
+nothing to reconcile this cycle), and `peak/prices.json` all pulled fresh.
+
+## Pre-check state (~7:26 PM ET, still extended hours — session ends 8:00 PM ET)
+* Account `795732718` ("Agentic", `cash`-type). **A fresh $10,000 settled
+  deposit landed** since the last cycle: `buying_power` jumped from
+  $250.09 → **$10,250.09**; `cash` (ledger) jumped from $5,748.87 →
+  $15,748.97 — both by exactly $10,000.00, confirming this is new settled
+  money, not the earlier NVDA sale settling. `pending_deposits` moved
+  $5,000 → $9,000 (still not counted/spendable per the standing rule).
+* **The 6:22 PM cycle's NVDA sale ($5,498.88) is still unsettled** —
+  `cash − buying_power` = $5,498.88, unchanged from three cycles ago. No
+  `settlement/reserve.json` entry exists for it (correctly — no reserve
+  was drawn for that sale; the buys were simply skipped that cycle, so
+  there was nothing to advance against).
+* `current_cash` = Math.min($10,250.09, `cap_on_total_cash_balance_to_use`
+  $10,000) = **$10,000** — the cap now binds for the first time.
+* `base_deployable_cash` = Math.max(0, $10,000 − $250 − $9,000) =
+  **$750.00** — the first cycle with positive ordinary deployable cash
+  since the settlement-reserve mechanism was introduced, exactly matching
+  the design: the $9,000 reserve stayed walled off, and the fresh deposit
+  supplied real headroom above it.
+* Equity value (target-listed symbols, live quotes): **$31,911.02**.
+  `account_balance` = equity + `current_cash` = **$41,911.02**.
+
+## Drawdown Audit Phase (dual-condition test: peak AND avg_cost_basis)
+Checked all 21 held target symbols. **No breaches.** ARM's reset peak
+($287.68, 2026-07-14) continues to hold clean (current $280.50, −2.50%
+from both legs). Two new intraday peaks recorded (informational): **HOOD**
+$113.69 → **$114.00**, **NEE** $89.54 → **$89.62** (both 2026-07-14,
+neither traded this cycle).
+
+## Rules & Guardrails (Step 2) — re-entry checks, unchanged
+SOXL, SMCI, IONQ all remain excluded (same conclusions as every cycle
+today — no new calendar day has passed to advance cooldown counters).
+
+## Drift Audit (`account_balance` = $41,911.02)
+**NVDA no longer breaches drift** — the 6:22 PM trim brought it back
+within tolerance (current 14.458171 shares ≈ target weight now). Overweight
+breaches shrank to three: **PLTR** (−2.927% drift, target 5.297% vs.
+current 8.224%), **MU** (−5.328%), **META** (Alpha Leader, +12.200%
+overweight vs. its 1.059% target). **7 Underweight breaches**: TQQQ
+($1,288 gap), SPCX ($1,020), AMZN ($1,244), TSLA ($1,524), ORCL ($1,623),
+GOOG ($1,488), MSFT ($1,496) — aggregate **$9,683.08**.
+
+## Overweight Sellability Check — **none legal this cycle**
+| Symbol | Avg Cost | Current | Raw Gain % | Sellable? |
+|---|---|---|---|---|
+| PLTR | $134.51 | $133.46 | −0.781% | No — underwater |
+| MU | $1,020.00 | $986.20 | −3.314% | No — underwater |
+| META | $661.78 | $661.00 | −0.118% | No — underwater |
+
+All three fail the ≥1.0% `overweight_sell_minimum_profit_margin_percent`
+floor; none in `forceSell`. **Zero legal trim source** — Step 4's
+High-Beta ranking is moot, `Total_High_Beta_Gains_Realized` = $0.00. Since
+nothing sells this cycle, **no new settlement-reserve draw applies** — the
+reserve stays fully available at $9,000 headroom, untouched.
+
+## Alpha Leader (7-day gain, 2026-07-06 open → live ~7:26 PM ET)
+**META remains Alpha Leader at +11.12%** (NVDA second at +8.79%, PLTR
++4.89%) — unchanged leader all day.
+
+## Step 3 — Alpha Leader & Re-investment Multiplier
+* `multiplier_cash` formula value = $750 × 0.25 = $187.50, but **not
+  harvestable** — no Overweight position is legally sellable this cycle
+  (see above), so per the Hard Rules guardrail precedence, only the
+  un-multiplied base allocation routes to the Alpha Leader.
+* Alpha allocation to META = 35% × $750 = **$262.50**.
+* Remaining $487.50 divided pro-rata by dollar-gap across the 7
+  Underweight symbols (aggregate gap $9,683.08 — pool covers ≈5.03% of
+  total gap).
+
+## Step 6 — Execution SKIPPED: whole-share rounding zeroed every order
+Session remains in **extended hours** (regular close was 4:00 PM ET;
+session runs to 8:00 PM ET). Verified via a dry-run `review_equity_order`
+for the META allocation at its fractional size (0.397 shares) — rejected
+as expected: `"fractional and dollar-based orders are only allowed in
+regular_hours."` Applying the whole-share fallback to every planned order:
+
+| Symbol | Alloc $ | Ask (approx) | Fractional shares | Whole shares | Notional |
+|---|---|---|---|---|---|
+| META (Alpha) | $262.50 | $661.88 | 0.397 | **0** | $0.00 |
+| ORCL | $81.70 | $128.70 | 0.635 | **0** | $0.00 |
+| TSLA | $76.71 | $395.85 | 0.194 | **0** | $0.00 |
+| GOOG | $74.91 | $357.22 | 0.210 | **0** | $0.00 |
+| MSFT | $75.34 | $385.77 | 0.195 | **0** | $0.00 |
+| TQQQ | $64.85 | $75.48 | 0.859 | **0** | $0.00 |
+| SPCX | $51.33 | $137.05 | 0.375 | **0** | $0.00 |
+| AMZN | $62.65 | $248.09 | 0.253 | **0** | $0.00 |
+
+**Every single allocation rounds down to 0 whole shares** — the $750 pool,
+divided across 8 positions per the pro-rata/Alpha-allocation formulas,
+produces per-symbol allocations ($51–$263) smaller than one share at
+current per-share prices ($75–$662). A 0-share order is not a valid order
+(and would fall under the `sell_or_buy_value_limit` $10 floor regardless).
+**No orders were placed.** This is a distinct blocking reason from the
+6:11/6:22 PM cycles' fractional-routing restriction — it's specifically an
+allocation-size-vs-share-price mismatch under the whole-share fallback,
+not a routing restriction per se.
+
+* **Proposed trade matrix — SKIPPED/PENDING (blocking reason: extended-hours
+  whole-share rounding produces zero-share orders at current allocation
+  sizes):** the table above; all 8 legs pending, to be resized against
+  fresh quotes and (fractional) sizing once the next regular-hours session
+  opens.
+* Cash remains **$10,250.09** buying power, unchanged; `min_cash_absolute`
+  never at risk since nothing was spent.
+
+## Settlement Reserve status
+* `reserve_available_to_draw` = $9,000 (unchanged — no draws this cycle).
+* No entries in `pending_draws`; nothing to reconcile.
+* The still-unsettled $5,498.88 NVDA sale from the 6:22 PM cycle continues
+  to sit outside reserve tracking (never drawn against) — it will simply
+  show up as additional `buying_power` once it settles, on its own,
+  independent of the reserve mechanism.
+
+## peak/prices.json updates
+* **HOOD**: `peakPrice` $113.69 → **$114.00**, `peakDate` unchanged
+  (2026-07-14).
+* **NEE**: `peakPrice` $89.54 → **$89.62**, `peakDate` unchanged
+  (2026-07-14).
+* All other symbols unchanged.
+
+## Flagging for the user
+This cycle surfaces a new, narrower version of the extended-hours
+whole-share problem: even with real deployable cash ($750) and a working
+whole-share fallback mechanism, splitting it 8 ways under the existing
+pro-rata formula produces allocations too small to buy even one share of
+any target at current prices. `CLAUDE.md` has no fallback for this
+specific case (e.g., concentrating available cash into the
+fewest/cheapest positions that can clear one whole share, versus skipping
+entirely). No unilateral change was made to the allocation formula this
+cycle — flagging for an explicit decision on whether extended-hours
+cycles should ever deviate from strict pro-rata sizing when it zeroes out
+every leg, or whether skipping and waiting for the next regular-hours
+session (as done here) is the intended behavior.
+
+## Notes
+* This was a user-directed retrigger, run immediately following config
+  verification. Per repo convention, this entry is committed to a fresh
+  feature branch and merged directly into `main` to preserve the
+  unalterable paper trail.
+
+---
+
 # 2026-07-14 06:22 PM EDT — User-Directed Retry (Post-Config-Update: Whole-Share Extended-Hours Fallback, v2.20.0) — PARTIALLY EXECUTED (NVDA Trim Filled; All 6 Underweight Buys SKIPPED — Unsettled Cash-Account Buying Power)
 
 **Status:** PARTIALLY EXECUTED. **1 of 7 intended orders filled** (NVDA
