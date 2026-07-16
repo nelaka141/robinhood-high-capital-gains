@@ -24,7 +24,9 @@
     "overweight_sell_minimum_profit_margin_percent": 1.0,
     "sell_or_buy_value_limit": 10,
     "settlement_reserve_target": 9000,
-    "settlement_lag_days": 1
+    "settlement_lag_days": 1,
+    "materialize_profit_percentage": 4.0,
+    "profit_sell_percentage": 40.0
   },
   "targets": {
     "TQQQ": 3.2,
