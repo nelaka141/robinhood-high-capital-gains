@@ -1,10 +1,10 @@
 {
   "portfolio_metadata": {
-    "version": "2.13.0",
-    "last_updated": "2026-07-14",
+    "version": "2.14.0",
+    "last_updated": "2026-07-16",
     "drift_tolerance_percentage": 2.0,
     "drift_tolerance_percentage_for_first_time_trades": 0.1,
-    "max_trailing_drawdown_percentage": 15,
+    "max_trailing_drawdown_percentage": 25,
     "min_recovery_price_percentage": 7,
     "reinvestment_multiplier_factor": 1.25,
     "max_portfolio_percentage": 35.0,
