@@ -175,7 +175,7 @@
                 "peakDate": "2026-07-16",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
-                "profitSellPrice": 333.2101,
+                "profitSellPrice": 333.4801,
                 "profitSellDate": "2026-07-17",
                 "lastPurchaseDate": "2026-07-13"
         },
@@ -243,7 +243,7 @@
                 "lastPurchaseDate": null
         },
         "NFLX": {
-                "peakPrice": 66.445,
+                "peakPrice": 69.0042,
                 "peakDate": "2026-07-17",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,

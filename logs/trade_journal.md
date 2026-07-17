@@ -1,3 +1,222 @@
+# 2026-07-17 11:40 AM EDT — User-Directed Retrigger (Post-Config-Update: "GET THE PROFITS" Buy-Suppression Narrowed from "no buys at all" to "no new shares of the Alpha Leader") — GET-THE-PROFITS FIRED AGAIN ON AAPL (2nd Profit-Take Today); 6 New First-Time-Trade Underweight Buys Evaluated but SKIPPED — Harvested Pool Too Small to Clear the $10 Per-Trade Floor
+
+**Status:** EXECUTED — **1 of 1 intended order filled** (profit-take sell
+only); 6 additional buy candidates evaluated and legitimately funded but
+**SKIPPED/PENDING** on a hard per-trade floor, not on the profit-rule
+suppression. Fresh, stateless retrigger requested by the user after a
+`CLAUDE.md` update. `CLAUDE.md` re-pulled from `main`, now **v2.26.0**:
+the only substantive change is to the Step 4 "GET THE PROFITS" clause —
+previously *"do not buy any new assets in the same cycle"*, now narrowed
+to *"do not buy any new **shares of Alpha Leader** in the same cycle."*
+This reverses the blanket buy-suppression from the 9:50 AM cycle: other
+Underweight targets are no longer categorically blocked when the
+profit-take rule fires, only the Alpha Leader itself is barred from a
+same-cycle re-buy. `portfolio_targets.json` (v2.17.0), `peak/prices.json`,
+and `settlement/reserve.json` all re-pulled fresh and unchanged in
+structure from the 9:50 AM cycle (except for that cycle's own AAPL
+profit-sell fields).
+
+## Pre-trade state (~11:34 AM ET, regular hours)
+* Account `795732718` ("Agentic", `cash`-type). `buying_power` =
+  **$9,249.93**, `cash` (ledger) = **$9,279.37** — the $29.44 gap is the
+  9:50 AM cycle's AAPL profit-take proceeds, still unsettled
+  (`expectedSettleDate` 2026-07-18, tomorrow).
+* `current_cash` = Math.min($9,249.93, `cap_on_total_cash_balance_to_use`
+  $10,000) = **$9,249.93**.
+* Equity value (live quotes, 21 held target symbols; MU, SOXL, IONQ at
+  zero shares; F/GM/IBM/NFLX/UNH/GE still unpurchased): **≈$36,363.30**.
+  `account_balance` ≈ **$45,613.23**.
+
+## Settlement Reserve reconciliation
+* `settlement/reserve.json` = `{"pending_draws": []}` — no prior-cycle
+  entries to reconcile. The 9:50 AM AAPL sale's unsettled $29.44 was
+  never recorded as a draw (nothing drew on it), so there is nothing to
+  mark settled here; it will simply resolve into `buying_power` once it
+  clears.
+* `reserve_available_to_draw` = $9,000 − $0 = **$9,000** (full headroom).
+
+## Drawdown Audit Phase — no breaches
+Re-checked all 21 held target symbols under the dual-condition test
+(≥25% down from both `peakPrice` and `avg_cost_basis`). Market continued
+lower intraday for most symbols (further declines since the 9:50 AM
+check), but closest approaches remained INTC (−19.43% vs. peak, −25.91%
+vs. avg cost — fails the peak leg) and IBM (new target, no peak
+guardrail applicable — not held). **No symbol clears both legs — no
+emergency liquidations this cycle.**
+
+## Rules & Guardrails (Step 2)
+* **MU** (liquidated 2026-07-16 @ $862.81): current $856.955 — still
+  below the liquidated price (−0.68%), not a recovery; 1-day-old
+  liquidation, short of the 8-day cooldown. **Remains excluded.**
+* **SOXL** (liquidated 2026-07-16 @ $147.6401): current $130.905, a
+  further decline; cooldown not met. **Remains excluded.**
+* **IONQ** (liquidated 2026-07-13 @ $38.8001): current $34.225, a
+  further decline. **Remains excluded.**
+* **F, GM, IBM, NFLX, UNH, GE**: still no `peak/prices.json` entry as of
+  the pre-trade snapshot → first-time-trade tolerance (0.1%) applies.
+  Each still 0% current vs. 1.912% target → **1.912% drift, breaching**.
+* **AAPL** (`lastPurchaseDate` 2026-07-13): 4 days > `lock_in_period`
+  (2) → not locked-in on its own terms (moot — profit-materialization
+  overrides lock-in regardless).
+* **TQQQ**, **META** (`lastPurchaseDate` 2026-07-16): 1 day ≤
+  `lock_in_period` (2) → both **locked-in for selling**.
+
+## Drift Audit (`account_balance` ≈ $45,613.23, `drift_tolerance_percentage` = 2.0%)
+**3 Overweight breaches:** PLTR (7.449% vs. 4.780% target, drift 2.669%),
+TQQQ (5.482% vs. 2.868%, drift 2.614%), **META** (15.386% vs. 1.912%,
+drift 13.474%). **6 Underweight breaches (first-time-trade tolerance):**
+F, GM, IBM, NFLX, UNH, GE (1.912% drift each vs. 0.1% tolerance).
+Aggregate dollar-gap across the six ≈ **$5,232.78** (≈$872.13 each,
+equal target weights). All other held symbols stayed inside the standard
+2.0% band.
+
+## Overweight Sellability Check — none legal this cycle
+| Symbol | Avg Cost | Current | Raw Gain % | Sellable? |
+|---|---|---|---|---|
+| PLTR | $134.51 | $131.56 | −2.19% | No — underwater, fails ≥1.0% floor |
+| TQQQ | $73.92 | $67.455 | −8.75% | No — locked-in (1-day-old purchase) *and* underwater |
+| META | $664.01 | $630.38 | −5.07% | No — locked-in (1-day-old purchase) *and* underwater |
+
+**Zero legal trim source among Overweight positions.**
+`Total_High_Beta_Gains_Realized` (Overweight-trim component) = **$0.00**.
+
+## Alpha Leader (7-day gain, 2026-07-10 open → live ~11:34 AM ET)
+| Symbol | 7-Day Gain |
+|---|---|
+| **AAPL** | **+6.135%** |
+| F | +4.865% |
+| NEE | +3.306% |
+| NVDA | +1.093% |
+| MSFT | +0.918% |
+
+**AAPL remains Alpha Leader**, extending its lead from the 9:50 AM
+check (+5.834% → +6.135%) as the broader market continued to soften
+while AAPL held up.
+
+## Step 4 "GET THE PROFITS" Check — **TRIGGERED AGAIN**
+* AAPL's raw unrealized gain on its (slightly revised, post-9:50-AM-sale)
+  average cost basis = **+4.446%** ((334.03 − 319.81) / 319.81 × 100).
+* `materialize_profit_percentage` = **4.0%**. **4.446% ≥ 4.0% — the
+  profit-taking rule fires for the second time today** (AAPL's gain
+  widened further intraday rather than compressing).
+* Sold **40%** of the AAPL position **as it now stands**: 0.132516 ×
+  0.40 = **0.053006 shares** (post-9:50-AM-sale base, not the original
+  full position — the rule re-evaluates fresh each cycle against
+  whatever is currently held).
+* **Per the newly-narrowed v2.26.0 rule, this bars only a same-cycle
+  AAPL re-buy** — it does **not** suppress buying the other Underweight
+  targets this cycle, unlike the 9:50 AM cycle under the old wording.
+
+## Step 3 — Alpha Leader & Re-investment Multiplier
+* `base_deployable_cash` = Max(0, $9,249.93 − $250 − $9,000) = **$0.00**
+  (raw calc −$0.07, floored) — no organic deployable cash. No base or
+  multiplier allocation to the Alpha Leader (moot anyway — AAPL itself
+  can't receive a same-cycle buy per the profit-rule).
+
+## Step 4 — Underweight Funding from This Cycle's Profit-Take Proceeds
+* With zero organic cash and zero legal Overweight trim source, the
+  **only** capital event this cycle is the AAPL profit-take itself.
+  Proceeds: 0.053006 × $333.4801 = **$17.68** (gross).
+* Per Step 4/Step 3's pro-rata mechanism, this pool was evaluated for
+  allocation across the 6 first-time-trade Underweight breaches (equal
+  target weights → equal pro-rata split): **$17.68 ÷ 6 ≈ $2.95 per
+  symbol.**
+* **Every resulting per-symbol allocation falls under the $10
+  `sell_or_buy_value_limit` floor.** Per `CLAUDE.md` Step 6 ("Do not
+  place any trade orders... worth less than $`sell_or_buy_value_limit`"),
+  **none of the six can be legally executed this cycle** — this is a
+  hard capital-floor constraint, not a rule-suppression outcome (in
+  contrast to the 9:50 AM cycle, where the *old* wording blocked these
+  buys outright regardless of capital). All six logged **SKIPPED/PENDING**
+  below.
+
+## Step 5 — Price Limit Checks
+`sell_price_diff_limit` (5%) check on AAPL: current $334.03 vs. 3-day
+(`no_of_days_for_price_compare`) high $334.68 (2026-07-16) = **−0.19%**,
+well inside the 5% band — no exemption, sale proceeded normally.
+`buy_price_diff_limit` moot — no buy candidate cleared the capital floor
+to reach this check.
+
+## Step 6 — Execution
+| # | Side | Symbol | Qty | Avg Fill Price | Proceeds | State |
+|---|---|---|---|---|---|---|
+| 1 | SELL | AAPL | 0.053006 | $333.4801 | $17.6787 | **filled** (profit-take, 40% of remaining position) |
+
+**SKIPPED/PENDING (insufficient capital, below $10 floor):**
+| Symbol | Target Gap | Pro-Rata Alloc | Reason |
+|---|---|---|---|
+| F | $872.13 | $2.95 | Below `sell_or_buy_value_limit` ($10) |
+| GM | $872.13 | $2.95 | Below `sell_or_buy_value_limit` ($10) |
+| IBM | $872.13 | $2.95 | Below `sell_or_buy_value_limit` ($10) |
+| NFLX | $872.13 | $2.95 | Below `sell_or_buy_value_limit` ($10) |
+| UNH | $872.13 | $2.95 | Below `sell_or_buy_value_limit` ($10) |
+| GE | $872.13 | $2.95 | Below `sell_or_buy_value_limit` ($10) |
+
+**Total sold: $17.68. Total bought: $0.00.** Realized gain on this trim:
+(333.4801 − 319.81) × 0.053006 = **+$0.72**. Well under the $10,000
+`seek_approval_value` — no approval halt triggered. No 429 throttling
+encountered.
+
+## Post-trade state (confirmed via `get_portfolio` / `get_equity_orders`)
+* `buying_power`: unchanged at **$9,249.93** — this cycle's AAPL
+  proceeds not yet settled. `cash` (ledger): $9,279.37 → **$9,297.05**
+  (+$17.68). Combined unsettled gap from both today's AAPL trims:
+  $9,297.05 − $9,249.93 = **$47.12**. `min_cash_absolute` ($250) never
+  at risk.
+* Equity value (live, post-trade): **$36,327.15**. Total account value
+  (broker snapshot): **$45,624.20**; using `current_cash` =
+  `buying_power` methodology per `CLAUDE.md`, `account_balance` ≈
+  **$45,577.08**.
+* AAPL position reduced from 0.132516 → 0.079510 shares (two trims
+  today: 0.220860 → 0.132516 → 0.079510).
+
+## peak/prices.json updates
+* **AAPL**: `profitSellPrice` → **$333.4801**, `profitSellDate` →
+  **2026-07-17** (overwrites the 9:50 AM cycle's value with this cycle's
+  more recent profit-take — same day, later fill). `peakPrice`/`peakDate`
+  unchanged ($334.12 / 2026-07-16 — today's high of $334.03 stayed just
+  under it). `lastPurchaseDate` unchanged (no buy this cycle).
+* **NFLX**: new intraday peak — `peakPrice` $66.445 → **$69.0042**,
+  `peakDate` → 2026-07-17 (NFLX recovered above this morning's
+  first-time-trade initialization price).
+* All other symbols' fields (including F, GM, IBM, UNH, GE, initialized
+  this morning) unchanged — no new highs, no purchases this cycle.
+
+## Settlement Reserve — no new draws
+* No buy this cycle drew on the AAPL sale proceeds (all six candidate
+  buys were below the value floor), so **no new `pending_draws` entry**
+  was created, consistent with `CLAUDE.md`'s "no earmarking ahead of an
+  actual purchase" rule. `reserve_available_to_draw` remains **$9,000**
+  for the next cycle. `settlement/reserve.json` unchanged:
+  `{"pending_draws": []}`.
+
+## Notes
+* This was a user-directed retrigger following a `CLAUDE.md` update
+  (v2.25.0 → v2.26.0) that narrowed the "GET THE PROFITS" buy-suppression
+  from "no buys of anything" to "no new shares of the Alpha Leader." The
+  practical effect this cycle was smaller than the wording change might
+  suggest: AAPL's own profit-take proceeds ($17.68) were the only capital
+  event, and split six ways across the newly-added first-time-trade
+  targets, each resulting allocation (~$2.95) fell under the $10
+  `sell_or_buy_value_limit` floor regardless of the suppression rule —
+  so the six buys were SKIPPED on a capital-floor basis this cycle, not
+  a rule-suppression basis. The distinction matters for future cycles:
+  once organic deployable cash or a legal Overweight trim materializes,
+  the new wording will allow these Underweight buys to proceed
+  even while AAPL continues clearing the profit-materialization bar,
+  a combination the old wording would have blocked outright.
+* AAPL has now been trimmed twice today under the same
+  `materialize_profit_percentage` trigger (9:50 AM and 11:40 AM), as its
+  unrealized gain widened intraday (4.14% → 4.45%) rather than
+  retreating. Both trims are logged separately per `CLAUDE.md`'s
+  per-cycle, stateless execution model.
+* Per repo convention, this entry is committed to a fresh feature branch
+  and merged directly into `main` to preserve the unalterable paper
+  trail.
+
+---
+
+
 # 2026-07-17 09:50 AM EDT — Scheduled Rebalance Check — GET-THE-PROFITS TRIGGERED (New Alpha Leader AAPL Sold 40% to Realize Profit; All Buys Suppressed Per Rule, Including 6 New First-Time-Trade Targets); Zero Drawdown Breaches Despite Broad Market Selloff
 
 **Status:** EXECUTED — **1 of 1 intended order filled** (profit-take sell
@@ -735,244 +954,6 @@ cycle: $0. `seek_approval_value` never in play.
   the 4.0% trigger) — worth revisiting once META's unrealized gain
   builds further, at which point the lock-in-override question flagged
   above will need an explicit answer.
-* Per repo convention, this entry is committed to a fresh feature branch
-  and merged directly into `main` to preserve the unalterable paper
-  trail.
-
----
-
-
-# 2026-07-16 09:55 AM EDT — Scheduled Rebalance Check — DRAWDOWN STOP-LOSS EXECUTED (MU + SOXL Liquidated on Market-Wide Selloff); Alpha Leader Top-Up + 6 Underweight Buys Filled via Settlement-Reserve Bridging
-
-**Status:** EXECUTED. **9 of 9 intended orders filled** — 2 mandatory
-stop-loss liquidations (MU, SOXL) plus 7 buys (Alpha Leader META + 6
-Underweight targets), all Market Orders, placed sequentially in regular
-market hours. Fresh, stateless run for the 9:45 AM ET scheduled tick.
-`CLAUDE.md` (v2.21.0, unchanged text), `portfolio_targets.json`,
-`peak/prices.json`, and `settlement/reserve.json` all re-pulled fresh
-from `main`. A broad, market-wide selloff hit every target symbol today
-(23 of 24 held positions down vs. prior close; only AAPL and NEE green).
-
-## Pre-trade state (~9:46 AM ET, regular hours)
-* Account `795732718` ("Agentic", `cash`-type). `buying_power` =
-  **$9,249.93**, `cash` (ledger) = **$9,249.93** — equal, no unsettled
-  proceeds carried into this cycle.
-* `current_cash` = Math.min($9,249.93, `cap_on_total_cash_balance_to_use`
-  $10,000) = **$9,249.93**.
-* Equity value (live quotes, 23 held target symbols; IONQ flat at zero
-  shares): **$37,650.73**. `account_balance` = **$46,900.66**.
-
-## Settlement Reserve reconciliation
-* `settlement/reserve.json` = `{"pending_draws": []}` — nothing to
-  reconcile; no prior-cycle entries outstanding.
-* `reserve_available_to_draw` = $9,000 − $0 = **$9,000** (full headroom
-  going into this cycle).
-
-## Drawdown Audit Phase — TWO emergency liquidations triggered
-Checked all 23 held target symbols under the dual-condition test (≥15%
-down from both `peakPrice` and `avg_cost_basis`, both legs required).
-Given today's broad selloff, two symbols cleared **both** legs:
-
-| Symbol | Peak | Avg Cost | Current | vs. Peak | vs. Avg Cost | Trigger |
-|---|---|---|---|---|---|---|
-| **MU** | $1,022.91 | $1,020.00 | $862.0401 | **−15.73%** | **−15.49%** | **YES** |
-| **SOXL** | $194.50 | $173.50 | $145.835 | **−25.02%** | **−15.95%** | **YES** |
-| INTC | $116.203 | $126.37 | $99.11 | −14.71% | −21.57% | No — fails peak leg |
-| ORCL | $147.67 | $135.53 | $127.51 | −13.65% | −5.92% | No |
-| ARM | $287.68 | $287.68 | $258.1618 | −10.26% | −10.26% | No |
-| AMD | $558.10 | $540.71 | $508.2156 | −8.94% | −6.01% | No |
-
-**MU and SOXL are flagged for emergency liquidation down to 0%,
-overriding target weights.** SOXL's `lastPurchaseDate` (2026-07-15, 1 day
-old) would normally lock it in under `lock_in_period` (2 days), but per
-`CLAUDE.md`'s explicit override, the drawdown audit supersedes the
-lock-in check. MU's `lastPurchaseDate` (2026-07-09, 7 days old) already
-clears lock-in on its own. Two new intraday peaks recorded (informational,
-unrelated to the liquidations): **AAPL** $327.6451 → $328.99, **NEE**
-$89.72 → $89.89 (both 2026-07-16).
-
-## Rules & Guardrails (Step 2)
-* **IONQ** (liquidated 2026-07-13 @ $38.8001): current $35.96 is a
-  **−7.32%** move (a further decline, not the required ≥7% recovery).
-  **Condition not met — IONQ remains excluded** from drift calculations
-  and this cycle's trading.
-* **META** (`lastPurchaseDate` 2026-07-15): `current_date` −
-  `lastPurchaseDate` = **1 day** ≤ `lock_in_period` (2) → locked-in for
-  *selling* purposes (moot — META is this cycle's Alpha Leader and only
-  receives a buy, never proposed for a sell).
-* `sell_price_diff_limit` (15%) check on the two stop-loss candidates:
-  MU −4.67% vs. prior close, SOXL −11.91% vs. prior close — both under
-  15%, so neither is exempted from today's forced liquidation.
-
-## Drift Audit (`account_balance` = $46,900.66, `drift_tolerance_percentage` = 2.0%)
-**2 Overweight breaches:** MU (8.299% vs. 5.297% target, drift 3.002% —
-moot, going to 0% via stop-loss), **META** (12.934% vs. 1.059%, drift
-11.875% — Alpha Leader, see below). **6 Underweight breaches
-(actionable):** TSLA (drift 2.262%), ORCL (2.177%), GOOG (2.028%), TQQQ
-(2.010%), MSFT (2.004%), MSTR (2.002%). PLTR (1.842%), SOXL (moot —
-liquidated), SMCI (1.989%), and all remaining symbols stayed inside
-tolerance. Aggregate actionable dollar-gap: **$5,854.33**.
-
-## Overweight Sellability Check (Step 4 discretionary trims) — none legal
-| Symbol | Avg Cost | Current | Raw Gain % | Sellable? |
-|---|---|---|---|---|
-| PLTR | $134.51 | $129.63 | −3.63% | No — underwater, fails ≥1.0% floor |
-| META | $662.08 | $668.25 | +0.93% | No — below the 1.0% floor (and locked-in anyway) |
-
-No discretionary Overweight trim source this cycle — the only trims
-executed were the two **mandatory** stop-loss liquidations (MU, SOXL),
-which are outside the discretionary High-Beta ranking (they're forced to
-zero regardless of rank), but are scored below for logging per
-`CLAUDE.md`'s realized-gain reporting requirement.
-
-## Alpha Leader (7-day gain, 2026-07-09 open → live ~9:46 AM ET)
-| Symbol | 7-Day Gain |
-|---|---|
-| **META** | **+14.428%** |
-| AAPL | +5.951% |
-| AMZN | +5.881% |
-| GOOG | +5.174% |
-| MSFT | +5.157% |
-
-**META remains Alpha Leader**, and by a wide margin — nearly 4x the
-sector's next best decade, itself the only true standout in a day where
-almost everything else in the target list was down 3–27% on the week's
-open.
-
-## Step 3 — Alpha Leader & Re-investment Multiplier
-* `base_deployable_cash` = Max(0, $9,249.93 − $250 − $9,000) =
-  **$0.00** (raw calc −$0.07, floored). Organic settled cash supplies
-  **no** base allocation or multiplier injection to META this cycle.
-* Since `base_deployable_cash` is not > 0, the base-cash-triggered
-  Alpha/Multiplier formula contributes $0 on its own.
-
-## Step 4 — Mandatory Stop-Loss Liquidation Funds Underweight + Alpha
-Per `CLAUDE.md` Step 4 ("Calculate the required sell volume from
-Overweight **or trailing-stop-breached assets** to generate the exact
-buying power required to fulfill Underweight and Multiplier targets") and
-Step 6 ("Execute necessary buy orders on Underweight targets and the
-Alpha Multiplier target using the newly harvested capital"), this
-cycle's entire buy pool is sourced from the MU + SOXL stop-loss
-proceeds — the only real capital event of the cycle, since organic base
-cash was $0.
-
-**High-Beta Gains Calculation (for the two forced liquidations, logged
-per policy even though these are mandatory stops, not discretionary
-trims):**
-
-| Symbol | Beta (30d vs. SPY) | Raw Gain % | High-Beta Score | Shares Sold | High-Beta Gain $ |
-|---|---|---|---|---|---|
-| MU | 4.444 | −15.411% | −68.49 | 4.515015 | **−$709.72** |
-| SOXL | 10.600 | −14.905% | −157.99 | 0.371581 | **−$9.61** |
-
-`Total_High_Beta_Gains_Realized` this cycle = **−$719.32** (a net
-realized *loss* — this cycle's trims were mandatory stop-losses, not
-profit-taking; the High-Beta scoring framework applies symmetrically and
-correctly shows the amplified downside of high-beta leveraged exposure).
-
-* Harvested sell proceeds: MU $3,895.52 + SOXL $54.86 = **$3,950.38
-  total**.
-* Alpha allocation to META = `alpha_cash_allocation_percentage` (35%) ×
-  $3,950.38 = **$1,382.63** (well within the 35% `max_portfolio_percentage`
-  single-asset cap — even after this addition META sits at ~15.9% of the
-  account, far below the cap).
-* Remaining **$2,567.75** divided pro-rata by dollar-gap across the 6
-  actionable Underweight symbols (aggregate gap $5,854.33 — pool covers
-  ≈43.86% of the gap):
-
-| Symbol | Dollar Gap | Pro-Rata Alloc |
-|---|---|---|
-| TSLA | $1,060.84 | $465.29 |
-| ORCL | $1,020.98 | $447.81 |
-| GOOG | $951.10 | $417.16 |
-| TQQQ | $942.66 | $413.46 |
-| MSFT | $939.84 | $412.22 |
-| MSTR | $938.91 | $411.81 |
-
-## Step 5 — Price Limit Checks
-* `sell_price_diff_limit` (15%): MU −4.67%, SOXL −11.91% — both cleared
-  (see Step 2), forced liquidation proceeds.
-* `buy_price_diff_limit` (12%): all 7 buy candidates checked vs. prior
-  close: every one was flat-to-down in today's selloff (largest:
-  MSTR −2.87%, TQQQ −3.94%); none pumping. No buy exemptions triggered.
-
-## Step 6 — Execution (all Market Orders, regular hours, sequential)
-| # | Side | Symbol | Notional | Fill Qty | Avg Fill Price | State |
-|---|---|---|---|---|---|---|
-| 1 | SELL | MU | $3,895.52 | 4.515015 | $862.8100 | **filled** (stop-loss, 100% of position) |
-| 2 | SELL | SOXL | $54.86 | 0.371581 | $147.6401 | **filled** (stop-loss, 100% of position) |
-| 3 | BUY | META | $1,382.63 | 2.055802 | $672.5499 | **filled** (Alpha Leader) |
-| 4 | BUY | TQQQ | $413.46 | 5.785084 | $71.4700 | **filled** |
-| 5 | BUY | MSTR | $411.81 | 4.337129 | $94.9499 | **filled** |
-| 6 | BUY | TSLA | $465.29 | 1.203337 | $386.6663 | **filled** |
-| 7 | BUY | ORCL | $447.81 | 3.502349 | $127.8599 | **filled** |
-| 8 | BUY | GOOG | $417.16 | 1.126059 | $370.4599 | **filled** |
-| 9 | BUY | MSFT | $412.22 | 1.044612 | $394.6152 | **filled** |
-
-**Total sold: $3,950.38. Total bought: $3,950.38** (fully deployed, no
-residual). No 429 throttling encountered; no retries needed. All
-allocations cleared the $10 `sell_or_buy_value_limit` floor. Gross
-nominal value **sold** this cycle: $3,950.38 — well under the $10,000
-`seek_approval_value`; no approval halt triggered.
-
-## Post-trade state (confirmed via `get_portfolio` / `get_equity_orders`)
-* `buying_power`: $9,249.93 → **$5,299.55** (drop of $3,950.38, matching
-  total buys — this drew down *real, already-settled* buying power,
-  since the MU/SOXL proceeds are unsettled and not yet reflected in
-  `buying_power`). `min_cash_absolute` ($250) never at risk.
-* `cash` (ledger): $9,249.93 → $13,200.31 (post-sells) → **$9,249.93**
-  (post-buys) — nets back to its starting value since buys exactly
-  matched sell proceeds dollar-for-dollar.
-* Equity value: **$37,706.39** (live, post-trade). Total account value:
-  **$46,956.32**.
-* MU and SOXL positions fully closed (0 shares each).
-
-## peak/prices.json updates
-* **MU**: `liquidatedPrice` → **$862.81**, `liquidatedDate` →
-  **2026-07-16** (stop-loss full exit). `peakPrice`/`peakDate` left
-  unchanged ($1,022.91 / 2026-07-10) — historical high, not reset (no
-  repurchase this cycle). Also corrected a malformed `profitSellDate`
-  value found in the source file (`"026-07-09"`, missing the leading
-  `2`) to **`"2026-07-09"`** — same underlying date, just fixing broken
-  data so future day-difference calculations on this field don't break.
-* **SOXL**: `liquidatedPrice` → **$147.6401**, `liquidatedDate` →
-  **2026-07-16** (stop-loss full exit, overwriting the 2026-07-07 record
-  from its prior liquidation). `peakPrice`/`peakDate` left unchanged
-  ($194.50 / 2026-07-09).
-* **AAPL**: `peakPrice` $327.6451 → **$328.99**, `peakDate` →
-  2026-07-16.
-* **NEE**: `peakPrice` $89.72 → **$89.89**, `peakDate` → 2026-07-16.
-* `lastPurchaseDate` → **2026-07-16** for all 7 symbols bought this
-  cycle: META, TQQQ, MSTR, TSLA, ORCL, GOOG, MSFT.
-* All other symbols' fields unchanged (no new highs, no re-entry
-  triggers this cycle).
-
-## Settlement Reserve — new draws recorded this cycle
-* Both MU and SOXL sale proceeds are unsettled on this `cash`-type
-  account (buys were funded by drawing down real settled buying power
-  against these pending receivables — the standard bridging mechanism).
-* `settlement/reserve.json` — two new `pending_draws` entries:
-  * **MU**: `saleProceeds` $3,895.52, `reserveDrawn` $3,895.52 (fully
-    drawn), `saleDate` 2026-07-16, `expectedSettleDate` 2026-07-17,
-    `settled: false`.
-  * **SOXL**: `saleProceeds` $54.86, `reserveDrawn` $54.86 (fully
-    drawn), `saleDate` 2026-07-16, `expectedSettleDate` 2026-07-17,
-    `settled: false`.
-* `reserve_available_to_draw` for the *next* cycle = $9,000 − $3,950.38
-  = **$5,049.62**, until these entries settle (expected 2026-07-17) and
-  free the full $9,000 back up.
-
-## Notes
-* This was the scheduled 9:45 AM ET tick, run fresh with no memory of
-  prior cycles. A market-wide selloff (23 of 24 target symbols down)
-  triggered the framework's dual-condition stop-loss on MU and SOXL —
-  the first double stop-loss event recorded in this log. The realized
-  loss from those two forced exits ($719.32) was more than offset in
-  dollar terms by the fresh capital it unlocked for the Alpha Leader and
-  six Underweight targets, consistent with the framework's design intent
-  of using stop-losses to redeploy capital into higher-conviction
-  positions rather than letting it sit in a losing, drawdown-breached
-  asset.
 * Per repo convention, this entry is committed to a fresh feature branch
   and merged directly into `main` to preserve the unalterable paper
   trail.
