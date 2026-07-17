@@ -175,8 +175,8 @@
                 "peakDate": "2026-07-16",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
-                "profitSellPrice": null,
-                "profitSellDate": null,
+                "profitSellPrice": 333.2101,
+                "profitSellDate": "2026-07-17",
                 "lastPurchaseDate": "2026-07-13"
         },
         "AMD": {
@@ -189,8 +189,8 @@
                 "lastPurchaseDate": "2026-07-13"
         },
         "NEE": {
-                "peakPrice": 89.89,
-                "peakDate": "2026-07-16",
+                "peakPrice": 90.51,
+                "peakDate": "2026-07-17",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
                 "profitSellPrice": null,
@@ -214,5 +214,59 @@
                 "profitSellPrice": null,
                 "profitSellDate": null,
                 "lastPurchaseDate": "2026-07-13"
+        },
+        "F": {
+                "peakPrice": 14.39,
+                "peakDate": "2026-07-17",
+                "liquidatedPrice": "",
+                "liquidatedDate": null,
+                "profitSellPrice": null,
+                "profitSellDate": null,
+                "lastPurchaseDate": null
+        },
+        "GM": {
+                "peakPrice": 77.42,
+                "peakDate": "2026-07-17",
+                "liquidatedPrice": "",
+                "liquidatedDate": null,
+                "profitSellPrice": null,
+                "profitSellDate": null,
+                "lastPurchaseDate": null
+        },
+        "IBM": {
+                "peakPrice": 214.7671,
+                "peakDate": "2026-07-17",
+                "liquidatedPrice": "",
+                "liquidatedDate": null,
+                "profitSellPrice": null,
+                "profitSellDate": null,
+                "lastPurchaseDate": null
+        },
+        "NFLX": {
+                "peakPrice": 66.445,
+                "peakDate": "2026-07-17",
+                "liquidatedPrice": "",
+                "liquidatedDate": null,
+                "profitSellPrice": null,
+                "profitSellDate": null,
+                "lastPurchaseDate": null
+        },
+        "UNH": {
+                "peakPrice": 435.14,
+                "peakDate": "2026-07-17",
+                "liquidatedPrice": "",
+                "liquidatedDate": null,
+                "profitSellPrice": null,
+                "profitSellDate": null,
+                "lastPurchaseDate": null
+        },
+        "GE": {
+                "peakPrice": 354.315,
+                "peakDate": "2026-07-17",
+                "liquidatedPrice": "",
+                "liquidatedDate": null,
+                "profitSellPrice": null,
+                "profitSellDate": null,
+                "lastPurchaseDate": null
         }
 }
