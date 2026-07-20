@@ -901,3 +901,196 @@ in play.
 * Per repo convention, this entry is committed to a fresh feature branch
   and merged directly into `main` to preserve the unalterable paper
   trail.
+
+---
+
+
+# 2026-07-16 04:49 PM EDT — User-Directed Retrigger (Post-Config-Update: `sell_price_diff_limit`/`buy_price_diff_limit` Tightened 15%/12% → 10%/10%; Profit-Materialization Rule Clarified to Override `lock_in_period` and Suppress Same-Cycle Buys; New Same-Asset Buy/Sell Exclusivity Rule) — NO TRADES (Zero Legal Sell Source Persists; Zero Underweight Breaches; Zero Organic Deployable Cash)
+
+**Status:** NO TRADES. **0 of 0 intended orders** — fresh, stateless
+retrigger for a user-directed config update. `CLAUDE.md` re-pulled from
+`main`, now **v2.23.0**: (1) the Step 4 "GET THE PROFITS" rule is now
+explicit that triggering it overrides `lock_in_period` and, when
+triggered, **suppresses all buys for the rest of the cycle** ("do not
+buy any new assets in the same cycle"); (2) new Step 6 rule — never buy
+and sell the same asset in the same cycle; if a sale is warranted
+(stop-loss or profit-take), execute the sale and skip that asset's buy,
+otherwise skip both. `portfolio_targets.json` now **v2.15.0**:
+`sell_price_diff_limit` tightened **15% → 10%**, `buy_price_diff_limit`
+tightened **12% → 10%** (both now equal). `max_trailing_drawdown_percentage`
+(25%), `materialize_profit_percentage` (4.0%), and `profit_sell_percentage`
+(40.0%) all unchanged from the 11:33 AM cycle. This retrigger lands
+**after** the previously-logged 3:15 PM scheduled cycle (which ran under
+the pre-update v2.22.0 config and also found no trades) — `peak/prices.json`
+and `settlement/reserve.json` re-pulled fresh, reflecting that cycle's
+state.
+
+## Pre-check state (~4:48 PM ET — now in **extended hours**, regular
+session closed at 4:00 PM ET; session runs to 8:00 PM ET)
+* Account `795732718` ("Agentic", `cash`-type). `buying_power` =
+  **$5,299.55**, `cash` (ledger) = **$9,249.93** — the $3,950.38 gap
+  still matches the 9:55 AM MU ($3,895.52) + SOXL ($54.86) stop-loss
+  proceeds exactly, still unsettled (`expectedSettleDate` 2026-07-17,
+  tomorrow — not yet reached).
+* `current_cash` = Math.min($5,299.55, `cap_on_total_cash_balance_to_use`
+  $10,000) = **$5,299.55**.
+* Equity value (live, using the more-recent extended-hours trade price
+  for each of the 20 held target symbols with an off-hours print; MU,
+  SOXL, IONQ, PLTR quoted flat/at-position but PLTR/META held): **$37,349.97**.
+  `account_balance` = **$42,649.52**.
+
+## Settlement Reserve reconciliation
+* `settlement/reserve.json` holds the same two `pending_draws` entries
+  (MU $3,895.52, SOXL $54.86), both `settled: false`. Empirical check:
+  `cash` ($9,249.93) − `buying_power` ($5,299.55) = **$3,950.38** —
+  unchanged, confirming neither sale has settled. Both entries left
+  pending.
+* `reserve_available_to_draw` = $9,000 − $3,950.38 = **$5,049.62**.
+
+## Drawdown Audit Phase (25% threshold, unchanged) — no breaches
+Re-checked all 20 held target symbols (MU, SOXL, IONQ all at zero
+shares) under the dual-condition test. Closest approaches: ORCL
+(−15.76% vs. peak, −7.48% vs. avg cost), SPCX (−14.02%/−13.24%), INTC
+(−16.87%/−23.56%) — none clear both legs at the 25% bar. **No new intraday
+peaks this cycle** — today's late-session pullback (broad weakness into
+the extended-hours open) pulled every held symbol below its recorded
+peak, including MSFT and AAPL which had set fresh highs earlier today.
+
+## Step 5 — Price Limit Checks (now 10%/10%, tightened from 15%/12%)
+Checked all 20 held symbols' extended-hours price vs. official prior
+close: largest single-day moves were HOOD (−8.47%), AMD (−5.49%), IONQ
+(−5.44%), TQQQ (−5.43%) on the downside and AAPL (+1.65%), MSFT (+1.20%)
+on the upside — **every symbol stayed inside the new ±10% band**, so no
+`sell_price_diff_limit`/`buy_price_diff_limit` exemptions were needed
+this cycle (moot anyway, since no trade candidates were generated — see
+below). Flagging for the record: this is meaningfully tighter than the
+old 15%/12% bars and would have started exempting symbols from routine
+drift trading somewhere between HOOD's −8.47% and a hypothetical −10%
+move; worth watching on a more volatile day.
+
+## Rules & Guardrails (Step 2)
+* **MU** and **SOXL** (liquidated 2026-07-16, this morning):
+  `current_date` − `liquidatedDate` = **0 days**, short of
+  `cool_down_period_after_lquidation` (8 days) — **both remain
+  excluded**.
+* **IONQ** (liquidated 2026-07-13 @ $38.8001): current $35.4698 is a
+  **−8.58%** move — still a decline, not the required ≥7% recovery.
+  **Remains excluded.**
+* **PLTR** (`lastPurchaseDate`: null): no lock-in date to test against;
+  not locked in for selling.
+* **META** (`lastPurchaseDate` 2026-07-16, today): `current_date` −
+  `lastPurchaseDate` = **0 days** ≤ `lock_in_period` (2) → would
+  normally be locked-in for selling, but per the clarified v2.23.0 text
+  the "GET THE PROFITS" rule explicitly overrides lock-in when it
+  fires. Moot this cycle regardless — see below, META is underwater,
+  not in profit.
+
+## Drift Audit (`account_balance` = $42,649.52, `drift_tolerance_percentage` = 2.0%)
+**2 Overweight breaches:** **PLTR** (8.101% vs. 5.297% target, drift
+2.804%), **META** (17.307% vs. 1.059%, drift 16.248% — Alpha Leader, see
+below). **Zero Underweight breaches** — every other held symbol closed
+inside tolerance (largest remaining gaps: SMCI 1.982%, ARM 1.861%, AMD
+1.812%, HOOD 1.803%, NEE 1.783%), same pattern as the two prior cycles
+today.
+
+## Overweight Sellability Check — none legal this cycle
+| Symbol | Avg Cost | Current | Raw Gain % | Sellable? |
+|---|---|---|---|---|
+| PLTR | $134.51 | $133.78 | −0.543% | No — underwater, fails ≥1.0% floor |
+| META | $664.01 | $663.00 | −0.152% | No — underwater (also would be locked-in, but that's moot — see below) |
+
+**Zero legal trim source.** No High-Beta ranking to compute this cycle
+(no sells); `Total_High_Beta_Gains_Realized` = **$0.00**.
+
+## Alpha Leader (7-day gain, 2026-07-09 open → live ~4:48 PM ET, extended hours)
+| Symbol | 7-Day Gain |
+|---|---|
+| **META** | **+13.531%** |
+| AAPL | +7.226% |
+| MSFT | +6.912% |
+| AMZN | +4.331% |
+| NVDA | +1.194% |
+
+**META remains Alpha Leader**, though its intraday lead has compressed
+somewhat as the broader late-session pullback ate into its gain (from
++15.85% at 11:33 AM to +13.53% now).
+
+## Step 4 "GET THE PROFITS" Check (Alpha Leader profit-materialization, clarified rule)
+* META's raw unrealized gain on its blended average cost has now turned
+  **negative**: **−0.152%** ((663.00 − 664.01) / 664.01 × 100) —
+  META slipped from this morning's +1.89% into today's broad afternoon
+  weakness and is now marginally underwater.
+* `materialize_profit_percentage` = **4.0%**. **−0.152% is nowhere near
+  4.0% — the profit-taking rule does NOT trigger.** No sell of
+  `profit_sell_percentage` (40%) of the META position was executed, and
+  since the rule didn't fire, its new "suppress all buys this cycle"
+  clause and its lock-in override are both moot — there was no organic
+  cash to buy with anyway (see Step 3).
+
+## Step 3 — Alpha Leader & Re-investment Multiplier
+* `base_deployable_cash` = Max(0, $5,299.55 − $250 − $9,000) = **$0.00**
+  (raw calc −$3,950.45, floored) — the reserve wall, still drawn down
+  from this morning's MU/SOXL bridging (unsettled until 2026-07-17),
+  leaves no organic deployable cash this cycle.
+
+## Step 4 — Underweight / Multiplier Funding
+* **No Underweight breaches exist this cycle**, so there is no
+  drift-driven buying need.
+* **No Overweight position is legally sellable** (PLTR and META both
+  underwater), so there is no harvestable capital even if a need
+  existed.
+* Net result: **no buy or sell orders were calculated this cycle** —
+  the new same-asset buy/sell exclusivity rule (Step 6) and the
+  profit-materialization suppress-buys clause (Step 4) were both
+  evaluated but never came into play, since nothing was eligible to
+  trade in either direction.
+
+## Step 6 — Execution
+**No orders placed.** Session is now in **extended hours** (4:00–8:00
+PM ET) — had any order been warranted, it would have required a limit
+order pegged to bid/ask with the whole-share fallback per the standing
+extended-hours rules, but this was never reached since zero trade
+candidates existed. Gross nominal value **sold** this cycle: $0.
+`seek_approval_value` never in play.
+
+## Post-check state
+* `buying_power`/`cash` unchanged: **$5,299.55** / **$9,249.93**.
+  `min_cash_absolute` ($250) never at risk (nothing spent).
+* Equity value: **$37,349.97** (live extended-hours prices, down from
+  $37,426.52 at the 3:16 PM check, consistent with continued late-session
+  softness). Total account value: **$42,649.52**.
+
+## peak/prices.json updates
+* **None.** No held symbol printed a new high this cycle (broad
+  late-session pullback pulled everything, including this afternoon's
+  MSFT/AAPL leaders, back below their recorded peaks). No re-entry
+  triggers, no purchases/liquidations. File left untouched.
+
+## Settlement Reserve — status unchanged
+* Both MU and SOXL `pending_draws` entries remain `settled: false` —
+  `expectedSettleDate` 2026-07-17 has not yet arrived. No reconciliation
+  action this cycle.
+* `reserve_available_to_draw` unchanged at **$5,049.62** for the next
+  cycle.
+
+## Notes
+* This was a user-directed retrigger following a `CLAUDE.md`/
+  `portfolio_targets.json` config update: tighter price-limit bands
+  (10%/10%, down from 15%/12%) and a clarified profit-materialization
+  rule (explicit lock-in override, suppress-buys-on-trigger, plus a new
+  standing rule against buying and selling the same asset in one
+  cycle). None of the new mechanics were actually exercised this cycle
+  — the tighter price limits didn't bind (largest move was HOOD at
+  −8.47%, still inside ±10%), and the profit-materialization rule still
+  didn't clear its 4.0% threshold (META is now slightly underwater,
+  down from this morning's +1.89% peak reading). The account remains in
+  the same structural state as the 11:33 AM and 3:15 PM cycles: two
+  Overweight positions (PLTR, META) both blocked from selling by being
+  underwater, zero Underweight breaches to fund, and zero organic
+  deployable cash while the MU/SOXL stop-loss proceeds remain unsettled
+  (expected to free up tomorrow, 2026-07-17).
+* Per repo convention, this entry is committed to a fresh feature branch
+  and merged directly into `main` to preserve the unalterable paper
+  trail.
+
+---
