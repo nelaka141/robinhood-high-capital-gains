@@ -729,3 +729,175 @@ cycle: $0. `seek_approval_value` never in play.
 * Per repo convention, this entry is committed to a fresh feature branch
   and merged directly into `main` to preserve the unalterable paper
   trail.
+
+---
+
+
+---
+
+
+# 2026-07-16 03:16 PM EDT — Scheduled Rebalance Check — NO TRADES (Broad Afternoon Selloff; Zero Legal Sell Source Persists — PLTR Underwater, META Locked-In/Below Profit-Materialization Floor; Zero Underweight Breaches; Zero Organic Deployable Cash)
+
+**Status:** NO TRADES. **0 of 0 intended orders** — fresh, stateless run
+for the 3:15 PM ET scheduled tick. `CLAUDE.md` re-pulled from `main`
+(**v2.22.0**, unchanged text since the 11:33 AM cycle),
+`portfolio_targets.json`, `peak/prices.json`, and
+`settlement/reserve.json` all re-pulled fresh. A broad market-wide
+afternoon selloff hit most target symbols today (INTC −6.4%, SOXL
+−15.5%, ARM −7.5%, HOOD −7.7%, AMD −6.2%, ORCL −5.6%, GOOG −4.6%, AVGO
+−4.8%, VRT −4.7%, SMCI −7.1%, IONQ −6.3%, TQQQ −5.4%, META −2.4%, MU
+−6.5%, COIN −3.0%, MSTR −2.2%, NVDA −2.7%, all vs. prior close), while
+MSFT (+1.8%) and AAPL (+2.0%) bucked the trend and set fresh intraday
+highs.
+
+## Pre-check state (~3:16 PM ET, regular hours)
+* Account `795732718` ("Agentic", `cash`-type). `buying_power` =
+  **$5,299.55**, `cash` (ledger) = **$9,249.93** — the $3,950.38 gap
+  still matches this morning's MU ($3,895.52) + SOXL ($54.86) stop-loss
+  proceeds exactly, still unsettled (`expectedSettleDate` 2026-07-17,
+  tomorrow — not yet reached).
+* `current_cash` = Math.min($5,299.55, `cap_on_total_cash_balance_to_use`
+  $10,000) = **$5,299.55**.
+* Equity value (live, 21 held target symbols; MU, SOXL, IONQ all at zero
+  shares): **$37,426.52**. `account_balance` = **$42,726.07**.
+
+## Settlement Reserve reconciliation
+* `settlement/reserve.json` holds the same two `pending_draws` entries
+  as the 11:33 AM cycle (MU $3,895.52, SOXL $54.86), both `settled:
+  false`. Empirical check: `cash` ($9,249.93) − `buying_power`
+  ($5,299.55) = **$3,950.38** — exactly matches the combined
+  `reserveDrawn`, confirming **neither sale has settled yet**
+  (`expectedSettleDate` 2026-07-17 not yet reached). Both entries left
+  pending, unchanged.
+* `reserve_available_to_draw` = $9,000 − $3,950.38 = **$5,049.62**.
+
+## Drawdown Audit Phase (25% threshold) — no breaches despite the selloff
+Re-checked all 21 held target symbols under the dual-condition test (≥25%
+down from both `peakPrice` and `avg_cost_basis`). Largest drawdowns vs.
+peak: INTC −17.08%, ORCL −15.33%, SPCX −14.14%, AMD −11.11%, ARM −10.95%,
+SMCI −8.98%, HOOD −7.42%, VRT −7.09%/−7.21% vs. avg cost — all well
+clear of the 25% bar. **No symbol clears both legs — no emergency
+liquidations this cycle.** Two new intraday peaks recorded
+(informational, both bucking today's broader selloff): **MSFT** $398.85
+→ **$402.87**, **AAPL** $330.665 → **$334.12** (both 2026-07-16, second
+new high today for each).
+
+## Rules & Guardrails (Step 2)
+* **MU** and **SOXL** (both liquidated this morning, 2026-07-16):
+  `current_date` − `liquidatedDate` = **0 days**, far short of
+  `cool_down_period_after_lquidation` (8 days) — **both remain excluded**.
+  Recovery condition moot regardless: both are currently trading *below*
+  their `liquidatedPrice` (MU $845.52 < $862.81; SOXL $139.835 <
+  $147.6401) — a further decline, not a recovery.
+* **IONQ** (liquidated 2026-07-13 @ $38.8001): current $35.165 is a
+  **−9.37%** move — a further decline, not the required ≥7% recovery.
+  **Condition not met — remains excluded.**
+* **PLTR** (`lastPurchaseDate`: null): no lock-in date to test against;
+  not locked in for selling.
+* **META** (`lastPurchaseDate` 2026-07-16, today): `current_date` −
+  `lastPurchaseDate` = **0 days** ≤ `lock_in_period` (2) → locked-in for
+  *selling* purposes (moot this cycle regardless of the lock-in
+  question — see the profit-materialization check below, which doesn't
+  clear its own threshold either).
+
+## Drift Audit (`account_balance` = $42,726.07, `drift_tolerance_percentage` = 2.0%)
+**2 Overweight breaches:** **PLTR** (8.087% vs. 5.297% target, drift
+2.790%), **META** (17.320% vs. 1.059%, drift 16.261% — Alpha Leader, see
+below). **Zero Underweight breaches** — every other held symbol closed
+inside tolerance this cycle despite today's broad selloff (largest
+remaining gaps: SMCI 1.981%, ARM 1.867%, AMD 1.815%, HOOD 1.801%, NEE
+1.784%, INTC 1.523%).
+
+## Overweight Sellability Check — none legal this cycle
+| Symbol | Avg Cost | Current | Raw Gain % | Sellable? |
+|---|---|---|---|---|
+| PLTR | $134.51 | $133.80 | −0.528% | No — underwater, fails ≥1.0% floor |
+| META | $664.01 | $664.84 | +0.125% | No — locked-in (0-day-old purchase); also far below the 4.0% `materialize_profit_percentage` floor (see below) |
+
+**Zero legal trim source.** No High-Beta ranking to compute this cycle
+(no sells); `Total_High_Beta_Gains_Realized` = **$0.00**.
+
+## Alpha Leader (7-day gain, 2026-07-09 open → live ~3:16 PM ET)
+| Symbol | 7-Day Gain |
+|---|---|
+| **META** | **+13.845%** |
+| AAPL | +7.602% |
+| MSFT | +7.590% |
+| AMZN | +5.062% |
+| PLTR | +4.761% |
+
+**META remains Alpha Leader**, still by a wide margin even after today's
+broad selloff pulled most of the field lower.
+
+## Step 4 "GET THE PROFITS" Check (Alpha Leader profit-materialization)
+* META's raw unrealized gain on its blended average cost = **+0.125%**
+  ((664.84 − 664.01) / 664.01 × 100).
+* `materialize_profit_percentage` = **4.0%**. **0.125% << 4.0% — the
+  profit-taking rule does NOT trigger this cycle.** No sell of
+  `profit_sell_percentage` (40%) of the META position was executed.
+
+## Step 3 — Alpha Leader & Re-investment Multiplier
+* `base_deployable_cash` = Max(0, $5,299.55 − $250 − $9,000) = **$0.00**
+  (raw calc −$3,950.45, floored) — the reserve wall, still drawn down
+  from this morning's MU/SOXL bridging, leaves no organic deployable
+  cash this cycle. No base or multiplier allocation to the Alpha Leader.
+
+## Step 4 — Underweight / Multiplier Funding
+* **No Underweight breaches exist this cycle** (all closed inside
+  tolerance — see Drift Audit above), so there is no drift-driven buying
+  need to fund in the first place.
+* **No Overweight position is legally sellable** (PLTR underwater, META
+  locked-in and below the profit-materialization floor), so there is no
+  harvestable capital even if a need existed.
+* Net result: **no buy or sell orders were calculated this cycle.**
+
+## Step 5 — Price Limit Checks
+Not applicable — no trade candidates were generated this cycle.
+
+## Step 6 — Execution
+**No orders placed.** Not a rule violation or a blocked/SKIPPED trade
+matrix — the audit genuinely produced zero actionable legs despite a
+broad market selloff: no drawdown breach (the loosened 25% bar held),
+no legal Overweight trim, no Underweight gap to fund, no organic cash to
+deploy, and the profit-materialization rule didn't clear its threshold.
+Gross nominal value **sold** this cycle: $0. `seek_approval_value` never
+in play.
+
+## Post-check state
+* `buying_power`/`cash` unchanged: **$5,299.55** / **$9,249.93**.
+  `min_cash_absolute` ($250) never at risk (nothing spent).
+* Equity value: **$37,426.52** (live quotes at check time, down from
+  $37,925.87 at the 11:33 AM check, consistent with today's broad
+  afternoon selloff). Total account value: **$42,726.07** (down from
+  $43,225.42 at 11:33 AM).
+
+## peak/prices.json updates
+* **MSFT**: `peakPrice` $398.85 → **$402.87**, `peakDate` → 2026-07-16
+  (second new high today).
+* **AAPL**: `peakPrice` $330.665 → **$334.12**, `peakDate` → 2026-07-16
+  (second new high today).
+* All other symbols' fields unchanged (no new highs, no re-entry
+  triggers, no purchases/liquidations this cycle).
+
+## Settlement Reserve — status unchanged
+* Both MU and SOXL `pending_draws` entries remain `settled: false` —
+  `expectedSettleDate` 2026-07-17 has not yet arrived. No reconciliation
+  action this cycle.
+* `reserve_available_to_draw` unchanged at **$5,049.62** for the next
+  cycle.
+
+## Notes
+* This was the scheduled 3:15 PM ET tick, run fresh with no memory of
+  prior cycles. Despite a broad market-wide afternoon selloff hitting
+  nearly every target symbol, the framework's guardrails held firm: the
+  loosened 25% drawdown bar was not breached anywhere, and the same two
+  structural blockers from the 11:33 AM cycle (PLTR underwater, META
+  locked-in/below its profit-materialization floor) persisted, leaving
+  zero legal trim source and therefore nothing to fund even had an
+  Underweight gap existed. Worth noting: today's selloff did not push
+  any previously-comfortable Underweight symbol into breach territory —
+  SMCI came closest at 1.981% drift, still just under the 2.0%
+  tolerance.
+* Per repo convention, this entry is committed to a fresh feature branch
+  and merged directly into `main` to preserve the unalterable paper
+  trail.
