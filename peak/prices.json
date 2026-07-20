@@ -171,13 +171,13 @@
                 "lastPurchaseDate": "2026-07-13"
         },
         "AAPL": {
-                "peakPrice": 334.12,
-                "peakDate": "2026-07-16",
+                "peakPrice": 328.1499,
+                "peakDate": "2026-07-20",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
                 "profitSellPrice": 333.4801,
                 "profitSellDate": "2026-07-17",
-                "lastPurchaseDate": "2026-07-13"
+                "lastPurchaseDate": "2026-07-20"
         },
         "AMD": {
                 "peakPrice": 558.10,
