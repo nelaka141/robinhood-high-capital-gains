@@ -1,3 +1,12 @@
 {
-  "pending_draws": []
+  "pending_draws": [
+    {
+      "symbol": "COIN",
+      "saleDate": "2026-07-21",
+      "expectedSettleDate": "2026-07-22",
+      "saleProceeds": 210.87,
+      "reserveDrawn": 210.87,
+      "settled": false
+    }
+  ]
 }

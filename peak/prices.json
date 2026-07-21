@@ -54,12 +54,12 @@
                 "lastPurchaseDate": "2026-07-16"
         },
         "COIN": {
-                "peakPrice": 167.12,
-                "peakDate": "2026-07-15",
+                "peakPrice": 176.195,
+                "peakDate": "2026-07-21",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
-                "profitSellPrice": null,
-                "profitSellDate": null,
+                "profitSellPrice": 175.7001,
+                "profitSellDate": "2026-07-21",
                 "lastPurchaseDate": null
         },
         "ARM": {
@@ -222,16 +222,16 @@
                 "liquidatedDate": null,
                 "profitSellPrice": null,
                 "profitSellDate": null,
-                "lastPurchaseDate": null
+                "lastPurchaseDate": "2026-07-21"
         },
         "GM": {
-                "peakPrice": 77.42,
-                "peakDate": "2026-07-17",
+                "peakPrice": 77.74,
+                "peakDate": "2026-07-21",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
                 "profitSellPrice": null,
                 "profitSellDate": null,
-                "lastPurchaseDate": null
+                "lastPurchaseDate": "2026-07-21"
         },
         "IBM": {
                 "peakPrice": 214.7671,
@@ -240,7 +240,7 @@
                 "liquidatedDate": null,
                 "profitSellPrice": null,
                 "profitSellDate": null,
-                "lastPurchaseDate": null
+                "lastPurchaseDate": "2026-07-21"
         },
         "NFLX": {
                 "peakPrice": 69.0042,
@@ -249,7 +249,7 @@
                 "liquidatedDate": null,
                 "profitSellPrice": null,
                 "profitSellDate": null,
-                "lastPurchaseDate": null
+                "lastPurchaseDate": "2026-07-21"
         },
         "UNH": {
                 "peakPrice": 435.14,
@@ -258,7 +258,7 @@
                 "liquidatedDate": null,
                 "profitSellPrice": null,
                 "profitSellDate": null,
-                "lastPurchaseDate": null
+                "lastPurchaseDate": "2026-07-21"
         },
         "GE": {
                 "peakPrice": 354.315,
@@ -267,6 +267,6 @@
                 "liquidatedDate": null,
                 "profitSellPrice": null,
                 "profitSellDate": null,
-                "lastPurchaseDate": null
+                "lastPurchaseDate": "2026-07-21"
         }
 }

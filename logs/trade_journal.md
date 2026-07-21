@@ -1,4 +1,185 @@
-# 2026-07-20 03:22 PM EDT — Scheduled Rebalance Check — EXECUTED (Alpha Leader Rotates to AAPL as Profit-Sell Repurchase Lock Finally Clears — $16.47 Alpha Buy Filled; Runners-Up MSTR/PLTR Blocked by Pump-Limit Guard; Zero Legal Overweight Sell Source Persists; 6 First-Time-Trade Underweight Buys Pro-Rata Split Below $10 Floor)
+ # 2026-07-21 09:50 AM EDT — Scheduled Rebalance Check — EXECUTED (Alpha Leader COIN Triggers GET THE PROFITS Sale at +4.30% Gain — $210.87 Realized, No Alpha Buy This Cycle; PLTR/TQQQ/META All Overweight but Negative-Margin-Blocked; 6 First-Time-Trade Underweight Buys Pro-Rata Funded via Reserve Bridge)
+
+**Status:** EXECUTED. **7 of 7 intended orders filled** (1 sell, 6 buys) —
+fresh, stateless run for the 9:45 AM ET scheduled tick. `CLAUDE.md`
+re-pulled fresh from `main` (SHA `56bdab8`, text version header "Volume
+2.28.0"). `portfolio_targets.json` (v2.17.0), `peak/prices.json`, and
+`settlement/reserve.json` all re-pulled fresh from `main` for this run.
+
+## Pre-check state (~9:46 AM ET, regular hours)
+* Account `795732718` ("Agentic", cash-type). `buying_power` =
+  **$9,280.58**, `cash` (ledger) = **$9,280.58** — no gap, confirms no
+  unsettled proceeds carried in from a prior cycle.
+* `current_cash` = Math.min($9,280.58, `cap_on_total_cash_balance_to_use`
+  $10,000) = **$9,280.58**.
+* Equity value (live quotes, 21 held target symbols; MU, SOXL, IONQ at
+  zero shares under liquidation cooldown/recovery-fail; F/GM/IBM/NFLX/UNH/GE
+  still unpurchased first-time-trade targets): broker `get_portfolio`
+  snapshot **$37,033.75**. `account_balance` ≈ **$46,314.33**.
+* `settlement/reserve.json`: `pending_draws` = `[]` — nothing to
+  reconcile. `reserve_available_to_draw` = `settlement_reserve_target`
+  ($9,000) − $0 drawn = **$9,000** (fully available at cycle start).
+
+## Drawdown audit (Step 1)
+Checked every held asset against `max_trailing_drawdown_percentage`
+(25%) vs both `peakPrice` and `avg_cost_basis`. **No asset breached 25%
+on either leg** this cycle — closest was SPCX (19.6% off its $152.9988
+peak). No emergency liquidations triggered.
+
+## Liquidation recovery / cooldown check (Step 2)
+* **MU**: liquidated 2026-07-16 @ $862.81. Only 5 days elapsed vs
+  `cool_down_period_after_lquidation` (8 days) — still locked out
+  regardless of price. Stays out of drift calc.
+* **SOXL**: liquidated 2026-07-16 @ $147.6401. Same 5-day cooldown gate —
+  still locked out. Stays out of drift calc.
+* **IONQ**: liquidated 2026-07-13 @ $38.8001. Cooldown cleared (8 days
+  elapsed), but current price $34.88 is **10.1% below** the liquidated
+  price (a further decline, not a ≥7% recovery) — recovery condition
+  fails. Stays out of drift calc.
+
+## Drift & Alpha Leader (Step 3)
+Target weights sum to 52.3 across 30 symbols. Drift computed against
+`account_balance` ≈ $46,314.33 (`drift_tolerance_percentage` 2.0% /
+0.1% for never-purchased first-time assets).
+
+**Overweight (>2.0% drift):**
+| Symbol | Current % | Target % | Drift |
+|---|---|---|---|
+| META | 15.61% | 1.91% | +13.69% |
+| TQQQ | 5.61% | 2.87% | +2.74% |
+| PLTR | 7.48% | 4.78% | +2.70% |
+
+**Underweight first-time-trade (0% held, 0.1% tolerance):** F, GM, IBM,
+NFLX, UNH, GE — all ~1.91% target drift, all first purchases this cycle.
+
+All other held positions (INTC, AMZN, TSLA, NVDA, ORCL, GOOG, MSFT,
+MSTR, ARM, SMCI, HOOD, AAPL, AMD, NEE, VRT, AVGO, SPCX) sat inside the
+2.0% band — no action.
+
+**Alpha Leader — COIN (+7.62% over 7 days)**, computed from 07-14 close
+$161.50 → live $173.80 at scan time. Runner-up was MSFT (+3.87%);
+TQQQ/HOOD/NFLX all posted double-digit *negative* 7-day moves and were
+excluded from leadership contention.
+
+**GET THE PROFITS check on COIN:** avg cost basis $166.64, current price
+$173.80 at scan time → unrealized gain **+4.30%**, exceeding
+`materialize_profit_percentage` (4.0%). `peak/prices.json` shows no
+prior `profitSellDate` for COIN (null) — rule **triggers**. Per
+CLAUDE.md: sell `profit_sell_percentage` (40%) of COIN and **do not buy
+any new Alpha Leader shares this cycle**, even though COIN's own
+drift (target 1.91% vs. held 1.13%, i.e. technically underweight) would
+otherwise argue for a buy.
+
+`base_deployable_cash` = Math.max(0, $9,280.58 − $250 `min_cash_absolute`
+− $9,000 `settlement_reserve_target`) = **$30.58** — the alpha
+multiplier math was moot since no Alpha Leader buy occurs this cycle.
+
+## Profit-taking & overweight evaluation (Step 4)
+Guard check `overweight_sell_minimum_profit_margin_percent` (1.0%) on
+all three overweight candidates — **none qualify, none are in
+`forceSell`**:
+| Symbol | Avg Cost | Current | Margin | Verdict |
+|---|---|---|---|---|
+| PLTR | $134.51 | $134.05 | −0.34% | BLOCKED |
+| TQQQ | $73.92 | $70.0307 | −5.26% | BLOCKED |
+| META | $664.01 | $648.905 | −2.28% | BLOCKED |
+
+High-Beta Gain scoring computed for the record (30-day daily-return
+regression vs. SPY) even though no trim executes:
+| Symbol | Beta (30d) | Raw Gain % | High-Beta Gain Score |
+|---|---|---|---|
+| TQQQ | 5.53 | −5.26% | −29.10 |
+| META | 1.71 | −2.28% | −3.87 |
+| PLTR | 0.75 | −0.34% | −0.26 |
+
+All three would have ranked TQQQ first for trimming had any cleared the
+profit-margin floor — none did. **Zero overweight sell proceeds
+generated this cycle**; the only sell executed is the COIN profit-take
+below.
+
+## Price-limit / volatility halts (Step 5)
+3-day (`no_of_days_for_price_compare`) min/max window checked for all
+buy/sell candidates:
+* COIN sale: current $175.70–176.37 sits *above* the 3-day max ($166.57)
+  — a rally, not a crash, so `sell_price_diff_limit` is not a factor
+  (that guard only exempts drops, not new highs).
+* F/GM/IBM/NFLX/UNH/GE buys: all comfortably inside
+  `buy_price_diff_limit` (5%) off their 3-day lows — largest was IBM at
+  +4.05%, closest to the cap but still compliant.
+
+## Execution (Step 6) — sequential, regular market hours
+1. **SELL COIN** 1.200189 sh (40% of the 3.000472-share position) @
+   avg **$175.7001** market → **$210.87** proceeds. Realized gain =
+   ($175.7001 − $166.64) × 1.200189 = **+$10.87**. Order
+   `6a5f78fc…f185`, filled 09:49:48 AM ET.
+2. **BUY F** $40.24 → 2.837799 sh @ avg $14.1800. Order `6a5f7921…6297`,
+   filled 09:50:25 AM ET.
+3. **BUY GM** $40.24 → 0.512931 sh @ avg $78.4510. Order `6a5f7926…f3e`,
+   filled 09:50:30 AM ET.
+4. **BUY IBM** $40.24 → 0.190050 sh @ avg $211.7332. Order
+   `6a5f792b…89a`, filled 09:50:35 AM ET.
+5. **BUY NFLX** $40.24 → 0.595310 sh @ avg $67.5950. Order
+   `6a5f792f…eb4`, filled 09:50:39 AM ET.
+6. **BUY UNH** $40.24 → 0.093548 sh @ avg $430.1500. Order
+   `6a5f7933…7d`, filled 09:50:43 AM ET.
+7. **BUY GE** $40.24 → 0.117441 sh @ avg $342.6400. Order
+   `6a5f7937…6bc`, filled 09:50:48 AM ET.
+
+No order size fell below `sell_or_buy_value_limit` ($10). Gross nominal
+value sold ($210.87) was far under `seek_approval_value` ($10,000) — no
+user-approval halt required. No buy/sell conflict on the same symbol
+this cycle.
+
+### Settlement reserve bridge
+COIN's $210.87 sale proceeds had not yet posted to `buying_power`
+(confirmed empirically: post-sale `cash` $9,491.45 vs. `buying_power`
+still $9,280.58, a $210.87 gap). Total buy spend this cycle was $241.44
+($40.24 × 6), exceeding the $30.58 `base_deployable_cash` floor by
+$210.86 — bridged in full from the reserve against the fresh COIN sale:
+* New `pending_draws` entry: symbol `COIN`, `saleProceeds` $210.87,
+  `reserveDrawn` $210.87 (full bridgeable capacity, well under the
+  $9,000 `reserve_available_to_draw`), `saleDate` 2026-07-21,
+  `expectedSettleDate` 2026-07-22 (`settlement_lag_days` = 1),
+  `settled: false`.
+* `reserve_available_to_draw` after this draw = $9,000 − $210.87 =
+  **$8,789.13**.
+
+## Post-trade balances
+* `cash` **$9,250.01**, `buying_power` **$9,039.14** (gap = $210.87,
+  matches the pending COIN draw exactly).
+* `equity_value` **$37,119.31**, `total_value` (account_balance)
+  **$46,369.32**.
+* Cash sits well above `min_cash_target` ($500) and `min_cash_absolute`
+  ($250); the reserve wall-off ($9,000) plus min-cash floor account for
+  the rest — consistent with "keep cash lean but never below floor."
+
+## peak/prices.json updates
+* **COIN**: `peakPrice` 167.12 → **176.195** (new high, `peakDate`
+  2026-07-21); `profitSellPrice` → **175.7001**, `profitSellDate` →
+  **2026-07-21** (first-ever profit-sell recorded for this asset);
+  `lastPurchaseDate` unchanged (no buy this cycle).
+* **GM**: `peakPrice` 77.42 → **77.74** (new high, `peakDate`
+  2026-07-21); `lastPurchaseDate` → **2026-07-21** (first purchase).
+* **F, IBM, NFLX, UNH, GE**: `lastPurchaseDate` → **2026-07-21** (first
+  purchase); `peakPrice`/`peakDate` unchanged — current prices did not
+  exceed stored peaks.
+* All other symbols: peaks unchanged (no new highs this cycle).
+
+## Total_High_Beta_Gains_Realized
+$0.00 from overweight trims (all blocked by profit-margin guard).
+COIN's profit-take realized **+$10.87** separately under the GET THE
+PROFITS rule (not an overweight trim, so excluded from the High-Beta
+Gains tally by definition, logged here for completeness).
+
+## Reconciliation
+`settlement/reserve.json` had zero pending entries at cycle start — no
+prior-cycle settlements to reconcile. One new pending draw recorded
+this cycle (COIN, see above).
+
+
+---
+
+ # 2026-07-20 03:22 PM EDT — Scheduled Rebalance Check — EXECUTED (Alpha Leader Rotates to AAPL as Profit-Sell Repurchase Lock Finally Clears — $16.47 Alpha Buy Filled; Runners-Up MSTR/PLTR Blocked by Pump-Limit Guard; Zero Legal Overweight Sell Source Persists; 6 First-Time-Trade Underweight Buys Pro-Rata Split Below $10 Floor)
 
 **Status:** EXECUTED. **1 of 1 intended order filled** — fresh, stateless
 run for the 3:15 PM ET scheduled tick. `CLAUDE.md` re-pulled fresh from
