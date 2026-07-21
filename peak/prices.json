@@ -54,7 +54,7 @@
                 "lastPurchaseDate": "2026-07-16"
         },
         "COIN": {
-                "peakPrice": 176.195,
+                "peakPrice": 176.79,
                 "peakDate": "2026-07-21",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
@@ -63,8 +63,8 @@
                 "lastPurchaseDate": null
         },
         "ARM": {
-                "peakPrice": 287.68,
-                "peakDate": "2026-07-14",
+                "peakPrice": 288.06,
+                "peakDate": "2026-07-21",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
                 "profitSellPrice": 333.5356,
@@ -225,7 +225,7 @@
                 "lastPurchaseDate": "2026-07-21"
         },
         "GM": {
-                "peakPrice": 77.74,
+                "peakPrice": 79.55,
                 "peakDate": "2026-07-21",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
