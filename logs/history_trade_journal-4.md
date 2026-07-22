@@ -1518,3 +1518,204 @@ encountered.
   trail.
 
 ---
+
+# 2026-07-17 03:19 PM EDT — Scheduled Rebalance Check — NO TRADES (GET-THE-PROFITS Cleared 4.0% Bar Again but Suppressed — AAPL Already Sold Twice Today; Zero Legal Overweight Trim Persists; 6 First-Time-Trade Underweight Buys Remain Unfunded on Zero Deployable Cash)
+
+**Status:** NO TRADES. **0 of 0 intended orders** — fresh, stateless run
+for the 3:15 PM ET scheduled tick. `CLAUDE.md` re-pulled fresh from
+`main` (text unchanged since the 11:40 AM cycle, still v2.26.0).
+`portfolio_targets.json` (v2.17.0), `peak/prices.json`, and
+`settlement/reserve.json` all re-pulled fresh — all three unchanged in
+structure from the 11:40 AM cycle except for that cycle's own AAPL
+second-profit-sell fields and NFLX's new intraday peak.
+
+## Pre-check state (~3:16 PM ET, regular hours)
+* Account `795732718` ("Agentic", `cash`-type). `buying_power` =
+  **$9,249.93**, `cash` (ledger) = **$9,297.05** — the $47.12 gap is the
+  combined proceeds of today's two AAPL profit-take sells (9:50 AM
+  $29.44 + 11:40 AM $17.68), still unsettled (`expectedSettleDate`
+  2026-07-18, tomorrow).
+* `current_cash` = Math.min($9,249.93, `cap_on_total_cash_balance_to_use`
+  $10,000) = **$9,249.93**.
+* Equity value (live quotes, 21 held target symbols; MU, SOXL, IONQ at
+  zero shares; F/GM/IBM/NFLX/UNH/GE still unpurchased): **≈$36,513.68**
+  (broker `get_portfolio` snapshot: $36,511.16, minor cross-call quote
+  variance). `account_balance` ≈ **$45,763.61**.
+* Note: `get_portfolio` also reported a **`pending_deposits` value of
+  $4,000** on this account — not yet reflected in `cash` or
+  `buying_power`, and `CLAUDE.md` defines `current_cash` strictly off
+  the settled `buying_power` field, so this deposit was **not** factored
+  into any calculation this cycle. Flagging for visibility: once it
+  clears, it will materially increase `base_deployable_cash` for a
+  future cycle.
+
+## Settlement Reserve reconciliation
+* `settlement/reserve.json` = `{"pending_draws": []}` — no prior-cycle
+  entries to reconcile. Neither of today's two AAPL sales was ever
+  recorded as a draw (nothing drew on them, since no buy cleared the
+  value floor in either prior cycle), so there is nothing to mark
+  settled here; both will simply resolve into `buying_power` once they
+  clear (expected tomorrow).
+* `reserve_available_to_draw` = $9,000 − $0 = **$9,000** (full headroom).
+
+## Drawdown Audit Phase — no breaches
+Checked all 21 held target symbols under the dual-condition test (≥25%
+down from both `peakPrice` and `avg_cost_basis`). The broad market
+pullback from this morning continued into the afternoon (nearly every
+held symbol down further from the 11:40 AM check), but closest
+approaches remained **INTC** (−18.15% vs. peak, −24.74% vs. avg cost —
+fails the peak leg by a solid margin) and **SPCX** (−18.00%/−17.25%,
+both clear of 25%). **No symbol clears both legs — no emergency
+liquidations this cycle.** No new intraday peaks recorded — every held
+symbol traded below its recorded high this afternoon.
+
+## Rules & Guardrails (Step 2)
+* **MU** (liquidated 2026-07-16 @ $862.81): current $863.545 is a
+  **+0.085%** move — technically a hair above the liquidated price, but
+  nowhere near the required ≥7% recovery; `current_date` −
+  `liquidatedDate` = 1 day, also short of the 8-day cooldown. **Remains
+  excluded.**
+* **SOXL** (liquidated 2026-07-16 @ $147.6401): current $133.23, a
+  **−9.76%** further decline; cooldown not met. **Remains excluded.**
+* **IONQ** (liquidated 2026-07-13 @ $38.8001): current $34.73, a
+  **−10.49%** further decline. **Remains excluded.**
+* **F, GM, IBM, NFLX, UNH, GE**: no purchase ever recorded
+  (`lastPurchaseDate: null`) → first-time-trade tolerance (0.1%) applies
+  regardless of the `peakPrice` initialization entries created this
+  morning. Each still 0% current vs. 1.912% target → **1.912% drift,
+  breaching.**
+* **AAPL** (`lastPurchaseDate` 2026-07-13): 4 days > `lock_in_period`
+  (2) → not locked-in on its own terms (moot regardless — see the
+  profit-materialization check below).
+* **TQQQ**, **META** (`lastPurchaseDate` 2026-07-16): 1 day ≤
+  `lock_in_period` (2) → both **locked-in for selling**.
+
+## Drift Audit (`account_balance` ≈ $45,763.61, `drift_tolerance_percentage` = 2.0%)
+**3 Overweight breaches:** PLTR (7.464% vs. 4.780% target, drift
+2.684%), TQQQ (5.461% vs. 2.868%, drift 2.593%), **META** (15.616% vs.
+1.912%, drift 13.704%). **6 Underweight breaches (first-time-trade
+tolerance):** F, GM, IBM, NFLX, UNH, GE (1.912% drift each vs. 0.1%
+tolerance). Aggregate dollar-gap across the six ≈ **$5,250.00** (≈$875
+each, equal target weights). All other held symbols stayed inside the
+standard 2.0% band (largest: SMCI 1.787%, ARM 1.668%, AAPL 1.854%).
+
+## Overweight Sellability Check — none legal this cycle
+| Symbol | Avg Cost | Current | Raw Gain % | Sellable? |
+|---|---|---|---|---|
+| PLTR | $134.51 | $132.26 | −1.67% | No — underwater, fails ≥1.0% floor |
+| TQQQ | $73.92 | $67.42 | −8.79% | No — locked-in (1-day-old purchase) *and* underwater |
+| META | $664.01 | $641.90 | −3.33% | No — locked-in (1-day-old purchase) *and* underwater |
+
+**Zero legal trim source among Overweight positions.**
+`Total_High_Beta_Gains_Realized` (Overweight-trim component) = **$0.00**.
+
+## Alpha Leader (7-day gain, 2026-07-10 open → live ~3:16 PM ET)
+| Symbol | 7-Day Gain |
+|---|---|
+| **AAPL** | **+6.042%** |
+| F | +5.049% |
+| MSFT | +1.831% |
+| NEE | +1.710% |
+| PLTR | +0.091% |
+
+**AAPL remains Alpha Leader**, holding its lead from the two earlier
+cycles today (+5.834% → +6.135% → +6.042%, a slight afternoon
+compression as AAPL itself eased marginally off its own intraday high
+while the broader list continued softening).
+
+## Step 4 "GET THE PROFITS" Check — **CLEARED THE BAR, BUT SUPPRESSED (already sold today)**
+* AAPL's raw unrealized gain on its average cost basis (unchanged,
+  $319.83 — no buys since) = **+4.347%** ((333.7346 − 319.83) / 319.83 ×
+  100).
+* `materialize_profit_percentage` = **4.0%**. **4.347% ≥ 4.0% — the
+  underlying profit condition is met for a third consecutive time
+  today.** However, per `CLAUDE.md`: *"If there are any previous sales
+  on Alpha Leader within todays business day, do not trigger GET THE
+  PROFITS sale again."* AAPL was already sold twice today under this
+  exact rule (9:50 AM and 11:40 AM, both same-day). **This explicit
+  same-day guard fires and suppresses the sale this cycle** — no third
+  AAPL profit-take was executed, and none was warranted by the rule as
+  written.
+* Since no sale was triggered this cycle, the narrower v2.26.0
+  buy-suppression clause (bar only same-cycle Alpha Leader re-buys) is
+  moot — it only applies when a sale actually fires. AAPL's own drift
+  (1.854%, current vs. target) is inside the standard 2.0% tolerance
+  anyway, so no buy would have been warranted for it regardless.
+
+## Step 3 — Alpha Leader & Re-investment Multiplier
+* `base_deployable_cash` = Max(0, $9,249.93 − $250 − $9,000) = **$0.00**
+  (raw calc −$0.07, floored) — no organic deployable cash. No base or
+  multiplier allocation to the Alpha Leader this cycle.
+
+## Step 4 — Underweight / Multiplier Funding
+* **No Overweight position is legally sellable** (PLTR/TQQQ/META all
+  underwater and/or locked-in — see above), so there is no harvestable
+  capital.
+* **No Alpha Leader profit-take proceeds this cycle** (suppressed by the
+  same-day guard), unlike the two prior cycles today where AAPL's own
+  trim proceeds funded a token pro-rata pool.
+* Net result: **zero capital available** to fund the six first-time-trade
+  Underweight breaches (F, GM, IBM, NFLX, UNH, GE) — a harder stop than
+  the 11:40 AM cycle's "funded but below the $10 floor" outcome; this
+  cycle there is no pool to divide at all.
+
+## Step 5 — Price Limit Checks
+Not applicable — no trade candidates survived Steps 3/4 to reach a price
+check (no sell candidate, no funded buy candidate).
+
+## Step 6 — Execution
+**No orders placed.** Gross nominal value **sold** this cycle: $0.
+`seek_approval_value` never in play. No 429 throttling encountered.
+
+## Post-check state
+* `buying_power`/`cash` unchanged: **$9,249.93** / **$9,297.05**.
+  `min_cash_absolute` ($250) never at risk (nothing spent).
+* Equity value: **$36,513.68** (live quotes at check time). Total
+  account value ≈ **$45,763.61** (using `current_cash` = `buying_power`
+  methodology per `CLAUDE.md`; broker snapshot `total_value` =
+  $45,808.21, using the raw `cash` ledger instead).
+
+## peak/prices.json updates
+* **None.** No held symbol printed a new high this cycle — the broad
+  afternoon pullback pulled every symbol (including this morning's NFLX
+  recovery high) below its recorded peak. No re-entry triggers, no
+  purchases/liquidations/profit-sells this cycle. File left untouched.
+
+## Settlement Reserve — no new draws
+* No sale this cycle (nothing to bridge from) and no buy this cycle
+  (nothing to bridge to). `reserve_available_to_draw` remains **$9,000**
+  for the next cycle. `settlement/reserve.json` unchanged:
+  `{"pending_draws": []}`.
+
+## Notes
+* This was the scheduled 3:15 PM ET tick, run fresh with no memory of
+  prior cycles. The main development this cycle: AAPL's unrealized gain
+  cleared the `materialize_profit_percentage` bar for a **third**
+  consecutive check today (4.14% → 4.45% → 4.35%, oscillating but
+  staying above 4.0% as AAPL held up while the broader list weakened
+  further), but the standing same-day guard — *"if there are any
+  previous sales on Alpha Leader within todays business day, do not
+  trigger GET THE PROFITS sale again"* — correctly prevented a third
+  trim. This is the first cycle today where that specific guard was the
+  operative reason profit-taking didn't fire (the two earlier cycles
+  fired the sale itself). With no profit-take proceeds and no legal
+  Overweight trim, this cycle had strictly less capital available than
+  the 11:40 AM cycle ($0 vs. that cycle's $17.68), so the six
+  first-time-trade Underweight targets (F, GM, IBM, NFLX, UNH, GE)
+  remain fully unfunded, now three consecutive cycles running. Worth
+  flagging forward: a **$4,000 `pending_deposits`** entry appeared on
+  the account this cycle (not yet settled/spendable, and per
+  `CLAUDE.md`'s `buying_power`-based definition of `current_cash`, not
+  used in any calculation above) — once it clears, `base_deployable_cash`
+  will jump well past the six-symbol funding threshold. Also worth
+  noting: the six first-time symbols' `peakPrice` entries were
+  initialized this morning purely to track price action ahead of any
+  purchase, not because a trade occurred — this cycle continued treating
+  `lastPurchaseDate: null` (not literal file-entry presence) as the
+  operative first-time-trade signal, consistent with the interpretation
+  applied at 11:40 AM.
+* Per repo convention, this entry is committed to a fresh feature branch
+  and merged directly into `main` to preserve the unalterable paper
+  trail.
+
+---

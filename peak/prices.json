@@ -72,12 +72,12 @@
                 "lastPurchaseDate": "2026-07-14"
         },
         "SMCI": {
-                "peakPrice": 27.457,
-                "peakDate": "2026-07-15",
+                "peakPrice": 31.1228,
+                "peakDate": "2026-07-22",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
-                "profitSellPrice": 28.9601,
-                "profitSellDate": "2026-07-09",
+                "profitSellPrice": 31.1228,
+                "profitSellDate": "2026-07-22",
                 "lastPurchaseDate": "2026-07-15"
         },
         "IONQ": {
@@ -216,8 +216,8 @@
                 "lastPurchaseDate": "2026-07-13"
         },
         "F": {
-                "peakPrice": 14.39,
-                "peakDate": "2026-07-17",
+                "peakPrice": 14.605,
+                "peakDate": "2026-07-22",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
                 "profitSellPrice": null,
@@ -225,8 +225,8 @@
                 "lastPurchaseDate": "2026-07-21"
         },
         "GM": {
-                "peakPrice": 79.55,
-                "peakDate": "2026-07-21",
+                "peakPrice": 83.5424,
+                "peakDate": "2026-07-22",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
                 "profitSellPrice": null,
@@ -243,8 +243,8 @@
                 "lastPurchaseDate": "2026-07-21"
         },
         "NFLX": {
-                "peakPrice": 69.0042,
-                "peakDate": "2026-07-17",
+                "peakPrice": 70.08,
+                "peakDate": "2026-07-22",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
                 "profitSellPrice": null,
