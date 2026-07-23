@@ -1,3 +1,52 @@
+# 2026-07-23 09:47 AM EDT — Scheduled Rebalance Check — ABORTED: PRIORITY ERROR (Robinhood MCP 502 Bad Gateway on get_portfolio)
+
+**Status:** ABORTED. **0 of 0 intended orders evaluated/filled** — routine
+halted during Step 1 (Fetch State) before drift/drawdown analysis could
+begin. This was a fresh, stateless run for the 9:45 AM ET scheduled tick.
+`CLAUDE.md` re-pulled fresh from `main` (post-merge of
+`config/materialize-profit-dollar-floor`, text still "Volume 2.31.0",
+diffed byte-identical against the local checkout — no drift).
+`portfolio_targets.json`, `peak/prices.json`, and `settlement/reserve.json`
+all re-pulled fresh from `main` for this run.
+
+## What happened
+* Account `795732718` ("Agentic", cash-type) confirmed as the only
+  `agentic_allowed=true` account via `get_accounts`.
+* `get_equity_positions` succeeded (27 held target symbols returned).
+* `get_equity_orders` succeeded (zero orders today prior to this run).
+* `get_portfolio` (needed for `buying_power`/`account_cash` and total
+  equity market value) **failed** with:
+  ```
+  Error 502: Bad Gateway — "The origin web server returned an invalid or
+  incomplete response to Cloudflare... typically indicates the origin is
+  overloaded or misconfigured." (Cloudflare ray_id a1fb22047e83dacc,
+  error_category: origin, retryable: true, retry_after: 60)
+  ```
+
+## Why the routine stopped here instead of retrying
+CLAUDE.md's Hard Rule on Error Handling is explicit: *"If the Robinhood
+MCP server returns an API error or an unrecognized network state,
+immediately abort the routine, write a priority error log to
+`logs/trade_journal.md`, and terminate. retry 3 times for '429
+throttling' error other than this no retry loop."* This was a 502 Bad
+Gateway, not a 429 throttling response, and it surfaced on a plain state
+read (not order placement, where a narrower 429-specific retry rule also
+applies in Step 6). Per the rule as written, no retry was attempted —
+the routine aborted immediately on the first non-429 error encountered.
+
+No drift, drawdown, Alpha Leader, or GET THE PROFITS analysis was
+performed this cycle since `account_balance` and `current_cash` (both
+dependent on `get_portfolio`) could not be computed. No orders were
+placed or reviewed. No `peak/prices.json` or `settlement/reserve.json`
+updates were made — both files are unchanged from the pre-run state
+pulled above.
+
+## Next steps
+Retry at the next scheduled tick. If `get_portfolio` continues to 502,
+this indicates a persistent upstream Robinhood/MCP-gateway outage rather
+than a transient blip, and manual investigation of the MCP server
+connection may be warranted.
+
 # 2026-07-22 03:16 PM EDT — Scheduled Rebalance Check — NO TRADES (SMCI Alpha Leader GET-THE-PROFITS Suppressed on Same-Day Re-Trigger; MU/SOXL Cooldown Clears Under Revised 6-Day Parameter but Both Pump-Guard-Blocked on Their Own Rebound; AMZN Newly Breaches Drift; TQQQ/PLTR/META Still Negative-Margin-Blocked; Zero Deployable Cash Behind the $9,000 Reserve Wall)
 
 **Status:** NO TRADES. **0 of 0 intended orders filled** — fresh, stateless
