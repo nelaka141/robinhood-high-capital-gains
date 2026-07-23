@@ -28,7 +28,7 @@
     "settlement_lag_days": 1,
     "materialize_profit_percentage": 4.0,
     "profit_sell_percentage": 50.0,
-    "materialize_profit_in_dollars": 10.0
+    "materialize_profit_in_dollars": 25.0
   },
   "targets": {
     "TQQQ": { "weight": 1.5, "drift": 0.5 },
