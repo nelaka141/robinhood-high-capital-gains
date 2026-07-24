@@ -1,3 +1,243 @@
+# 2026-07-24 09:58 AM EDT — Scheduled Rebalance Check — NO TRADES (SMCI Alpha Leader on a +24.8% 7-Day Spike but Pump-Guard Blocked; SMCI/GM GET-THE-PROFITS Both Clear the % Bar but Fail the $25 Dollar Floor; PLTR/TQQQ/META Overweight but All Underwater; MU Recovery Clears — Only Newly-Eligible Underweight Not Also Pump-Blocked; $9,000 Reserve Wall Leaves Just $29.24 Deployable Across 16 Eligible Underweight Targets)
+
+**Status:** NO TRADES. **0 of 0 intended orders filled** — fresh, stateless
+run for the 9:45 AM ET scheduled tick. `CLAUDE.md` re-pulled fresh from
+`main` (SHA `a621a8ecb9ef4cfb1b96cd2614918025db41b522`, text version header
+"Volume 2.32.0", unchanged from the last several cycles).
+`portfolio_targets.json` (v2.22.0), `peak/prices.json`, and
+`settlement/reserve.json` all re-pulled fresh from `main` for this run.
+
+## Pre-check state (~9:47 AM ET, regular hours)
+* Account `795732718` ("Agentic", cash-type) confirmed via `get_accounts`
+  as the only `agentic_allowed=true` account.
+* `buying_power` = **$9,279.24**, `cash` (ledger) = **$9,279.24** — no
+  gap, no unsettled proceeds carried into this cycle
+  (`settlement/reserve.json` → `pending_draws = []`).
+* `current_cash` = Math.min($9,279.24, `cap_on_total_cash_balance_to_use`
+  $10,000) = **$9,279.24**.
+* `get_equity_orders` confirms zero orders placed on this account today
+  prior to this run.
+* Equity value (live quotes, 27 held target symbols; MU, SOXL, IONQ at
+  zero shares): broker `get_portfolio` snapshot **$34,528.02**.
+  `account_balance` ≈ **$43,807.26**.
+
+## Settlement reserve reconciliation (Step 1)
+`settlement/reserve.json` → `pending_draws = []`. Nothing to reconcile.
+`reserve_available_to_draw` = $9,000 − $0 = **$9,000** (full, unused).
+
+## Drawdown audit (Step 1)
+Checked every held asset against `max_trailing_drawdown_percentage` (35%)
+vs. both `peakPrice` and `avg_cost_basis` (both legs required to
+trigger). **No asset breached 35% on either leg.** Closest: TSLA (22.48%
+off its $409.36 peak / 20.27% off its $397.95 cost basis), ORCL (20.29%
+off peak), HOOD (16.24% off peak), INTC (16.17% off peak). No emergency
+liquidations triggered; `lock_in_period` remains in force for all
+assets.
+
+## Liquidation recovery / cooldown check (Step 2)
+* **MU**: liquidated 2026-07-16 @ $862.81. Current $946.02 is **+9.65%**
+  (clears the 5% `min_recovery_price_percentage` bar). 8 days elapsed ≥
+  the 6-day `cool_down_period_after_lquidation`. **Cooldown and recovery
+  both clear — MU is back in drift-eligible play**, and (see Step 5)
+  clear of the pump guard too.
+* **SOXL**: liquidated 2026-07-16 @ $147.6401. Current $146.92 is
+  **−0.49%** — a further decline, not a recovery. **Stays excluded from
+  drift calc.**
+* **IONQ**: liquidated 2026-07-13 @ $38.8001. Current $33.46 is
+  **13.76% below** the liquidated price — a further decline. **Stays
+  excluded from drift calc.**
+
+## GET THE PROFITS sweep — portfolio-wide (Step 4, run first)
+Checked raw unrealized gain vs. `avg_cost_basis` for every held target
+asset against `materialize_profit_percentage` (4.0%):
+
+| Symbol | Avg Cost | Current | Raw Gain % | Verdict |
+|---|---|---|---|---|
+| SMCI | 27.46 | 30.18 | +9.91% | Clears the % bar, but `Realized_Profit_Dollars` = (30.18−27.46) × (1.408821 × 50%) = **$1.92**, below `materialize_profit_in_dollars` ($25) — **BLOCKED (dollar gate)** |
+| GM | 78.45 | 82.485 | +5.15% | Clears the % bar, but `Realized_Profit_Dollars` = (82.485−78.45) × (0.512931 × 50%) = **$1.03**, below the $25 dollar floor — **BLOCKED (dollar gate)** |
+| AAPL | 323.05 | 326.34 | +1.02% | Below 4% bar |
+| NEE | 88.25 | 89.39 | +1.29% | Below 4% bar |
+| F | 14.18 | 14.355 | +1.23% | Below 4% bar |
+| NFLX | 67.60 | 68.61 | +1.49% | Below 4% bar |
+| GE | 342.64 | 355.94 | +3.88% | Below 4% bar |
+| NVDA | 206.06 | 207.55 | +0.72% | Below 4% bar |
+| All other held (SPCX, PLTR, INTC, AMZN, TSLA, ORCL, GOOG, MSFT, TQQQ, MSTR, COIN, ARM, META, HOOD, AMD, VRT, AVGO, IBM, UNH) | — | — | negative | At a loss today, not evaluated further |
+
+**Zero GET THE PROFITS sales fire this cycle.** Both candidates that
+clear the percentage gate (SMCI at +9.91%, GM at +5.15%) are too small a
+position for the dollar-profit floor to clear. Per the "no state
+recorded on a non-fire" rule, both are simply re-evaluated fresh next
+cycle.
+
+## Drift & Alpha Leader (Step 1 & 3)
+Target weights sum to 52.3 across 30 symbols. Drift computed against
+`account_balance` ≈ $43,807.26.
+
+**Overweight, breaching resolved `asset_drift_tolerance`:**
+| Symbol | Current % | Target % | Drift | Asset tolerance |
+|---|---|---|---|---|
+| META | 15.33% | 1.91% | +13.41% | 0.5% |
+| TQQQ | 5.51% | 2.87% | +2.65% | 0.5% |
+| PLTR | 7.26% | 4.78% | +2.48% | 1.0% |
+
+**Underweight, breaching resolved `asset_drift_tolerance` (17 assets):**
+MU (4.78% drift, tol 1.0%, recovery cleared, pump-clear — see Step 5),
+MSTR (0.56% drift, tol 0.5%), COIN (1.26%, tol 0.5%), ARM (1.65%, tol
+0.5%), SMCI (1.81%, tol 0.5% — Alpha Leader, pump-blocked), INTC (0.91%,
+tol 0.5%), AMZN (1.11%, tol 1.0%), TSLA (1.32%, tol 1.0%), HOOD (1.63%,
+tol 0.5%), AAPL (1.82%, tol 0.5%), AMD (1.59%, tol 0.5%), NEE (1.59%,
+tol 0.5%), VRT (1.76%, tol 0.5%), AVGO (1.76%, tol 0.5%), F (1.82%, tol
+0.5%), GM (1.82%, tol 0.5% — pump-blocked), IBM (1.82%, tol 0.5% —
+pump-blocked), NFLX (1.82%, tol 0.5%), UNH (1.82%, tol 0.5%), GE (1.82%,
+tol 0.5% — pump-blocked).
+
+**Within tolerance, no action:** SPCX (0.36% vs 0.5%), NVDA (0.42% vs
+1.0%), ORCL (0.52% vs 2.0%), GOOG (0.85% vs 1.0%), MSFT (0.09% vs 1.5%).
+
+**Excluded from drift calc:** SOXL, IONQ (liquidation recovery not met —
+Step 2).
+
+**Alpha Leader — SMCI (+24.81% over 7 days)**, computed from the
+2026-07-17 official close ($24.18) → live $30.18. Runner-up MU (+11.44%,
+recovery-cleared and pump-clear); SOXL (+8.45%, recovery-excluded), GM
+(+8.43%, pump-blocked), AMD (+7.49%) trail further behind.
+
+## Overweight trim evaluation (Step 4)
+Lock-in check (`lock_in_period` 2 days): TQQQ `lastPurchaseDate`
+2026-07-16 (8 days, clear), META `lastPurchaseDate` 2026-07-16 (8 days,
+clear), PLTR has no recorded `lastPurchaseDate` (treated unlocked).
+`forceSell` list is empty — no override available. Profit-margin gate
+(`overweight_sell_minimum_profit_margin_percent` 1.0%):
+
+| Symbol | Avg Cost | Current | Raw Gain % | Verdict |
+|---|---|---|---|---|
+| PLTR | 134.51 | 123.135 | −8.46% | BLOCKED — underwater |
+| TQQQ | 73.92 | 65.17 | −11.84% | BLOCKED — underwater |
+| META | 664.01 | 603.08 | −9.18% | BLOCKED — underwater |
+
+**Zero legal Overweight trim source this cycle** — all three candidates
+are underwater. High-Beta Gain Score ranking was not computed (nothing
+clears the gate to rank). `multiplier_cash` is therefore **$0** in
+practice this cycle.
+
+## Deployable cash (Step 3)
+`base_deployable_cash` = Math.max(0, $9,279.24 − $250 `min_cash_absolute`
+− $9,000 `settlement_reserve_target`) = **$29.24**. This is the entire
+capital pool available this cycle — the $9,000 reserve wall consumes
+essentially all of the account's $9,279.24 buying power.
+
+## Price limit / volatility halts (Step 5)
+3-day (`no_of_days_for_price_compare`) low window (2026-07-21/22/23)
+checked against `buy_price_diff_limit` (5%) for the Alpha Leader and
+every remaining Underweight-breaching candidate:
+
+| Symbol | 3-day low | Current | Rally vs. low | Exempt from buying? |
+|---|---|---|---|---|
+| SMCI | 24.330 (07-21 low) | 30.18 | **+24.04%** | Yes — pump-guard blocked (Alpha Leader) |
+| GM | 74.80 (07-21 low) | 82.485 | **+10.28%** | Yes — pump-guard blocked |
+| IBM | 199.19 (07-23 low) | 211.17 | **+6.01%** | Yes — pump-guard blocked |
+| GE | 338.60 (07-23 low) | 355.94 | **+5.12%** | Yes — pump-guard blocked |
+| MU | 916.5701 (07-21 low) | 946.02 | +3.21% | No — clear |
+| INTC, AMZN, TSLA, MSTR, COIN, ARM, HOOD, AAPL, AMD, NEE, VRT, AVGO, F, NFLX, UNH | — | — | all ≤ 2.4% or negative | No — clear |
+
+Four candidates (the Alpha Leader SMCI plus GM, IBM, GE) are exempted
+from buying today by their own sharp rebounds — the same rallies that
+made SMCI the Alpha Leader and pushed GE to a fresh peak are what trip
+the anti-chasing guard. `sell_price_diff_limit` was not a factor — no
+Overweight/stop-loss sell candidate survived to this stage.
+
+## Execution (Step 6)
+**No orders placed.** Walking the cascade:
+* Alpha allocation (35% × $29.24 = $10.23, would have gone to SMCI) —
+  **blocked**, SMCI exempt under `buy_price_diff_limit`.
+* Multiplier injection — **$0**, no trim proceeds harvested (all three
+  Overweight candidates underwater).
+* Entire `base_deployable_cash` ($29.24) rolls into the pro-rata pool for
+  the 16 Underweight-breaching, non-excluded, non-pump-blocked targets
+  (MU, INTC, AMZN, TSLA, MSTR, COIN, ARM, HOOD, AAPL, AMD, NEE, VRT,
+  AVGO, F, NFLX, UNH) ÷ 16 ≈ **$1.83 each** — every one falls below
+  `sell_or_buy_value_limit` ($10) and is skipped.
+* No sells executed (all three Overweight candidates blocked by the
+  profit-margin gate; both GET-THE-PROFITS candidates blocked by the
+  dollar gate). No buy/sell same-symbol conflicts arose since nothing
+  was sized on either side.
+* `seek_approval_value` ($10,000) halt: **not applicable** — gross
+  nominal value sold this cycle is $0.
+
+### Settlement reserve
+No draws created, none to reconcile. `pending_draws` remains `[]`.
+`reserve_available_to_draw` stays **$9,000** for the next cycle.
+
+## peak/prices.json updates
+* **GE**: `peakPrice` 354.315 → **355.94** (new high), `peakDate` →
+  **2026-07-24**.
+* All other symbols: current price at or below stored peak — no change.
+  No `liquidatedPrice`/`liquidatedDate`, `profitSellPrice`/
+  `profitSellDate`, or `lastPurchaseDate` fields changed (no
+  liquidations, profit-sells, or purchases occurred this cycle).
+
+## Total_High_Beta_Gains_Realized
+**$0.00** — zero Overweight trims executed (all three candidates
+guardrail-blocked) and zero GET THE PROFITS sales fired (SMCI and GM
+both cleared the percentage gate but not the dollar-profit floor). No
+Beta/Raw-Gain/High-Beta-Score breakdown to report since nothing was
+sold.
+
+## Final balances (unchanged — no trades)
+* `cash` / `buying_power`: **$9,279.24** (no gap).
+* `equity_value`: **$34,528.02**.
+* `account_balance`: **≈$43,807.26**.
+* Cash sits well above `min_cash_absolute` ($250) and above the lean
+  `min_cash_target` ($500); it cannot be worked down closer to
+  `min_cash_target` this cycle — the $9,000 reserve wall-off is
+  structurally the reason, not a lack of drift-driven demand (17 assets
+  are underweight-breaching and would absorb capital if any were
+  deployable).
+
+## SKIPPED/PENDING trade matrix
+| Symbol | Intent | Reason |
+|---|---|---|
+| TQQQ | Sell (overweight trim) | −11.84% raw loss, below 1.0% profit-margin floor, not in `forceSell` |
+| PLTR | Sell (overweight trim) | −8.46% raw loss, below 1.0% profit-margin floor, not in `forceSell` |
+| META | Sell (overweight trim) | −9.18% raw loss, below 1.0% profit-margin floor, not in `forceSell` |
+| SMCI | GET THE PROFITS sell | +9.91% clears % bar but $1.92 realized profit is below $25 `materialize_profit_in_dollars` floor |
+| GM | GET THE PROFITS sell | +5.15% clears % bar but $1.03 realized profit is below $25 `materialize_profit_in_dollars` floor |
+| SMCI | Buy (Alpha Leader + drift) | +24.04% above 3-day low, exceeds 5% `buy_price_diff_limit` |
+| GM | Buy (drift) | +10.28% above 3-day low, exceeds 5% `buy_price_diff_limit` |
+| IBM | Buy (drift) | +6.01% above 3-day low, exceeds 5% `buy_price_diff_limit` |
+| GE | Buy (drift) | +5.12% above 3-day low, exceeds 5% `buy_price_diff_limit` |
+| SOXL | Buy (recovery + drift) | Recovery not met: only −0.49% vs. liquidated price, a further decline |
+| IONQ | Buy (recovery + drift) | Recovery not met: price still 13.76% below liquidated price |
+| MU, INTC, AMZN, TSLA, MSTR, COIN, ARM, HOOD, AAPL, AMD, NEE, VRT, AVGO, F, NFLX, UNH | Buy (pro-rata drift) | Pro-rata share of $29.24 deployable cash ≈ $1.83/asset — below $10 `sell_or_buy_value_limit` |
+
+## Notes
+Second consecutive quiet cycle: no drawdown breaches, no legal
+Overweight trims (all three chronic candidates — META, TQQQ, PLTR —
+remain underwater on cost basis), and no deployable cash beyond the
+residual left over after the $9,000 `settlement_reserve_target`
+wall-off. The one new development is MU's liquidation recovery/cooldown
+clearing cleanly (both the 5% price-recovery bar and 6-day cooldown
+satisfied, and — unlike its last several near-misses — this time also
+clear of the 5% `buy_price_diff_limit` pump guard), putting it back into
+ordinary drift-eligible rotation; it simply had no capital to receive
+this cycle. SMCI's Alpha Leader crown continues to come with its own
+disqualification: the same ~25% 7-day spike that makes it the top
+momentum name also trips the pump guard, and its GET THE PROFITS
+candidacy remains blocked by the $25 dollar-profit floor given the small
+absolute position size — a pattern that will persist until either the
+position grows or the price move slows. GE also joined AAPL, GM, IBM,
+and IONQ's earlier all-time-high club with a fresh peak print today.
+No user-approval halt was triggered (`seek_approval_value` — nothing
+sized this cycle). This entry rotates the oldest of the five journal
+entries (2026-07-21 03:15 PM EDT) out of `trade_journal.md` into
+`logs/history_trade_journal-5.md`, which is not yet full (3 of 10
+entries after this rotation).
+Per repo convention, this entry is committed to a fresh feature branch
+and merged directly into `main` to preserve the unalterable paper trail.
+
+
+---
+
 # 2026-07-23 03:16 PM EDT — Scheduled Rebalance Check — NO TRADES (Broad Market Selloff — TQQQ/PLTR/META Overweight but All Underwater and Profit-Margin-Blocked; Alpha Leader SMCI Blocked by Its Own Pump Guard; MU Recovery Clears but Also Pump-Blocked; $9,000 Reserve Wall Leaves Only $29.24 Deployable; Every Underweight Buy Falls Below the $10 Floor)
 
 **Status:** NO TRADES. **0 of 0 intended orders filled** — fresh, stateless
@@ -13,8 +253,8 @@ header "Volume 2.32.0"). `portfolio_targets.json`, `peak/prices.json`, and
   no unsettled proceeds carried into this cycle (`pending_draws` empty).
 * `current_cash` = Math.min($9,279.24, `cap_on_total_cash_balance_to_use`
   $10,000) = **$9,279.24**.
-* Equity value (live quotes, 27 held target symbols; MU, SOXL, IONQ at zero
-  shares): **$34,680.83** (broker `get_portfolio` snapshot). `account_balance`
+* Equity value (live quotes, 27 held target symbols; MU, SOXL, IONQ at
+  zero shares): **$34,680.83** (broker `get_portfolio` snapshot). `account_balance`
   ≈ **$43,960.07**.
 
 ## Market context
@@ -224,8 +464,8 @@ this cycle). This entry rotates two entries (2026-07-21 09:50 AM EDT and
 2026-07-20 03:22 PM EDT) out of `trade_journal.md` into a newly-created
 `logs/history_trade_journal-5.md` — the prior history file,
 `history_trade_journal-4.md`, is full at 10 entries.
-Per repo convention, this entry is committed to a fresh feature branch and
-merged directly into `main` to preserve the unalterable paper trail.
+Per repo convention, this entry is committed to a fresh feature branch
+and merged directly into `main` to preserve the unalterable paper trail.
 
 ---
 
@@ -418,10 +658,10 @@ listed in `forceSell`:
 | TQQQ | 73.92 | 70.745 | −4.30% | Clear (6d > 2d) | No — underwater |
 | PLTR | 134.51 | 124.19 | −7.67% | No `lastPurchaseDate` (untracked, treated unlocked) | No — underwater |
 
-No legal Overweight trim source exists this cycle — the High-Beta Gain
-Score ranking was not computed (nothing to rank when every candidate is
-guardrail-blocked). `Total_High_Beta_Gains_Realized` (overweight-trim
-component) = **$0.00**.
+No legal Overweight trim source exists this cycle, so the High-Beta Gain
+Score ranking (Beta × Raw_Gain_%) was not computed — nothing to rank
+when every candidate is guardrail-blocked. `Total_High_Beta_Gains_Realized`
+(overweight-trim component) = **$0.00**.
 
 ## Price limit / volatility halts (Step 5) — the binding constraint this cycle
 3-day (`no_of_days_for_price_compare`) low/high window (2026-07-17,
@@ -762,144 +1002,3 @@ basis and thus un-trimmable under current guardrails, unchanged from
 every prior cycle's assessment.
 Per repo convention, this entry is committed to a fresh feature branch
 and merged directly into `main` to preserve the unalterable paper trail.
-
----
-
- # 2026-07-21 03:15 PM EDT — Scheduled Rebalance Check — NO TRADES (META/TQQQ/PLTR/SPCX All Overweight but Negative-Margin-Blocked; Alpha Leader COIN Already Profit-Sold Earlier Today, Suppressed From Re-Triggering; Zero Deployable Cash; MU/SOXL/IONQ Still Cooldown/Recovery-Locked)
-
-**Status:** NO TRADES. **0 of 0 intended orders** — fresh, stateless run for
-the 3:15 PM ET scheduled tick. `CLAUDE.md` re-pulled fresh from `main` (SHA
-`cf54c22`, text version header "Volume 2.28.0", unchanged since the 9:50 AM
-cycle). `portfolio_targets.json` (v2.17.0), `peak/prices.json`, and
-`settlement/reserve.json` all re-pulled fresh from `main` for this run.
-
-## Pre-check state (~3:12 PM ET, regular hours)
-* Account `795732718` ("Agentic", cash-type). `buying_power` = **$9,039.14**,
-  `cash` (ledger) = **$9,250.01** — a **$210.87 gap**, exactly matching the
-  still-open `pending_draws` entry from this morning's COIN profit-take
-  sale. Per the clarified rule, `account_cash`/`current_cash` is sourced
-  from `buying_power`, not the raw `cash` ledger.
-* `current_cash` = Math.min($9,039.14, `cap_on_total_cash_balance_to_use`
-  $10,000) = **$9,039.14**.
-* Equity value (live quotes, 24 held target symbols; MU, SOXL, IONQ still at
-  zero shares under liquidation cooldown/recovery-fail): **$37,118.34**.
-  `account_balance` ≈ **$46,157.48**.
-
-## Settlement reserve reconciliation (Step 1)
-* `settlement/reserve.json` → one `pending_draws` entry: COIN, saleDate
-  2026-07-21, saleProceeds $210.87, reserveDrawn $210.87, settled: false.
-* Settlement check: `cash` − `buying_power` = $9,250.01 − $9,039.14 =
-  **$210.87** — matches the lot almost exactly, meaning `buying_power` does
-  **not** yet reflect the sale. **Not settled this cycle** — entry left
-  unchanged, still pending. Expected settle date 2026-07-22 (T+1).
-* `reserve_available_to_draw` = $9,000 − $210.87 (still-pending, fully
-  drawn) = **$8,789.13** in theoretical headroom, but the COIN lot itself
-  has **zero remaining bridgeable capacity** (`saleProceeds` − `reserveDrawn`
-  = $0) and no fresh sell occurred this cycle to bridge against — moot,
-  since no buys were funded this cycle regardless (see below).
-
-## Drawdown audit (Step 1)
-Checked every held asset against `max_trailing_drawdown_percentage` (25%)
-vs. both `peakPrice` and `avg_cost_basis`. **No asset breached 25% on
-either leg.** Closest: SPCX at 19.7% off its $152.9988 peak / 18.9% off its
-$151.62 cost basis. No emergency liquidations triggered.
-
-## Liquidation recovery / cooldown check (Step 2)
-* **MU**: liquidated 2026-07-16 @ $862.81. Current $963.47 is +11.7%
-  (clears the 7% `min_recovery_price_percentage` bar), but only 5 days
-  elapsed vs. the 8-day `cool_down_period_after_lquidation` — still locked
-  out. Stays out of drift calc.
-* **SOXL**: liquidated 2026-07-16 @ $147.6401. Current $157.74 is only
-  +6.8% — below the 7% recovery bar (and cooldown also unmet at 5 days).
-  Stays out of drift calc.
-* **IONQ**: liquidated 2026-07-13 @ $38.8001. Cooldown cleared (8 days
-  elapsed), but current $35.255 is still **9.1% below** the liquidated
-  price — a further decline, not a recovery. Stays out of drift calc.
-
-## Drift & Alpha Leader (Step 3)
-Target weights sum to 52.3 across 30 symbols. Drift computed against
-`account_balance` ≈ $46,157.48 (`drift_tolerance_percentage` 2.0%).
-
-**Overweight (>2.0% drift):**
-| Symbol | Current % | Target % | Drift |
-|---|---|---|---|
-| META | 15.63% | 1.91% | +13.72% |
-| TQQQ | 5.73% | 2.87% | +2.86% |
-| PLTR | 7.45% | 4.78% | +2.67% |
-
-(SPCX also nominally overweight at 4.26% vs. 3.82% target, but drift 0.44%
-is inside tolerance.)
-
-**Alpha Leader:** **COIN**, +9.47% over the trailing 7 days (vs. next-best
-AAPL +4.15%, MSFT +3.76%). COIN's unrealized gain vs. `avg_cost_basis`
-($166.64) at the current $176.79 quote is **+6.09%**, clearing the 4.0%
-`materialize_profit_percentage` bar for **GET THE PROFITS** — but COIN
-already has a profit-take sale recorded today (`profitSellDate`
-2026-07-21, $175.7001, $210.87 realized at 9:50 AM ET). Per the standing
-rule ("do not trigger GET THE PROFITS again if there are any previous
-sales on the Alpha Leader within today's business day"), **this cycle's
-GET THE PROFITS trigger is suppressed**. No incremental Alpha buy was
-possible regardless — `base_deployable_cash` = Math.max(0, $9,039.14 −
-$250 − $9,000) = **$0** (settlement reserve wall absorbs all headroom).
-
-## Overweight trim evaluation (Step 4) — zero legal sell source
-All four overweight/near-overweight candidates fail the
-`overweight_sell_minimum_profit_margin_percent` (1.0%) gate and none is
-listed in `forceSell`:
-| Symbol | avg_cost_basis | current_price | Raw_Gain_% | Sellable? |
-|---|---|---|---|---|
-| META | 664.01 | 648.11 | −2.40% | No — underwater |
-| TQQQ | 73.92 | 71.35 | −3.48% | No — underwater |
-| PLTR | 134.51 | 133.18 | −0.99% | No — underwater |
-| SPCX | 151.62 | 122.90 | −18.94% | No — underwater |
-
-No legal Overweight trim source exists this cycle, so the High-Beta Gain
-Score ranking (Beta × Raw_Gain_%) was not computed — there is nothing to
-rank when every candidate is guardrail-blocked. `Total_High_Beta_Gains_Realized`
-= **$0.00** this cycle.
-
-## Underweight targets — unfunded on zero deployable cash
-Every non-excluded target besides META/TQQQ/PLTR (SPCX inside tolerance)
-is Underweight, but with `base_deployable_cash` at $0 and no harvestable
-Overweight capital, **none could be funded**. Logged as SKIPPED/PENDING —
-blocking reason: **zero deployable cash** (settlement reserve wall +
-no legal sell source).
-
-## Price limit / volatility halts (Step 5)
-Not reached — no buy or sell candidates survived to this stage.
-
-## peak/prices.json updates
-New intraday highs recorded (current price exceeds stored `peakPrice`):
-* **COIN**: peakPrice 176.195 → **176.79**, peakDate unchanged 2026-07-21.
-* **ARM**: peakPrice 287.68 → **288.06**, peakDate 2026-07-14 → **2026-07-21**.
-* **GM**: peakPrice 77.74 → **79.55**, peakDate unchanged 2026-07-21.
-All other symbols: current price below stored peak — no change. No
-`liquidatedPrice`/`liquidatedDate`, `profitSellPrice`/`profitSellDate`, or
-`lastPurchaseDate` fields changed (no sells or buys executed this cycle).
-
-## Final balances
-* Cash (buying_power): **$9,039.14** (well above `min_cash_absolute` $250;
-  above lean `min_cash_target` $500 — cannot be deployed closer to target
-  this cycle since the settlement reserve wall consumes all headroom).
-* Total equity value: **$37,118.34**.
-* Account balance: **$46,157.48**.
-* Reserve headroom: $8,789.13 theoretical / $0 bridgeable this cycle (COIN
-  lot still pending settlement, expected 2026-07-22).
-
-## Notes
-This is the second scheduled tick today (9:50 AM ET cycle already executed
-the COIN profit-take and 6 first-time-trade buys). This 3:15 PM ET cycle
-found the portfolio essentially frozen: META's 13.7-point drift is the
-dominant imbalance but is structurally unfixable under current guardrails
-until either its price recovers above the $671.05 breakeven-plus-margin
-level or a `forceSell` override is added — the position is underwater
-despite being more than 8x its target weight. TQQQ, PLTR, and SPCX face the
-same underwater block. With the $9,000 settlement reserve wall exceeding
-current buying power net of the cash floor, no organic buying power exists
-until the pending COIN sale settles (expected 2026-07-22) or a fresh
-legal sell materializes. Zero drawdown breaches, zero cooldown/recovery
-clears, zero legal trims, zero deployable cash — a fully quiet cycle.
-Per repo convention, this entry is committed to a fresh feature branch and
-merged directly into `main` to preserve the unalterable paper trail.
-
----
