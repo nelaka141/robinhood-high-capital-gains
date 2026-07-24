@@ -509,3 +509,210 @@ Per repo convention, this entry is committed to a fresh feature branch and
 merged directly into `main` to preserve the unalterable paper trail.
 
 ---
+
+# 2026-07-22 09:52 AM EDT — Scheduled Rebalance Check — EXECUTED (Alpha Leader Rotates to SMCI on a +14.8% 7-Day Momentum Spike, GET-THE-PROFITS Fires at +12.4% Unrealized Gain — $29.23 Realized, No Alpha Buy This Cycle; PLTR/TQQQ/META Overweight but Negative-Margin-Blocked as Usual; Zero Underweight Breaches; Overnight COIN Settlement Reconciled, Reserve Fully Restored)
+
+**Status:** EXECUTED. **1 of 1 intended order filled** (1 sell, 0 buys) —
+fresh, stateless run for the 9:45 AM ET scheduled tick. `CLAUDE.md`
+re-pulled fresh from `main` (SHA `2df0e17`, text version header "Volume
+2.28.0", unchanged from the last several cycles). `portfolio_targets.json`
+(v2.17.0), `peak/prices.json`, and `settlement/reserve.json` all re-pulled
+fresh from `main` for this run.
+
+## Pre-check state (~9:47 AM ET, regular hours)
+* Account `795732718` ("Agentic", cash-type). `buying_power` =
+  **$9,250.01**, `cash` (ledger) = **$9,250.01** — **no gap**, confirming
+  yesterday's COIN profit-take sale ($210.87, expected settle
+  2026-07-22) has now cleared into spendable buying power.
+* `current_cash` = Math.min($9,250.01, `cap_on_total_cash_balance_to_use`
+  $10,000) = **$9,250.01**.
+* Equity value (live quotes, 27 held target symbols; MU, SOXL, IONQ still
+  at zero shares under liquidation cooldown/recovery-fail): broker
+  `get_portfolio` snapshot **$36,779.70**. `account_balance` ≈
+  **$46,029.71**.
+
+## Settlement reserve reconciliation (Step 1)
+* `settlement/reserve.json` → one `pending_draws` entry: COIN, saleDate
+  2026-07-21, expectedSettleDate 2026-07-22, saleProceeds $210.87,
+  reserveDrawn $210.87, settled: false.
+* Settlement check: `cash` − `buying_power` = $9,250.01 − $9,250.01 =
+  **$0.00** — the gap has closed exactly as expected on the T+1 settle
+  date. **Confirmed settled** — entry marked `settled: true` and removed
+  from `pending_draws`, fully replenishing the reserve.
+* `reserve_available_to_draw` after reconciliation = $9,000 − $0 =
+  **$9,000** (full headroom restored for this cycle).
+
+## Drawdown audit (Step 1)
+Checked every held asset against `max_trailing_drawdown_percentage`
+(25%) vs. both `peakPrice` and `avg_cost_basis`. **No asset breached 25%
+on either leg.** Closest: SPCX (20.2% off its $152.9988 peak / 19.5% off
+its $151.62 cost basis), INTC (9.8% off peak / 17.0% off cost basis). No
+emergency liquidations triggered.
+
+## Liquidation recovery / cooldown check (Step 2)
+* **MU**: liquidated 2026-07-16 @ $862.81. Current $961.68 is +11.5%
+  (clears the 7% `min_recovery_price_percentage` bar), but only 6 days
+  elapsed vs. the 8-day `cool_down_period_after_lquidation` — still
+  locked out. Stays out of drift calc.
+* **SOXL**: liquidated 2026-07-16 @ $147.6401. Current $156.61 is only
+  +6.1% — below the 7% recovery bar (and cooldown also unmet at 6 days).
+  Stays out of drift calc.
+* **IONQ**: liquidated 2026-07-13 @ $38.8001. Cooldown cleared (9 days
+  elapsed), but current $35.5401 is still **8.4% below** the liquidated
+  price — a further decline, not a recovery. Stays out of drift calc.
+
+## Drift & Alpha Leader (Step 3)
+Target weights sum to 52.3 across 30 symbols. Drift computed against
+`account_balance` ≈ $46,024 (`drift_tolerance_percentage` 2.0%; no
+symbol qualifies for the 0.1% first-time-trade tolerance this cycle —
+every target has an entry in `peak/prices.json`).
+
+**Overweight (>2.0% drift):**
+| Symbol | Current % | Target % | Drift |
+|---|---|---|---|
+| META | 15.35% | 1.91% | +13.44% |
+| TQQQ | 5.68% | 2.87% | +2.82% |
+| PLTR | 7.22% | 4.78% | +2.44% |
+
+**Underweight:** none breaching this cycle — F, GM, IBM, NFLX, UNH, GE
+all sit at ~1.82% drift, just inside the 2.0% band (each now has an
+established `lastPurchaseDate`, so standard tolerance applies, not the
+0.1% first-time-trade tolerance from two cycles ago).
+
+**Alpha Leader — SMCI (+14.80% over 7 days)**, computed from the
+2026-07-15 official close ($26.89) → live $30.87 at scan time — a sharp
+single-day momentum spike (SMCI traded up ~21% intraday vs. its prior
+close). Runner-up was GM (+7.60%); MU (+6.35%, cooldown-excluded) and
+COIN (+4.52%, repurchase-lock-excluded — only 1 of 2
+`sold_asset_repurchase_days` elapsed) both outranked GM but are
+ineligible for any Alpha routing this cycle regardless of the outcome
+below.
+
+**GET THE PROFITS check on SMCI:** avg cost basis $27.46, current price
+$30.8695 at scan time → unrealized gain **+12.42%**, well past
+`materialize_profit_percentage` (4.0%). `get_equity_orders` confirmed no
+SMCI orders (or any orders) placed on this account yet today — rule
+**triggers** cleanly. Per CLAUDE.md: sell `profit_sell_percentage` (40%)
+of SMCI and **do not buy any new Alpha Leader shares this cycle** (moot
+for SMCI regardless — see below — but the rule would have blocked a
+buy-side rotation to GM too, since the "no buy" clause is unconditional
+once a GET-THE-PROFITS sale fires).
+
+*Note for the record:* SMCI's own repurchase-lock guard would have
+independently blocked any fresh SMCI **buy** this cycle even absent the
+profit-take rule — its price is **+6.6% above** (not below) its
+`profitSellPrice` ($28.9601, sold 2026-07-09), the opposite of the
+required ≥1.5% drop needed to bring a previously profit-sold asset back
+into buy-eligibility.
+
+`base_deployable_cash` = Math.max(0, $9,250.01 − $250 `min_cash_absolute`
+− $9,000 `settlement_reserve_target`) = **$0.01** — immaterial, and moot
+since no Alpha buy occurs this cycle and no Underweight breach exists to
+fund (see below).
+
+## Overweight trim evaluation (Step 4) — zero legal sell source, again
+All three Overweight candidates fail the
+`overweight_sell_minimum_profit_margin_percent` (1.0%) gate and none is
+listed in `forceSell`:
+| Symbol | avg_cost_basis | current_price | Raw_Gain_% | Lock-in? | Sellable? |
+|---|---|---|---|---|---|
+| META | 664.01 | 634.62 | −4.43% | Clear (6d > 2d) | No — underwater |
+| TQQQ | 73.92 | 70.565 | −4.54% | Clear (6d > 2d) | No — underwater |
+| PLTR | 134.51 | 128.65 | −4.36% | No `lastPurchaseDate` (untracked, treated unlocked) | No — underwater |
+
+No legal Overweight trim source exists this cycle, so the High-Beta Gain
+Score ranking (Beta × Raw_Gain_%) was not computed — nothing to rank
+when every candidate is guardrail-blocked. `Total_High_Beta_Gains_Realized`
+(overweight-trim component) = **$0.00** this cycle.
+
+## Underweight targets — none breaching, nothing to fund
+All six previously first-time-trade targets (F, GM, IBM, NFLX, UNH, GE)
+now sit inside the standard 2.0% tolerance band (~1.82% drift each) —
+no Underweight breach exists this cycle, so the pro-rata buy step is a
+no-op regardless of the near-zero `base_deployable_cash`.
+
+## Price limit / volatility halts (Step 5)
+Not applicable to the SMCI sale — `sell_price_diff_limit` only exempts
+routine drift-selling on a **crash** day; SMCI is up sharply (+14.8%
+over 7 days, +21% today), so the guard does not apply. No buy or
+Overweight-trim candidates reached this stage.
+
+## Execution (Step 6) — sequential, regular market hours
+1. **SELL SMCI** 0.939214 sh (40% of the 2.348035-share position) @ avg
+   **$31.1228** market → **$29.23** proceeds. Realized gain =
+   ($31.1228 − $27.46) × 0.939214 = **+$3.44**. Order
+   `6a60cacf-78e0-4595-83dc-e56f2655a8dc`, filled 2026-07-22 13:51:11 UTC
+   (9:51:11 AM ET).
+
+No order fell below `sell_or_buy_value_limit` ($10). Gross nominal value
+sold ($29.23) was far under `seek_approval_value` ($10,000) — no
+user-approval halt required. No buy/sell conflict on the same symbol
+this cycle (SMCI buy is explicitly suppressed by the GET-THE-PROFITS
+rule; no other buy was ever in play since zero Underweight breaches
+existed).
+
+### Settlement reserve — no new draws needed
+SMCI's $29.23 sale proceeds are not yet reflected in `buying_power`
+(confirmed empirically post-trade: `cash` $9,279.24 vs. `buying_power`
+still $9,250.01, a $29.23 gap, expected to settle T+1 ≈ 2026-07-23). No
+buy was funded this cycle, so **no bridging draw was created** —
+`settlement/reserve.json` is left with an empty `pending_draws` list
+(the sole prior entry, COIN, was reconciled and removed in Step 1 above).
+`reserve_available_to_draw` remains **$9,000** for the next cycle.
+
+## Post-trade balances
+* `cash` **$9,279.24**, `buying_power` **$9,250.01** (gap = $29.23,
+  matches the fresh unsettled SMCI proceeds).
+* `equity_value` **$36,654.40**, `total_value` (account_balance)
+  **$45,933.64**.
+* Cash sits well above `min_cash_target` ($500) and `min_cash_absolute`
+  ($250); the $9,000 reserve wall-off plus the cash floor account for
+  the rest — consistent with "keep cash lean but never below floor."
+
+## peak/prices.json updates
+* **SMCI**: `peakPrice` 27.457 → **31.1228** (new all-time high, set by
+  today's own execution fill, `peakDate` → **2026-07-22**);
+  `profitSellPrice` → **31.1228**, `profitSellDate` → **2026-07-22**
+  (fresh GET-THE-PROFITS record, overwriting the 2026-07-09 entry);
+  `lastPurchaseDate` unchanged (2026-07-15, no buy this cycle).
+* **F**: `peakPrice` 14.39 → **14.605** (new high), `peakDate` →
+  **2026-07-22**.
+* **GM**: `peakPrice` 79.55 → **83.5424** (new high), `peakDate` →
+  **2026-07-22**.
+* **NFLX**: `peakPrice` 69.0042 → **70.08** (new high), `peakDate` →
+  **2026-07-22**.
+* All other symbols: current price below stored peak — no change. No
+  `liquidatedPrice`/`liquidatedDate` fields changed this cycle.
+
+## Total_High_Beta_Gains_Realized
+$0.00 from overweight trims (all three candidates blocked by the
+profit-margin guard, as in every recent cycle). SMCI's GET-THE-PROFITS
+sale realized **+$3.44** separately under the Alpha Leader profit-take
+rule (not an overweight trim, so excluded from the High-Beta Gains tally
+by definition, logged here for completeness — no `Beta_asset` computation
+was needed since this wasn't a High-Beta-ranked trim).
+
+## Reconciliation
+One prior-cycle settlement reconciled this cycle: COIN's $210.87 draw
+(saleDate 2026-07-21) confirmed settled via the closed `cash`/
+`buying_power` gap, removed from `pending_draws`, restoring full $9,000
+reserve headroom. One fresh sale this cycle (SMCI, $29.23) remains
+unsettled but required no reserve bridge since no buy needed funding.
+
+## Notes
+This cycle's headline development: SMCI's single-day ~21% pop vaulted it
+past every other target-list symbol on the 7-day momentum screen,
+triggering its first-ever GET THE PROFITS realization since its original
+2026-07-09 profit-take. Notably, SMCI's own repurchase-lock guard was
+independently unsatisfied this cycle (price above, not below, its prior
+`profitSellPrice`), meaning even without the GET-THE-PROFITS override, no
+fresh SMCI buy could have occurred — the sell-side and buy-side guards
+pointed the same direction for once. With the COIN settlement clearing
+overnight, the reserve wall is now fully restored to $9,000 available,
+but it remains structurally irrelevant this cycle since zero Underweight
+breaches exist to fund. META's persistent 13.4-point overweight drift
+remains the dominant unresolved imbalance — still underwater on cost
+basis and thus un-trimmable under current guardrails, unchanged from
+every prior cycle's assessment.
+Per repo convention, this entry is committed to a fresh feature branch
+and merged directly into `main` to preserve the unalterable paper trail.

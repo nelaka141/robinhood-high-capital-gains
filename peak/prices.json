@@ -15,7 +15,7 @@
                 "liquidatedDate": null,
                 "profitSellPrice": null,
                 "profitSellDate": null,
-                "lastPurchaseDate": null
+                "lastPurchaseDate": "2026-07-24"
         },
         "PLTR": {
                 "peakPrice": 138.54,
@@ -36,7 +36,7 @@
                 "lastPurchaseDate": "2026-07-09"
         },
         "SOXL": {
-                "peakPrice": 194.50,
+                "peakPrice": 194.5,
                 "peakDate": "2026-07-09",
                 "liquidatedPrice": 147.6401,
                 "liquidatedDate": "2026-07-16",
@@ -51,7 +51,7 @@
                 "liquidatedDate": null,
                 "profitSellPrice": null,
                 "profitSellDate": null,
-                "lastPurchaseDate": "2026-07-16"
+                "lastPurchaseDate": "2026-07-24"
         },
         "COIN": {
                 "peakPrice": 176.79,
@@ -60,7 +60,7 @@
                 "liquidatedDate": null,
                 "profitSellPrice": 175.7001,
                 "profitSellDate": "2026-07-21",
-                "lastPurchaseDate": null
+                "lastPurchaseDate": "2026-07-24"
         },
         "ARM": {
                 "peakPrice": 288.06,
@@ -69,7 +69,7 @@
                 "liquidatedDate": null,
                 "profitSellPrice": 333.5356,
                 "profitSellDate": "2026-07-09",
-                "lastPurchaseDate": "2026-07-14"
+                "lastPurchaseDate": "2026-07-24"
         },
         "SMCI": {
                 "peakPrice": 31.1228,
@@ -105,7 +105,7 @@
                 "liquidatedDate": null,
                 "profitSellPrice": null,
                 "profitSellDate": null,
-                "lastPurchaseDate": "2026-07-14"
+                "lastPurchaseDate": "2026-07-24"
         },
         "TSLA": {
                 "peakPrice": 409.36,
@@ -114,14 +114,14 @@
                 "liquidatedDate": null,
                 "profitSellPrice": null,
                 "profitSellDate": null,
-                "lastPurchaseDate": "2026-07-16"
+                "lastPurchaseDate": "2026-07-24"
         },
         "NVDA": {
                 "peakPrice": 213.205,
                 "peakDate": "2026-07-22",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
-                "profitSellPrice": 211.50,
+                "profitSellPrice": 211.5,
                 "profitSellDate": "2026-07-14",
                 "lastPurchaseDate": "2026-07-10"
         },
@@ -168,25 +168,25 @@
                 "liquidatedDate": null,
                 "profitSellPrice": null,
                 "profitSellDate": null,
-                "lastPurchaseDate": "2026-07-13"
+                "lastPurchaseDate": "2026-07-24"
         },
         "AAPL": {
-                "peakPrice": 328.1499,
-                "peakDate": "2026-07-20",
+                "peakPrice": 332.73,
+                "peakDate": "2026-07-24",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
                 "profitSellPrice": 333.4801,
                 "profitSellDate": "2026-07-17",
-                "lastPurchaseDate": "2026-07-20"
+                "lastPurchaseDate": "2026-07-24"
         },
         "AMD": {
-                "peakPrice": 558.10,
+                "peakPrice": 558.1,
                 "peakDate": "2026-07-14",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
                 "profitSellPrice": null,
                 "profitSellDate": null,
-                "lastPurchaseDate": "2026-07-13"
+                "lastPurchaseDate": "2026-07-24"
         },
         "NEE": {
                 "peakPrice": 90.51,
@@ -195,7 +195,7 @@
                 "liquidatedDate": null,
                 "profitSellPrice": null,
                 "profitSellDate": null,
-                "lastPurchaseDate": "2026-07-13"
+                "lastPurchaseDate": "2026-07-24"
         },
         "VRT": {
                 "peakPrice": 312.34,
@@ -204,7 +204,7 @@
                 "liquidatedDate": null,
                 "profitSellPrice": null,
                 "profitSellDate": null,
-                "lastPurchaseDate": "2026-07-13"
+                "lastPurchaseDate": "2026-07-24"
         },
         "AVGO": {
                 "peakPrice": 397.01,
@@ -213,7 +213,7 @@
                 "liquidatedDate": null,
                 "profitSellPrice": null,
                 "profitSellDate": null,
-                "lastPurchaseDate": "2026-07-13"
+                "lastPurchaseDate": "2026-07-24"
         },
         "F": {
                 "peakPrice": 14.605,
@@ -222,7 +222,7 @@
                 "liquidatedDate": null,
                 "profitSellPrice": null,
                 "profitSellDate": null,
-                "lastPurchaseDate": "2026-07-21"
+                "lastPurchaseDate": "2026-07-24"
         },
         "GM": {
                 "peakPrice": 83.5424,
@@ -234,8 +234,8 @@
                 "lastPurchaseDate": "2026-07-21"
         },
         "IBM": {
-                "peakPrice": 214.7671,
-                "peakDate": "2026-07-17",
+                "peakPrice": 214.975,
+                "peakDate": "2026-07-24",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
                 "profitSellPrice": null,
@@ -243,8 +243,8 @@
                 "lastPurchaseDate": "2026-07-21"
         },
         "NFLX": {
-                "peakPrice": 70.08,
-                "peakDate": "2026-07-22",
+                "peakPrice": 70.4637,
+                "peakDate": "2026-07-24",
                 "liquidatedPrice": "",
                 "liquidatedDate": null,
                 "profitSellPrice": null,
@@ -258,7 +258,7 @@
                 "liquidatedDate": null,
                 "profitSellPrice": null,
                 "profitSellDate": null,
-                "lastPurchaseDate": "2026-07-21"
+                "lastPurchaseDate": "2026-07-24"
         },
         "GE": {
                 "peakPrice": 355.94,
@@ -267,6 +267,6 @@
                 "liquidatedDate": null,
                 "profitSellPrice": null,
                 "profitSellDate": null,
-                "lastPurchaseDate": "2026-07-21"
+                "lastPurchaseDate": "2026-07-24"
         }
 }
