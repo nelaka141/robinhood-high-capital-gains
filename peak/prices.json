@@ -171,8 +171,8 @@
 		"lastPurchaseDate": "2026-07-27"
 	},
 	"AAPL": {
-		"peakPrice": 336.21,
-		"peakDate": "2026-07-27",
+		"peakPrice": 338.43,
+		"peakDate": "2026-07-28",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 333.4801,
@@ -216,8 +216,8 @@
 		"lastPurchaseDate": "2026-07-27"
 	},
 	"F": {
-		"peakPrice": 14.725,
-		"peakDate": "2026-07-27",
+		"peakPrice": 14.855,
+		"peakDate": "2026-07-28",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": null,
@@ -225,8 +225,8 @@
 		"lastPurchaseDate": "2026-07-24"
 	},
 	"GM": {
-		"peakPrice": 86.12,
-		"peakDate": "2026-07-27",
+		"peakPrice": 88.9,
+		"peakDate": "2026-07-28",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": null,
@@ -234,8 +234,8 @@
 		"lastPurchaseDate": "2026-07-21"
 	},
 	"IBM": {
-		"peakPrice": 218.844,
-		"peakDate": "2026-07-27",
+		"peakPrice": 218.89,
+		"peakDate": "2026-07-28",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 218.844,
@@ -243,8 +243,8 @@
 		"lastPurchaseDate": "2026-07-21"
 	},
 	"NFLX": {
-		"peakPrice": 70.4637,
-		"peakDate": "2026-07-24",
+		"peakPrice": 73.305,
+		"peakDate": "2026-07-28",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 70.225,
@@ -261,8 +261,8 @@
 		"lastPurchaseDate": "2026-07-27"
 	},
 	"GE": {
-		"peakPrice": 361.6559,
-		"peakDate": "2026-07-27",
+		"peakPrice": 364.58,
+		"peakDate": "2026-07-28",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": null,
