@@ -2,7 +2,7 @@
   "portfolio_metadata": {
     "version": "2.28.0",
     "last_updated": "2026-07-27",
-    "global_drift_tolerance": 2.0,
+    "global_drift_tolerance": 1.0,
     "max_trailing_drawdown_percentage": 35,
     "min_recovery_price_percentage": 5.0,
     "reinvestment_multiplier_factor": 1.25,
