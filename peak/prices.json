@@ -171,7 +171,7 @@
 		"lastPurchaseDate": "2026-07-27"
 	},
 	"AAPL": {
-		"peakPrice": 338.43,
+		"peakPrice": 339.19,
 		"peakDate": "2026-07-28",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -216,7 +216,7 @@
 		"lastPurchaseDate": "2026-07-27"
 	},
 	"F": {
-		"peakPrice": 14.855,
+		"peakPrice": 14.865,
 		"peakDate": "2026-07-28",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -225,7 +225,7 @@
 		"lastPurchaseDate": "2026-07-24"
 	},
 	"GM": {
-		"peakPrice": 88.9,
+		"peakPrice": 89.70,
 		"peakDate": "2026-07-28",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -234,7 +234,7 @@
 		"lastPurchaseDate": "2026-07-21"
 	},
 	"IBM": {
-		"peakPrice": 218.89,
+		"peakPrice": 226.975,
 		"peakDate": "2026-07-28",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -247,8 +247,8 @@
 		"peakDate": "2026-07-28",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
-		"profitSellPrice": 70.225,
-		"profitSellDate": "2026-07-27",
+		"profitSellPrice": null,
+		"profitSellDate": null,
 		"lastPurchaseDate": "2026-07-21"
 	},
 	"UNH": {
