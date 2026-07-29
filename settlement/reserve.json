@@ -1,3 +1,11 @@
 {
-  "pending_draws": []
+  "pending_draws": [
+    {"symbol": "PLTR", "saleDate": "2026-07-29", "expectedSettleDate": "2026-07-30", "saleProceeds": 5882.19, "reserveDrawn": 2093.37, "settled": false},
+    {"symbol": "MU", "saleDate": "2026-07-29", "expectedSettleDate": "2026-07-30", "saleProceeds": 6260.60, "reserveDrawn": 2228.04, "settled": false},
+    {"symbol": "NVDA", "saleDate": "2026-07-29", "expectedSettleDate": "2026-07-30", "saleProceeds": 5339.40, "reserveDrawn": 1900.20, "settled": false},
+    {"symbol": "GOOG", "saleDate": "2026-07-29", "expectedSettleDate": "2026-07-30", "saleProceeds": 4035.18, "reserveDrawn": 1436.05, "settled": false},
+    {"symbol": "F", "saleDate": "2026-07-29", "expectedSettleDate": "2026-07-30", "saleProceeds": 457.81, "reserveDrawn": 162.93, "settled": false},
+    {"symbol": "GM", "saleDate": "2026-07-29", "expectedSettleDate": "2026-07-30", "saleProceeds": 709.54, "reserveDrawn": 252.51, "settled": false},
+    {"symbol": "AMZN", "saleDate": "2026-07-29", "expectedSettleDate": "2026-07-30", "saleProceeds": 2604.51, "reserveDrawn": 926.89, "settled": false}
+  ]
 }
