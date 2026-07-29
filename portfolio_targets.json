@@ -1,7 +1,7 @@
 {
   "portfolio_metadata": {
-    "version": "2.29.0",
-    "last_updated": "2026-07-27",
+    "version": "2.30.0",
+    "last_updated": "2026-07-29",
     "global_drift_tolerance": 1.0,
     "max_trailing_drawdown_percentage": 35,
     "min_recovery_price_percentage": 5.0,
@@ -24,6 +24,7 @@
     "overweight_sell_minimum_profit_margin_percent": 1.0,
     "momentum_reversal_minimum_profit_margin_percent": 1.0,
     "momentum_reversal_minimum_profit_dollars": 12.5,
+    "profit_resell_cooldown_days": 15,
     "sell_or_buy_value_limit": 10,
     "settlement_reserve_target": 9000,
     "settlement_lag_days": 1,
