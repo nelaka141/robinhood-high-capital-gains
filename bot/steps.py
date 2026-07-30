@@ -128,7 +128,14 @@ def step2_guardrails(ctx: RunContext) -> None:
         price = ctx.quotes[sym].last_trade_price
 
         # Liquidation recovery gate — excludes the symbol from ALL drift/Alpha-Leader play.
-        if st.liquidatedPrice not in (None, ""):
+        # Only applies while NOT currently held: once repurchased (quantity > 0), the position
+        # is back in normal play regardless of a stale liquidatedPrice/liquidatedDate left over
+        # from before the repurchase — peak/prices.json has no field that clears these on
+        # repurchase (unlike profitSellPrice/profitSellDate for the buy-guard below), so this
+        # check must gate on live position state, not just presence of the stored fields.
+        pos = ctx.positions.get(sym)
+        currently_held = pos is not None and pos.quantity > 0
+        if st.liquidatedPrice not in (None, "") and not currently_held:
             liquidated_price = float(st.liquidatedPrice)
             recovered = (
                 (price - liquidated_price) / liquidated_price * 100 >= cfg.meta.min_recovery_price_percentage
