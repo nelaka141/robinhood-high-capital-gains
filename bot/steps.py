@@ -441,16 +441,24 @@ def step5_price_limits(ctx: RunContext, broker: BrokerClient, buy_candidates: Di
 
 # ============================================================================================
 # Step 6 — Execute Sequential Trades
+#
+# Two flavors are provided:
+#   * step6a_prepare_sells / step6b_finalize_buys — PLANNING ONLY, never call
+#     broker.place_market_order. This is the snapshot-driven mode (bot/cli.py `plan`/
+#     `finalize`): an MCP-connected orchestrator supplies the data and executes the returned
+#     order plan itself. Use this when the caller (not this package) owns the broker connection.
+#   * step6_execute_live — the original all-in-one version that actually calls
+#     broker.place_market_order, for fully-standalone use when bot/ has its own direct broker
+#     credentials (see broker.RobinStocksBroker).
 # ============================================================================================
 
-def step6_execute(ctx: RunContext, broker: BrokerClient, planned_buys: Dict[str, float], dry_run: bool = True) -> None:
+def step6a_prepare_sells(ctx: RunContext) -> tuple[List[TradeIntent], bool, Optional[str]]:
+    """Builds the final sell order list (drawdown liquidations + GET THE PROFITS/Momentum
+    Reversal Trim + Overweight High-Beta trims), applies sell_or_buy_value_limit, and checks
+    the seek_approval_value halt. Returns (sells_to_place, halted, halt_reason). Places nothing.
+    """
     cfg = ctx.config
 
-    # Same-asset buy/sell exclusivity for this cycle.
-    selling_syms = {t.symbol for t in ctx.profit_taking_sells} | {t.symbol for t in ctx.overweight_trims}
-    planned_buys = {s: d for s, d in planned_buys.items() if s not in selling_syms}
-
-    # Drawdown-audit liquidations always execute first, in full, overriding everything else.
     liquidations = [
         TradeIntent(symbol=sym, side="sell", quantity=ctx.positions[sym].quantity,
                     reason="Drawdown Audit emergency liquidation (100%)")
@@ -460,37 +468,47 @@ def step6_execute(ctx: RunContext, broker: BrokerClient, planned_buys: Dict[str,
 
     gross_sell_value = sum((t.quantity or 0.0) * ctx.quotes[t.symbol].last_trade_price for t in all_sells)
     if gross_sell_value > cfg.meta.seek_approval_value:
-        ctx.skipped.append(SkippedTrade(
-            "ALL SELLS",
+        reason = (
             f"gross sell value ${gross_sell_value:,.2f} exceeds seek_approval_value "
-            f"(${cfg.meta.seek_approval_value:,.2f}) — halting for user approval",
-            "sell batch",
-        ))
-        return
+            f"(${cfg.meta.seek_approval_value:,.2f}) — halting for user approval"
+        )
+        ctx.skipped.append(SkippedTrade("ALL SELLS", reason, "sell batch"))
+        return [], True, reason
 
-    # --- 1. Sells first, sequential ---
+    sells_to_place = []
     for intent in all_sells:
         qty = intent.quantity or 0.0
         value = qty * ctx.quotes[intent.symbol].last_trade_price
         if value < cfg.meta.sell_or_buy_value_limit:
             ctx.skipped.append(SkippedTrade(intent.symbol, "below sell_or_buy_value_limit", "sell"))
             continue
-        order = _place(broker, ctx.account_number, intent.symbol, "sell",
-                        quantity=qty, tax_lots=intent.tax_lots, dry_run=dry_run)
-        ctx.executed_orders.append(order)
+        sells_to_place.append(intent)
 
-    # --- 2. Re-finalize tax_reserve now that this cycle's sells are confirmed ---
-    year_start = date(ctx.current_date.year, 1, 1)
-    ctx.net_realized_gains_ytd_effective = broker.get_realized_pnl_ytd(
-        ctx.account_number, year_start, ctx.current_date
-    )
+    return sells_to_place, False, None
+
+
+def step6b_finalize_buys(
+    ctx: RunContext,
+    planned_buys: Dict[str, float],
+    net_realized_gains_ytd_effective: float,
+    buying_power_now: float,
+) -> List[TradeIntent]:
+    """Given the caller's post-sell realized P&L and fresh buying power (fetched via MCP/broker
+    AFTER the Step 6a sells were confirmed filled), finalizes tax_reserve, applies the
+    settlement-bridge + hard-cap scaling, and returns the final buy order list. Places nothing.
+    """
+    cfg = ctx.config
+
+    selling_syms = {t.symbol for t in ctx.profit_taking_sells} | {t.symbol for t in ctx.overweight_trims} \
+        | set(ctx.drawdown_liquidations)
+    planned_buys = {s: d for s, d in planned_buys.items() if s not in selling_syms}
+
+    ctx.net_realized_gains_ytd_effective = net_realized_gains_ytd_effective
     prior_years_base = sum(v for y, v in ctx.tax_by_year.items() if int(y) < ctx.current_date.year)
     ctx.tax_reserve = (
-        prior_years_base + max(0.0, ctx.net_realized_gains_ytd_effective)
+        prior_years_base + max(0.0, net_realized_gains_ytd_effective)
     ) * cfg.meta.keep_aside_profits_for_tax_percent / 100
 
-    # --- 3. Settlement-bridge + hard cap, using the final tax_reserve ---
-    buying_power_now = broker.get_buying_power(ctx.account_number)
     total_planned = sum(planned_buys.values())
     shortfall = max(0.0, total_planned - (buying_power_now - cfg.meta.min_cash_absolute))
     bridged = _apply_settlement_bridge(ctx, shortfall)
@@ -500,13 +518,41 @@ def step6_execute(ctx: RunContext, broker: BrokerClient, planned_buys: Dict[str,
         scale = hard_cap / total_planned
         planned_buys = {s: d * scale for s, d in planned_buys.items()}
 
-    # --- 4. Buys ---
+    buys: List[TradeIntent] = []
     for sym, dollars in planned_buys.items():
         if dollars < cfg.meta.sell_or_buy_value_limit:
             continue
-        order = _place(broker, ctx.account_number, sym, "buy", dollar_amount=dollars, dry_run=dry_run)
+        intent = TradeIntent(symbol=sym, side="buy", dollar_amount=dollars)
+        buys.append(intent)
+        ctx.buys.append(intent)
+
+    return buys
+
+
+def step6_execute_live(ctx: RunContext, broker: BrokerClient, planned_buys: Dict[str, float], dry_run: bool = True) -> None:
+    """All-in-one live version: builds sells, places them, re-queries realized P&L and buying
+    power from `broker` itself, finalizes and places buys. Only use this when bot/ has its own
+    direct broker credentials (broker.RobinStocksBroker or your own BrokerClient) — for the
+    snapshot-driven / MCP-orchestrated mode use step6a_prepare_sells + step6b_finalize_buys via
+    bot/cli.py instead, which never call broker.place_market_order."""
+    sells, halted, _ = step6a_prepare_sells(ctx)
+    if halted:
+        return
+
+    for intent in sells:
+        order = _place(broker, ctx.account_number, intent.symbol, "sell",
+                        quantity=intent.quantity, tax_lots=intent.tax_lots, dry_run=dry_run)
         ctx.executed_orders.append(order)
-        ctx.buys.append(TradeIntent(symbol=sym, side="buy", dollar_amount=dollars))
+
+    year_start = date(ctx.current_date.year, 1, 1)
+    net_realized_gains_ytd_effective = broker.get_realized_pnl_ytd(ctx.account_number, year_start, ctx.current_date)
+    buying_power_now = broker.get_buying_power(ctx.account_number)
+
+    buys = step6b_finalize_buys(ctx, planned_buys, net_realized_gains_ytd_effective, buying_power_now)
+    for intent in buys:
+        order = _place(broker, ctx.account_number, intent.symbol, "buy",
+                        dollar_amount=intent.dollar_amount, dry_run=dry_run)
+        ctx.executed_orders.append(order)
 
 
 def _apply_settlement_bridge(ctx: RunContext, needed: float) -> float:

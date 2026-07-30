@@ -133,7 +133,7 @@ def main() -> None:
         planned_buys = steps.step5_price_limits(ctx, broker, planned_buys)
         print(f"[Step 5] planned_buys after pump-guard={ {k: round(v,2) for k,v in planned_buys.items()} }")
 
-        steps.step6_execute(ctx, broker, planned_buys, dry_run=True)
+        steps.step6_execute_live(ctx, broker, planned_buys, dry_run=True)
         print(f"[Step 6] executed_orders={len(ctx.executed_orders)} buys={[t.symbol for t in ctx.buys]}")
         assert all(o["state"] == "DRY_RUN" for o in ctx.executed_orders)
 

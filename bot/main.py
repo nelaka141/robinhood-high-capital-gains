@@ -1,4 +1,6 @@
-"""CLI entrypoint. Runs the full CLAUDE.md Execution Sequence, Steps 1 -> 7, in order.
+"""CLI entrypoint for STANDALONE mode — bot/ owns a direct broker connection (broker.py) and
+does everything itself: fetch data, decide, place orders, commit, email. Use this only if you
+run bot/ completely outside of any MCP-connected agent and give it its own credentials.
 
 Usage:
     python -m bot.main --account <account_number> --repo-dir . [--live]
@@ -6,6 +8,13 @@ Usage:
 Defaults to --dry-run (no real orders, no git push, no email) so you can inspect a cycle's
 decisions before ever routing a real order. Pass --live to actually place orders, commit,
 open+merge a PR, and draft the summary email.
+
+--- If you're running this FROM a scheduled Claude Code session (or any other agent that
+already has its own MCP/API connection to Robinhood and Gmail) — which is the setup this repo
+actually uses — use bot/cli.py's `plan`/`finalize` commands instead. That mode never needs its
+own broker credentials: the agent supplies a market-data snapshot, bot/ returns an exact order
+plan, and the agent (which already has a live connection) executes it. See bot/README.md,
+"Snapshot-driven mode".
 """
 from __future__ import annotations
 
@@ -63,7 +72,7 @@ def run_cycle(account_number: str, repo_dir: str, broker: BrokerClient, dry_run:
     planned_buys = steps.step5_price_limits(ctx, broker, planned_buys)
 
     # ---- Step 6 ----
-    steps.step6_execute(ctx, broker, planned_buys, dry_run=dry_run)
+    steps.step6_execute_live(ctx, broker, planned_buys, dry_run=dry_run)
 
     # ---- Step 7 ----
     _finalize_step7(ctx, repo_dir, dry_run)
