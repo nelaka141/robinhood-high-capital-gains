@@ -24,7 +24,7 @@
 		"liquidatedDate": null,
 		"profitSellPrice": 122.4601,
 		"profitSellDate": "2026-07-30",
-		"lastPurchaseDate": null
+		"lastPurchaseDate": "2026-07-30"
 	},
 	"MU": {
 		"peakPrice": 1022.91,
@@ -123,7 +123,7 @@
 		"liquidatedDate": null,
 		"profitSellPrice": 194.201,
 		"profitSellDate": "2026-07-30",
-		"lastPurchaseDate": "2026-07-27"
+		"lastPurchaseDate": "2026-07-30"
 	},
 	"ORCL": {
 		"peakPrice": 147.67,
@@ -141,10 +141,10 @@
 		"liquidatedDate": null,
 		"profitSellPrice": 331.2701,
 		"profitSellDate": "2026-07-30",
-		"lastPurchaseDate": "2026-07-27"
+		"lastPurchaseDate": "2026-07-30"
 	},
 	"MSFT": {
-		"peakPrice": 448.34,
+		"peakPrice": 454.85,
 		"peakDate": "2026-07-30",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
