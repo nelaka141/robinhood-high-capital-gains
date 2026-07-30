@@ -164,6 +164,14 @@ def _update_profit_sell_and_purchase_dates(ctx: RunContext) -> None:
         was_full_exit = st.profitSellDate is not None and (not pos or pos.quantity <= 0)
         if was_full_exit:
             st.peakPrice, st.peakDate = ctx.quotes[t.symbol].last_trade_price, today
+        # Clear a stale liquidation record now that this symbol is being bought (Step 6).
+        # A buy can only have fired here if step2_guardrails did NOT exclude the symbol —
+        # which means either it was never liquidated, or the recovery/cooldown gate passed
+        # this cycle, or it's currently held despite a leftover liquidatedPrice from before an
+        # earlier repurchase (steps.py's currently_held check). In every one of those cases the
+        # liquidation record is no longer relevant, so it's always safe to clear it here.
+        if st.liquidatedPrice not in (None, ""):
+            st.liquidatedPrice, st.liquidatedDate = "", None
 
 
 def main() -> None:

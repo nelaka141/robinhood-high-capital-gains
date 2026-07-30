@@ -101,10 +101,18 @@ def _update_price_state(ctx: RunContext) -> None:
         if sym in bought:
             st.lastPurchaseDate = today
             if st.profitSellDate and (sym not in sold_for_profit):
-                # Repurchased after a full-exit profit-sell -> fresh peak at the purchase price.
+                # Repurchased after a FULL-exit profit-sell -> fresh peak at the purchase price.
+                # A partial-sell remainder always leaves nonzero shares, so this only fires for
+                # the true full-exit case: zero (or no) position going into this buy.
                 pos = ctx.positions.get(sym)
-                if pos and pos.quantity > 0:
+                if not pos or pos.quantity <= 0:
                     st.peakPrice, st.peakDate = price, today
+            # Clear a stale liquidation record now that this symbol is being bought — a buy can
+            # only fire here if step2_guardrails did not exclude the symbol (never liquidated,
+            # recovery/cooldown passed this cycle, or currently held despite a leftover
+            # liquidatedPrice from an earlier repurchase), so it's always safe to clear here.
+            if st.liquidatedPrice not in (None, ""):
+                st.liquidatedPrice, st.liquidatedDate = "", None
 
 
 def _finalize_step7(ctx: RunContext, repo_dir: str, dry_run: bool) -> None:
