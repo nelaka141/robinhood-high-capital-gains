@@ -1632,3 +1632,766 @@ Cash landed well above the lean `min_cash_target` ($500) because $9,000 of the $
 * This is the first cycle since 2026-07-16 that MU has returned to the active drift pool — its $2,296 dollar-gap is by far the largest single-asset gap in the portfolio and will likely dominate future cycles' pro-rata allocations until closed or the Alpha Leader unblocks.
 * `materialize_profit_in_dollars` in the current `portfolio_targets.json` is $12.50 (down from the $25.00 floor referenced in the 2026-07-24 entry) — flagged here since it changes which near-miss GET THE PROFITS candidates are worth watching next cycle (none flipped this cycle; SMCI/GM/NFLX all remain short of even the lower floor).
 * GM is simultaneously this cycle's Alpha Leader *and* pump-guard blocked from buying — a first for this bot. If GM's 3-day low window rolls forward and the rally moderates below 5% next cycle, expect the Alpha Multiplier allocation to activate at the leader's already-large drift gap.
+
+# 2026-07-29 03:21 PM EDT — Scheduled Rebalance Check — NO TRADES (Zero Deployable Cash — Buying Power Sits Exactly at the min_cash_absolute Floor with the Full $9,000 Settlement Reserve Still Undrawable and a $4,119.56 Tax Reserve on Top; PLTR/MU/NVDA/GOOG/F/GM All Same-Day-Guard Blocked After This Morning's GTP Sweep; Alpha Leader GM (Momentum Score +40.18) Also Blocked by Its Own +13.0% 3-Day Pump Guard; TSLA/ORCL/MSFT/META Overweight and Drift-Breached but All Underwater — No Legal Trim Source Exists)
+
+**Status:** NO TRADES. **0 of 0 intended orders filled** — fresh, stateless run for the 3:15 PM ET scheduled tick. `CLAUDE.md` re-pulled fresh from `main` (Volume 2.38.0, commit `c6b89da`) via the GitHub API at session start and confirmed unchanged from the checked-in copy before evaluation began.
+
+## Account Snapshot (~3:16 PM ET)
+- `buying_power` (settled, spendable — this is `account_cash`/`current_cash` per the standing clarification): **$250.01**
+- `cash` (ledger, includes this morning's unsettled sale proceeds): **$25,539.24** — not usable this cycle; `expectedSettleDate` for all 7 pending draws is 2026-07-30 (tomorrow), and `buying_power` is unchanged from this morning's post-trade figure, confirming nothing has settled yet.
+- `current_cash` (after `cap_on_total_cash_balance_to_use` $10,000 + `settlement_reserve_target` $9,000 = $19,000 cap): **$250.01** (cap not binding — `buying_power` itself is the binding figure)
+- Total equity market value (28 held target positions; SOXL/IONQ not held): **$70,704.55**
+- `account_balance` (equity MV + `current_cash`): **$70,954.56**
+- `net_realized_gains_ytd_pretrade`/`_effective` (Jan 1 – Jul 29, via `get_realized_pnl`; identical since no sells this cycle): **$13,731.87** (net YTD gain, already reflecting this morning's 7 realized sales) → `tax_reserve` = $13,731.87 × 30% = **$4,119.56**
+
+## Drawdown Audit (max_trailing_drawdown_percentage = 35%, both peak AND cost-basis drop required)
+No asset breached both legs simultaneously. Worst cases: INTC (26.14% off peak / 23.63% off cost), SPCX (25.10% / 24.42%), ORCL (18.20% / 22.85%), TQQQ (20.42% / 16.80%). No emergency liquidations triggered.
+
+## Liquidation Recovery / Cooldown Check (Step 2)
+- **SOXL**: liquidated 2026-07-16 @ $147.6401. Current $104.485 — still a decrease, not a recovery (`min_recovery_price_percentage` 5.0% not met). Stays excluded from drift/Alpha-Leader consideration.
+- **IONQ**: liquidated 2026-07-13 @ $38.8001. Current $33.76 — still a decrease, not recovered. Stays excluded.
+- All other symbols carrying a `profitSellPrice` (TQQQ, PLTR, MU, COIN, ARM, SMCI, AMZN, NVDA, GOOG, AAPL, F, GM, IBM) still hold a nonzero position — all were partial (50%) trims, not full exits, so the `sold_asset_repurchase_days` exclusion does not apply; normal drift rules govern them.
+
+## Alpha Leader Selection — Momentum Score (momentum_lookback_days = 5, 30 days RSI/EMA pulled per symbol)
+| Symbol | RSI14 | EMA9_now | EMA9_prior | Price_vs_EMA% | EMA_Slope% | Momentum_Score |
+|---|---|---|---|---|---|---|
+| **GM** | 73.35 | 82.90 | 77.34 | 9.64 | 7.19 | **+40.18 ← ALPHA LEADER** |
+| AAPL | 68.94 | 330.09 | 323.22 | 3.82 | 2.13 | +24.89 |
+| F | 63.13 | 14.42 | 14.06 | 8.52 | 2.56 | +24.20 |
+| GE | 59.47 | 354.36 | 350.39 | 0.60 | 1.13 | +11.21 |
+| UNH | 55.78 | 424.76 | 426.07 | 0.02 | -0.31 | +5.49 |
+| NEE | 54.07 | 89.03 | 88.35 | -0.57 | 0.77 | +4.26 |
+| COIN | 52.67 | 164.28 | 163.35 | 0.18 | 0.57 | +3.42 |
+| MSFT | 51.72 | 389.91 | 393.90 | 2.10 | -1.01 | +2.81 |
+| SMCI | 47.58 | 28.52 | 25.97 | -5.01 | 9.83 | +2.40 |
+| NFLX | 46.74 | 70.79 | 71.43 | 3.63 | -0.90 | -0.53 |
+| AVGO | 47.02 | 384.37 | 382.37 | -0.34 | 0.52 | -2.79 |
+| MSTR | 43.42 | 96.37 | 97.18 | 2.29 | -0.83 | -5.12 |
+| IBM | 42.80 | 222.03 | 233.39 | 3.28 | -4.87 | -8.79 |
+| PLTR | 44.48 | 127.60 | 132.08 | -1.51 | -3.39 | -10.42 |
+| NVDA | 42.81 | 203.41 | 205.51 | -4.24 | -1.02 | -12.45 |
+| GOOG | 41.13 | 335.87 | 352.92 | 1.21 | -4.83 | -12.49 |
+| META | 43.53 | 614.65 | 644.90 | -3.15 | -4.69 | -14.31 |
+| AMZN | 35.96 | 238.10 | 247.83 | -2.75 | -3.93 | -20.72 |
+| HOOD | 40.84 | 99.90 | 106.62 | -7.93 | -6.30 | -23.38 |
+| ORCL | 32.22 | 123.24 | 130.46 | -1.99 | -5.53 | -25.30 |
+| AMD | 38.72 | 509.26 | 524.36 | -12.28 | -2.88 | -26.44 |
+| MU | 40.14 | 909.79 | 927.05 | -14.85 | -1.86 | -26.57 |
+| TQQQ | 35.29 | 66.68 | 71.68 | -7.77 | -6.97 | -29.45 |
+| SPCX | 33.03 | 121.23 | 132.77 | -5.47 | -8.70 | -31.14 |
+| ARM | 36.30 | 271.23 | 287.44 | -12.80 | -5.64 | -32.14 |
+| INTC | 32.93 | 96.58 | 104.25 | -11.14 | -7.36 | -35.58 |
+| VRT | 36.51 | 291.87 | 302.04 | -21.48 | -3.37 | -38.33 |
+| TSLA | 26.88 | 341.38 | 387.48 | -10.69 | -11.90 | -45.71 |
+
+**GM is Alpha Leader** with Momentum_Score +40.18 (price 9.64% above a rising 9-EMA, RSI 73.35 — strongest confirmed uptrend on the board, same leader as every prior cycle today).
+
+## GM Buy — BLOCKED by buy_price_diff_limit (Step 5)
+- GM 3-day (`no_of_days_for_price_compare`=3, sessions 7/24–7/28) low: **$80.43**.
+- Current price: **$90.89** → **+13.01%** above the 3-day low, exceeding the 5% `buy_price_diff_limit`.
+- GM's buy is skipped this cycle to avoid chasing the move. Moot regardless — see Deployable Cash below, `base_deployable_cash` is $0.00 so no multiplier allocation exists to redirect in the first place.
+
+## GET THE PROFITS Sweep — portfolio-wide (Step 4; materialize_profit_percentage=4.0%, profit_sell_percentage=50%, materialize_profit_in_dollars=$12.50)
+| Symbol | Raw_Gain% (vs. `avg_cost_basis`) | Fires on %/$ gates? | Blocked by same-day guard? |
+|---|---|---|---|
+| GM | +84.32% | would fire | **YES — already sold GTP today** (`profitSellDate` 2026-07-29) |
+| MU | +276.51% | would fire | **YES — already sold today** |
+| PLTR | +51.46% | would fire | **YES — already sold today** |
+| F | +41.20% | would fire | **YES — already sold today** |
+| NVDA | +14.09% | would fire | **YES — already sold today** |
+| GOOG | +6.47% | would fire | **YES — already sold today** |
+| NFLX | +8.52% | pct clears, misses $12.50 floor ($0.86) | n/a |
+| IBM | +8.31% | pct clears, misses $12.50 floor ($0.84) | n/a |
+| AAPL | +4.26% | pct clears, misses $12.50 floor ($2.16) | n/a |
+All other held assets: raw gain below 4.0% threshold (underwater or flat).
+
+**Zero GET THE PROFITS sales fired.** The six symbols whose gains would otherwise qualify (GM, MU, PLTR, F, NVDA, GOOG) all already fired a mandatory GTP sale at this morning's 9:45 AM tick — `peak/prices.json`'s `profitSellDate` for each is already `2026-07-29`, so the same-day guard blocks a second sale. NFLX/IBM/AAPL clear the percentage bar but miss the $12.50 dollar floor, same as prior cycles.
+
+## Momentum Reversal Trim Check (Step 4; momentum_reversal_threshold ≤ -10.0, min margin 1.0%, min dollars $12.50; excludes symbols already sold via GTP/Reversal today)
+Symbols with `Momentum_Score` ≤ -10.0: PLTR, NVDA, GOOG, META, AMZN, HOOD, ORCL, AMD, MU, TQQQ, SPCX, ARM, INTC, VRT, TSLA. Of these, only PLTR/NVDA/GOOG/MU/AMZN carry a qualifying raw gain (or, for AMZN, already fired a Momentum Reversal Trim this morning) — and all five are same-day-guard blocked (`profitSellDate` = 2026-07-29 for all five). Every other candidate on the reversal-threshold list (META, HOOD, ORCL, AMD, TQQQ, SPCX, ARM, INTC, VRT, TSLA) is underwater on raw gain and fails the `momentum_reversal_minimum_profit_margin_percent` (1.0%) gate outright. **No Momentum Reversal Trims fired this cycle.**
+
+## Deployable Cash & Alpha Multiplier (Step 3)
+- `base_deployable_cash` = max(0, `current_cash` $250.01 − `min_cash_absolute` $250 − `settlement_reserve_target` $9,000 − `tax_reserve` $4,119.56) = **$0.00** (buying power alone is already $0.01 above the floor before the reserve and tax wall are even applied).
+- `multiplier_cash` = $0.00 × (1.25 − 1.0) = **$0.00** — no capital exists to route into GM regardless of its buy-block status above.
+
+## Reserve Bridge Check (Step 6)
+- `settlement/reserve.json` `pending_draws`: 7 entries from this morning's cycle, totaling **$9,000.00 reserveDrawn** against `saleProceeds` of $25,289.22 — all `settled: false`, `expectedSettleDate` 2026-07-30.
+- `buying_power` ($250.01) is unchanged from this morning's post-trade figure — empirically confirms none of the 7 sales have settled; no entries reconciled to `settled: true` this cycle.
+- `reserve_available_to_draw` = max(0, $9,000 − $9,000 drawn − $4,119.56 tax_reserve) = **$0.00**. The reserve is both fully committed to yesterday's-morning draws AND would be further underwater against the tax reserve even if it weren't — no bridge capacity exists this cycle.
+
+## Overweight Trim Evaluation (Step 4 — routine, non-mandatory; would-be capital source since GTP/Reversal produced none)
+Overweight-and-drift-breached: **TSLA** (drift 2.557 vs. 1.00 asset-level tolerance, weight units), **ORCL** (2.668 vs. 1.00), **MSFT** (3.190 vs. 1.00), **META** (2.886 vs. 1.50). All four checked against `overweight_sell_minimum_profit_margin_percent` (1.0%):
+| Symbol | Raw_Gain% | Profit-margin gate | Lock-in status |
+|---|---|---|---|
+| TSLA | -3.64% | FAILS (underwater) | also locked in (`lastPurchaseDate` 2026-07-27, 2 days ≤ `lock_in_period` 2) |
+| ORCL | -22.85% | FAILS (underwater) | not locked (`lastPurchaseDate` 2026-07-16) |
+| MSFT | -0.47% | FAILS (underwater) | not locked (`lastPurchaseDate` 2026-07-16) |
+| META | -10.35% | FAILS (underwater) | not locked (`lastPurchaseDate` 2026-07-16) |
+
+**No Overweight trims eligible** — all four breached Overweight positions are underwater against `avg_cost_basis`; `forceSell` list in `portfolio_targets.json` is empty, so no override applies. No legal capital source exists this cycle.
+
+## Drift Analysis (resolved per-asset `asset_drift_tolerance` shown, weight units; account_balance = $70,954.56)
+**Breaching (12 of 30 targets):**
+- Overweight/underwater/un-trimmable: **TSLA** (2.557 vs. 1.00), **ORCL** (2.668 vs. 1.00), **MSFT** (3.190 vs. 1.00), **META** (2.886 vs. 1.50)
+- Underweight, buyable-in-principle but zero cash: **F** (1.677 vs. 1.00), **GM** (1.431 vs. 1.00), **IBM** (1.079 vs. 0.50), **NFLX** (1.079 vs. 0.50), **AAPL** (1.000 vs. 0.50), **COIN** (0.778 vs. 0.50)
+- Excluded (liquidation-recovery not met): **SOXL** (1.100 vs. 0.60), **IONQ** (1.100 vs. 0.50)
+
+**Within tolerance (16):** TQQQ (0.338 vs 1.25), PLTR (0.289 vs 1.50), MU (0.716 vs 1.50), MSTR (0.239 vs 0.80), ARM (0.141 vs 0.50), SMCI (0.066 vs 0.50), SPCX (0.361 vs 1.00), AMZN (0.507 vs 1.00), NVDA (0.390 vs 1.00), GOOG (0.277 vs 1.00), HOOD (0.155 vs 0.50), AMD (0.156 vs 0.50), NEE (0.136 vs 0.50), VRT (0.119 vs 0.50), AVGO (0.162 vs 0.50), UNH (0.142 vs 0.50), GE (0.095 vs 0.50).
+
+Total dollar-drift-gap demand across the 6 buyable Underweight-breach candidates (F, GM, IBM, NFLX, AAPL, COIN): **$7,426.90** — entirely unfunded this cycle, logged SKIPPED/PENDING below.
+
+## SKIPPED/PENDING Trade Matrix
+- **F ($1,768.06 gap), GM ($1,509.05), IBM ($1,137.94), NFLX ($1,137.89), AAPL ($1,054.02), COIN ($819.94)** — Underweight & drift-breached, buyable in principle, but zero deployable cash this cycle (`base_deployable_cash` = $0.00, reserve bridge = $0.00). Re-evaluate next cycle once tomorrow's (2026-07-30) settlement frees the $9,000 reserve.
+- **TSLA, ORCL, MSFT, META** — Overweight & drift-breached but all underwater; profit-margin gate blocks any trim; `forceSell` empty. Re-evaluate as prices recover.
+- **GM (Alpha Leader)** — buy additionally blocked by `buy_price_diff_limit` (+13.01% above 3-day low), independent of the cash shortfall.
+- **PLTR, MU, NVDA, GOOG, F, GM** — GET THE PROFITS candidates on raw gain, blocked by the same-day guard (already sold this morning).
+- **SOXL, IONQ** — excluded from all drift/buy/Alpha-Leader consideration (liquidation recovery threshold not cleared).
+
+## Reserve Draws & Settlement (Step 6)
+No new draws this cycle (no sells placed). No entries reconciled — `buying_power` unchanged from this morning confirms none of the 7 pending draws (totaling $9,000.00 against $25,289.22 in sale proceeds) have settled. Expected settlement 2026-07-30 for all seven.
+
+## Peak Price Updates (Step 6)
+- **IBM**: $226.975 → **$229.315** (new peak, 2026-07-29)
+- **NFLX**: $73.305 → **$73.36** (new peak, 2026-07-29)
+All other symbols: current price did not exceed stored peak — unchanged.
+
+## Final Balances
+- Cash (ledger): **$25,539.24** (unchanged — no trades)
+- `buying_power` (settled, spendable): **$250.01** (unchanged — sits exactly at `min_cash_absolute`)
+- Equity market value: **$70,704.55**
+- `account_balance`: **$70,954.56**
+- `net_realized_gains_ytd`: **$13,731.87** → `tax_reserve`: **$4,119.56**
+
+## Execution Timestamps
+No orders placed this cycle. Evaluation window: 2026-07-29 19:16:15 UTC (first quote pull) – 19:21:xx UTC (journal write). No throttling (429) or gateway (502) errors encountered.
+
+## Notes
+- This cycle illustrates the tax-reserve wall biting for the first time this week: with YTD realized gains now net-positive at $13,731.87 (driven almost entirely by this morning's $14,221.41 in Q3 realized gains per `get_realized_pnl`), the 30% `keep_aside_profits_for_tax_percent` reserve alone ($4,119.56) is larger than the entire settlement reserve headroom, meaning even a same-day settlement wouldn't currently free enough room to fund a full pro-rata Underweight pass without also trimming an Overweight position for cash — and none of the four Overweight-breached positions (TSLA/ORCL/MSFT/META) currently qualify for a profitable trim.
+- All GTP/Reversal-eligible symbols from this morning remain same-day-guard-locked; the portfolio is effectively in a holding pattern until either (a) tomorrow's settlement frees reserve capacity, or (b) an Overweight position turns profitable enough to clear `overweight_sell_minimum_profit_margin_percent`.
+
+ # 2026-07-29 10:02 AM EDT — Scheduled Rebalance Check — EXECUTED (6 GET-THE-PROFITS Sales — PLTR/MU/NVDA/GOOG/F/GM — Plus AMZN Momentum-Reversal Trim Realize $10,918.64 High-Beta Gains; Alpha Leader GM (Momentum Score +41.04) Itself Fires GTP, Multiplier Redirected Pro-Rata; 9 Underweight Buys Totaling $9,041.70 Funded via $9,000 Settlement-Reserve Bridge; IBM/NFLX/AAPL/COIN Buy-Blocked by Pump Guard; SMCI/GM/NFLX-style Shortfall of $2,472.82 in Underweight Demand Logged SKIPPED/PENDING)
+
+**Status:** EXECUTED. **16 of 16 intended orders filled** (7 sells, 9 buys) for the 9:45 AM ET scheduled tick. `CLAUDE.md` re-pulled fresh from `main` (Volume 2.37.0) via the GitHub API at session start and confirmed unchanged from the checked-in copy before evaluation began.
+
+## Account Snapshot (pre-trade, ~9:48 AM ET)
+- `account_cash` / `buying_power`: **$9,291.70**
+- `current_cash` (after `cap_on_total_cash_balance_to_use` $10,000 + `settlement_reserve_target` $9,000 = $19,000 cap): **$9,291.70** (cap not binding)
+- Total equity market value (28 held target positions; SOXL/IONQ not held): **$87,082.62**
+- `account_balance`: **$96,374.32**
+- `net_realized_gains_ytd` (Jan 1 – Jul 29, via `get_realized_pnl`): **-$488.08** (net YTD loss) → `tax_reserve` = **$0.00** (floored at 0 per rule)
+
+## Drawdown Audit (max_trailing_drawdown_percentage = 35%, both peak AND cost-basis drop required)
+No asset breached both legs simultaneously. Worst cases: SPCX (25.47% off peak / 24.80% off cost), TQQQ (20.88% / 17.29%), MU (20.46% off peak but +384% vs. cost — nowhere near breach). No emergency liquidations triggered.
+
+## Liquidation Recovery / Cooldown Check (Step 2)
+- **SOXL**: liquidated 2026-07-16 @ $147.6401. Current $107.74 is a **decrease**, not a recovery — `min_recovery_price_percentage` (5.0%) not met. Stays excluded from drift/Alpha-Leader consideration.
+- **IONQ**: liquidated 2026-07-13 @ $38.8001. Current $33.48 is a **decrease** — recovery not met. Stays excluded.
+
+## Drift Analysis (resolved per-asset `asset_drift_tolerance` shown, weight units)
+Breaching assets (Drift > tolerance): MU (drift 2.446 vs. 1.50, OVER), PLTR (2.307 vs. 1.50, OVER), NVDA (2.061 vs. 1.00, OVER), F (1.465 vs. 1.00, UNDER), GOOG (1.449 vs. 1.00, OVER), MSFT (1.257 vs. 1.00, OVER), ORCL (1.241 vs. 1.00, OVER), GM (1.114 vs. 1.00, UNDER), TSLA (1.102 vs. 1.00, OVER), IBM (1.085 vs. 0.50, UNDER), NFLX (1.085 vs. 0.50, UNDER), SMCI (1.073 vs. 0.50, UNDER), GE (1.028 vs. 0.50, UNDER), AAPL (1.026 vs. 0.50, UNDER), VRT (0.894 vs. 0.50, UNDER), COIN (0.859 vs. 0.50, UNDER), UNH (0.852 vs. 0.50, UNDER), ARM (0.850 vs. 0.50, UNDER), AMD (0.850 vs. 0.50, UNDER), AVGO (0.848 vs. 0.50, UNDER), HOOD (0.835 vs. 0.50, UNDER), NEE (0.810 vs. 0.50, UNDER), SOXL (1.100 vs. 0.60, UNDER — excluded, recovery not met), IONQ (1.100 vs. 0.50, UNDER — excluded, recovery not met).
+Within tolerance: TQQQ (0.917 vs. 1.25), INTC (0.902 vs. 1.25), SPCX (0.826 vs. 1.00), MSTR (0.641 vs. 0.80), AMZN (0.624 vs. 1.00, OVER but not breached going into the cycle — Momentum Reversal Trim still fires independently of drift status), META (1.186 vs. 1.50, OVER, not breached).
+
+## Alpha Leader Selection — Momentum Score (momentum_lookback_days = 5, 30 days RSI/EMA pulled per symbol)
+| Symbol | RSI14 | EMA9_now | EMA9_prior | Price_vs_EMA% | EMA_Slope% | Momentum_Score |
+|---|---|---|---|---|---|---|
+| **GM** | 74.05 | 82.90 | 77.34 | 9.81 | 7.18 | **+41.04 ← ALPHA LEADER** |
+| F | 61.61 | 14.42 | 14.06 | 10.56 | 2.55 | +24.72 |
+| AAPL | 67.86 | 330.10 | 323.23 | 3.91 | 2.13 | +23.89 |
+| GE | 60.08 | 354.36 | 350.39 | 1.02 | 1.13 | +12.23 |
+| NEE | 54.37 | 89.03 | 88.35 | 1.35 | 0.77 | +6.48 |
+| UNH | 55.77 | 424.75 | 426.07 | 0.53 | -0.31 | +5.99 |
+| SMCI | 48.45 | 28.52 | 25.98 | -3.10 | 9.79 | +5.15 |
+| COIN | 52.45 | 164.28 | 163.34 | 1.83 | 0.57 | +4.84 |
+| MSFT | 51.55 | 389.91 | 393.92 | -0.23 | -1.02 | +0.30 |
+| AVGO | 47.47 | 384.39 | 382.41 | -1.22 | 0.52 | -3.24 |
+| NFLX | 45.54 | 70.79 | 71.43 | 1.97 | -0.90 | -3.39 |
+| MSTR | 43.07 | 96.37 | 97.16 | 0.68 | -0.82 | -7.08 |
+| IBM | 43.40 | 222.04 | 233.43 | 1.54 | -4.88 | -9.94 |
+| PLTR | 44.91 | 127.60 | 132.09 | -2.72 | -3.39 | -11.20 |
+| NVDA | 42.58 | 203.41 | 205.51 | -3.77 | -1.02 | -12.22 |
+| GOOG | 41.13 | 335.86 | 352.91 | -1.01 | -4.83 | -14.71 |
+| META | 43.40 | 614.66 | 644.92 | -4.03 | -4.69 | -15.33 |
+| MU | 41.21 | 909.82 | 927.15 | -10.58 | -1.87 | -21.24 |
+| HOOD | 41.94 | 99.90 | 106.62 | -8.10 | -6.30 | -22.46 |
+| AMZN | 35.42 | 238.10 | 247.83 | -4.00 | -3.93 | -22.50 |
+| ORCL | 34.30 | 123.26 | 130.50 | -3.66 | -5.55 | -24.90 |
+| AMD | 39.03 | 509.27 | 524.39 | -11.75 | -2.88 | -25.61 |
+| TQQQ | 35.40 | 66.68 | 71.68 | -8.31 | -6.97 | -29.88 |
+| ARM | 36.14 | 271.25 | 287.49 | -11.05 | -5.65 | -30.56 |
+| SPCX | 33.03 | 121.23 | 132.77 | -5.94 | -8.69 | -31.61 |
+| INTC | 32.74 | 96.57 | 104.24 | -10.25 | -7.36 | -34.86 |
+| VRT | 36.10 | 291.87 | 302.05 | -19.33 | -3.37 | -36.60 |
+| TSLA | 26.51 | 341.38 | 387.49 | -10.45 | -11.90 | -45.85 |
+
+**GM is Alpha Leader** with Momentum_Score +41.04 (strongest confirmed uptrend: price 9.81% above a rising 9-EMA, RSI 74.05). GM also fires GET THE PROFITS this cycle (see below) — per rule, its Step 3 multiplier buy-allocation is skipped and that capital redirected pro-rata among remaining Underweight targets instead.
+
+## Deployable Cash & Alpha Multiplier (Step 3)
+- `base_deployable_cash` = max(0, $9,291.70 − $250 − $9,000 − $0) = **$41.70**
+- `multiplier_cash` = $41.70 × (1.25 − 1.0) = **$10.43**
+- Intended Alpha allocation (35% of base + multiplier) = 0.35×$41.70 + $10.43 = **$25.02** — **GM triggers GTP → skipped, redirected pro-rata into the Underweight buy pool** (folded into the $9,041.70 buy budget below).
+
+## GET THE PROFITS Sweep — portfolio-wide (Step 4, run first; materialize_profit_percentage=4.0%, profit_sell_percentage=50%, materialize_profit_in_dollars=$12.50)
+| Symbol | Raw_Gain% | Realized$ (50%) | Fires? |
+|---|---|---|---|
+| MU | +384.12% | $5,082.07 | **FIRE** |
+| GM | +88.55% | $331.59 | **FIRE** |
+| F | +50.80% | $153.08 | **FIRE** |
+| PLTR | +132.65% | $3,391.30 | **FIRE** |
+| NVDA | +31.44% | $1,294.98 | **FIRE** |
+| GOOG | +28.55% | $898.28 | **FIRE** |
+| NFLX | +6.78% | $0.68 | pct clears, misses $12.50 floor — SKIPPED |
+| IBM | +6.48% | $0.65 | pct clears, misses $12.50 floor — SKIPPED |
+| AAPL | +4.34% | $2.20 | pct clears, misses $12.50 floor — SKIPPED |
+All other held assets: raw gain below 4.0% threshold (no fire).
+
+**6 mandatory GTP sales fired: PLTR, MU, NVDA, GOOG, F, GM** — each sold 50% of position, overriding `lock_in_period` (MU, NVDA, GOOG, GM were all inside their 2-day lock). Per Step 6 buy/sell exclusivity, none of these 6 symbols receive a buy this cycle.
+
+## Momentum Reversal Trim Check (Step 4; momentum_reversal_threshold ≤ -10.0, min margin 1.0%, min dollars $12.50; excludes symbols already firing GTP this cycle)
+Only **AMZN** cleared both the profit-margin gate (raw gain +1.77% ≥ 1.0%) and the dollar gate (Realized$ = $45.07 ≥ $12.50) among non-GTP-firing holdings. Its Momentum_Score of **-22.50** is at/below the -10.0 threshold (price -4.00% vs. its own falling 9-EMA, EMA slope -3.93%, RSI 35.42) → **Momentum Reversal Trim FIRES on AMZN**, selling 50% of the position, overriding its 2-day lock. All other candidates failed the margin and/or $12.50 dollar gate regardless of momentum score (COIN, NEE, IBM, NFLX, UNH, GE all clear %/momentum-adjacent but miss the dollar floor at $1–5 each; SPCX/INTC/TSLA/ORCL/MSFT/TQQQ/MSTR/ARM/SMCI/META/HOOD/AMD/VRT/AVGO are underwater and fail the margin gate outright).
+
+## Overweight Trim Evaluation (Step 4 — routine, non-mandatory)
+Overweight-and-breached: MU, PLTR, NVDA, GOOG (all removed — mandatory GTP this cycle), MSFT (unprofitable, -2.75%, no fire), ORCL (unprofitable, -24.16%, no fire), TSLA (unprofitable -3.39%, and inside 2-day lock anyway). **No routine Overweight harvest needed or eligible this cycle** — `forceSell` list is empty, so none were force-sold either.
+
+## Executed Sells (7 orders, sequential, market orders, regular hours)
+| Symbol | Qty Sold | Avg Fill | Net Proceeds | Cost Basis | Raw_Gain% | Beta (30d vs SPY) | High_Beta_Gain_Score | High_Beta_Gain_Dollars | Trigger |
+|---|---|---|---|---|---|---|---|---|---|
+| MU | 7.872461 | $795.2701 | $6,260.60 | $168.06 | +373.21% | 3.319 | 1238.67 | $4,937.69 | GTP |
+| PLTR | 47.913232 | $122.7700 | $5,882.19 | $53.36 | +130.08% | 0.281 | 36.55 | $3,325.66 | GTP |
+| NVDA | 27.658667 | $193.0501 | $5,339.40 | $148.92 | +29.63% | 1.845 | 54.67 | $1,220.58 | GTP |
+| GOOG | 12.166511 | $331.6700 | $4,035.18 | $258.63 | +28.24% | 2.202 | 62.19 | $888.64 | GTP |
+| AMZN | 11.353318 | $229.4101 | $2,604.51 | $224.61 | +2.14% | 1.191 | 2.55 | $54.50 | Momentum Reversal (Score -22.50) |
+| GM | 7.756466 | $91.4800 | $709.54 | $48.28 | +89.48% | 1.451 | 129.83 | $335.08 | GTP (Alpha Leader) |
+| F | 28.506167 | $16.0600 | $457.81 | $10.57 | +51.94% | 1.209 | 62.79 | $156.50 | GTP |
+
+**Total_High_Beta_Gains_Realized: $10,918.64**
+**Total net sell proceeds: $25,289.22** (unsettled this cycle — `buying_power` did not reflect it same-day; confirmed via `get_portfolio` post-trade: cash rose to $34,580.93 but `buying_power` stayed at $9,291.70).
+
+## Price Limit & Volatility Halts (Step 5; no_of_days_for_price_compare=3, buy_price_diff_limit=5%)
+Underweight-breached candidates checked against 3-day min price rally:
+- **BLOCKED (buy_price_diff_limit)**: IBM (+9.02% rally), NFLX (+6.20%), AAPL (+6.65%), COIN (+8.76%) — exempted from buying today.
+- Clear to buy: SMCI (+1.88%), GE (+2.22%), VRT (-9.16%, no rally), UNH (+3.51%), ARM (+0.37%), AMD (+1.62%), AVGO (+2.20%), HOOD (+4.08%), NEE (+2.20%).
+- `sell_price_diff_limit` not evaluated — no routine Overweight-trim sells were pending this cycle (all sells were mandatory GTP/Reversal, which override Step 5 same as drawdown stops).
+
+## Underweight Buy Allocation — Pro-Rata by Dollar Drift Gap (Step 3 redirect + Step 4 harvest)
+Total dollar-drift-gap demand across the 9 buyable Underweight targets: **$11,514.52**. Available buy budget this cycle: `base_deployable_cash` ($41.70) + redirected Alpha multiplier ($10.43) + **settlement-reserve bridge draw of $9,000.00** (full `reserve_available_to_draw`, `pending_draws` was empty) = **$9,041.70** (capped at `buying_power − min_cash_absolute` = $9,291.70 − $250 = $9,041.70, the binding hard floor). Shortfall of **$2,472.82** logged SKIPPED/PENDING below.
+
+| Symbol | Dollar Gap | Pro-Rata Alloc | Qty Bought | Avg Fill |
+|---|---|---|---|---|
+| SMCI | $1,536.61 | $1,206.61 | 43.988858 | $27.4299 |
+| GE | $1,472.60 | $1,156.35 | 3.247900 | $356.0300 |
+| VRT | $1,279.85 | $1,004.99 | 4.358275 | $230.5935 |
+| UNH | $1,220.50 | $958.39 | 2.252012 | $425.5704 |
+| ARM | $1,217.61 | $956.12 | 4.048365 | $236.1743 |
+| AMD | $1,216.64 | $955.36 | 2.165923 | $441.0867 |
+| AVGO | $1,214.71 | $953.84 | 2.524321 | $377.8599 |
+| HOOD | $1,196.42 | $939.48 | 10.255223 | $91.6099 |
+| NEE | $1,159.58 | $910.55 | 10.117581 | $89.9968 |
+| **Total** | **$11,514.52** | **$9,041.70** | | |
+
+## SKIPPED/PENDING Trade Matrix
+- **IBM, NFLX, AAPL, COIN** — Underweight & drift-breached, but buy-blocked by `buy_price_diff_limit` (3-day pump guard). Re-evaluate next cycle.
+- **$2,472.82 of Underweight demand** (pro-rata shortfall across the 9 funded symbols) — reserve fully drawn to its $9,000 cap this cycle; to be revisited once today's sale proceeds settle (expected 2026-07-30) and reserve headroom frees up.
+- **MSFT, ORCL** — Overweight & drift-breached but underwater (raw loss); not sold (profit-margin gate not met, no `forceSell` override).
+- **TSLA** — Overweight & drift-breached, underwater, and inside 2-day lock-in; not sold.
+- **SOXL, IONQ** — excluded from all drift/buy/Alpha-Leader consideration this cycle (liquidation recovery threshold not cleared — both saw further price declines, not recoveries).
+
+## Reserve Draws & Settlement (Step 6)
+`settlement/reserve.json` `pending_draws` was empty entering this cycle (`reserve_available_to_draw` = $9,000.00 full). Seven new same-cycle draw entries created (saleDate 2026-07-29, expectedSettleDate 2026-07-30, T+1 per `settlement_lag_days`=1), FIFO-equivalent since all same-day:
+
+| Symbol | Sale Proceeds | Reserve Drawn |
+|---|---|---|
+| PLTR | $5,882.19 | $2,093.37 |
+| MU | $6,260.60 | $2,228.04 |
+| NVDA | $5,339.40 | $1,900.20 |
+| GOOG | $4,035.18 | $1,436.05 |
+| F | $457.81 | $162.93 |
+| GM | $709.54 | $252.51 |
+| AMZN | $2,604.51 | $926.89 |
+| **Total** | **$25,289.22** | **$9,000.00** |
+
+Reserve headroom remaining after this cycle's draws: **$0.00** — fully committed until settlement confirms 2026-07-30, at which point the $9,000 replenishes.
+
+## Peak Price Updates (Step 6)
+- **AAPL**: $339.19 → **$343.00** (new peak, 2026-07-29)
+- **F**: $14.865 → **$16.06** (new peak, 2026-07-29)
+- **GM**: $89.70 → **$91.48** (new peak, 2026-07-29)
+All other symbols: current price did not exceed stored peak — unchanged.
+
+## Final Balances
+- Cash (ledger): **$25,539.24**
+- `buying_power` (settled, spendable): **$250.01** — sits exactly at `min_cash_absolute` ($250) plus $0.01 rounding, confirming the hard floor was respected throughout execution and never breached.
+- Equity market value (post-trade): **$70,407.39**
+- `total_value` (account value): **$95,946.63**
+- `net_realized_gains_ytd`: **-$488.08** → `tax_reserve`: **$0.00**
+
+## Execution Timestamps
+All 16 orders placed sequentially 2026-07-29 09:56:42 AM – 10:01:06 AM EDT (13:56:42–14:01:06 UTC). No throttling (429) or gateway (502) errors encountered; no retries needed. No trade exceeded `seek_approval_value` ($10,000) individually, so no user-approval halt was triggered.
+
+## Notes
+- All figures cross-checked: total buy spend ($9,041.70) + ending `buying_power` ($250.01) reconciles to pre-buy `buying_power` ($9,291.70) to the cent.
+- GM served the dual role of Alpha Leader (by Momentum Score) and mandatory GTP seller in the same cycle — its multiplier allocation redirect and GTP sale were handled independently per rule, with no double-counting: the sale is logged under GET THE PROFITS, and its would-be multiplier cash simply flowed into the general Underweight pro-rata pool.
+
+ # 2026-07-28 03:16 PM EDT — Scheduled Rebalance Check — NO TRADES (Alpha Leader GM Still Blocked by Parabolic-Move Buy Limit on the 3:15 PM Tick; Every Underweight Buy Falls Below the $10 Floor; TQQQ/PLTR/META Still Overweight, Underwater, and Profit-Margin-Gated; Zero GET-THE-PROFITS/Reversal-Trim Fires)
+
+**Status:** NO TRADES. **0 of 0 intended orders filled** — fresh, stateless run for the 3:15 PM ET scheduled tick. `CLAUDE.md` re-pulled fresh from `main` (Volume 2.37.0) and confirmed unchanged from the checked-in copy before evaluation began.
+
+## Account Snapshot
+- `account_cash` / `buying_power`: **$9,291.70**
+- `current_cash` (after `cap_on_total_cash_balance_to_use` $10,000 + `settlement_reserve_target` $9,000 = $19,000 cap): **$9,291.70** (cap not binding)
+- Total equity market value (28 held target positions): **$38,172.69**
+- `account_balance`: **$47,464.39**
+- `net_realized_gains_ytd` (Jan 1 – Jul 28, via `get_realized_pnl`): **-$488.08** (net YTD loss) → `tax_reserve` = **$0.00** (floored at 0 per rule)
+- `base_deployable_cash` = max(0, 9,291.70 − 250 − 9,000 − 0) = **$41.70**
+- `settlement/reserve.json`: `pending_draws` empty; no draws outstanding, nothing to reconcile this cycle.
+
+## Drawdown Audit (max_trailing_drawdown_percentage = 35%, both peak AND cost-basis drop required)
+No asset breached 35% drop from both peak price and average cost basis — no emergency liquidations triggered. Closest: INTC at 25.26% below peak / 25.29% below cost basis; TSLA 25.25%/21.23%; SPCX 23.71%/23.01% — all still well under the 35% trigger despite today's broad selloff.
+
+## Drift Analysis (resolved per-asset `asset_drift_tolerance` shown)
+**Overweight breaches** (current % > target %, drift > tolerance):
+- **TQQQ** 4.83% vs 2.87% target (drift 1.97% vs. 0.50% asset-level tolerance)
+- **PLTR** 6.71% vs 4.78% target (drift 1.93% vs. 1.00% asset-level tolerance)
+- **META** 13.92% vs 1.91% target (drift 12.00% vs. 0.50% asset-level tolerance) — large legacy overweight
+
+**Underweight breaches** (current % < target %, drift > tolerance): MU (3.48 vs 1.00 tol), SMCI (1.83 vs 0.50), IBM (1.87 vs 0.50), NFLX (1.87 vs 0.50), GE (1.69 vs 0.50), F (1.69 vs 0.50), AAPL (1.69 vs 0.50), GM (1.82 vs 0.50), TSLA (1.33 vs 1.00), VRT (1.20 vs 0.50), COIN (1.19 vs 0.50), UNH (1.16 vs 0.50), AVGO (1.15 vs 0.50), ARM (1.14 vs 0.50), AMD (1.14 vs 0.50), HOOD (1.11 vs 0.50), AMZN (1.08 vs 1.00), NEE (1.04 vs 0.50), INTC (0.74 vs 0.50), MSTR (0.67 vs 0.50).
+
+**Within tolerance:** NVDA (0.89 vs 1.00), ORCL (0.85 vs 2.00), GOOG (0.70 vs 1.00), MSFT (0.42 vs 1.50), SPCX (0.11 vs 0.50).
+
+## Recovery / Repurchase Exclusions (Step 2)
+- **SOXL**: liquidated 2026-07-16 @ $147.6401; current $111.8825 — down 24.2% from liquidation, has NOT recovered ≥5% → still excluded from drift/buy consideration.
+- **IONQ**: liquidated 2026-07-13 @ $38.8001; current $33.50 — down 13.7% from liquidation, NOT recovered → still excluded.
+- Symbols with a prior `profitSellPrice` but a nonzero current position (TQQQ, COIN, ARM, SMCI, NVDA, AAPL, IBM, NFLX) confirm those were partial (50%) trims, not full exits — no repurchase-wait exclusion applies; normal drift rules govern them.
+
+## Alpha Leader Selection — Momentum Score (momentum_lookback_days = 5, 30+ days RSI/EMA pulled per symbol)
+All 28 in-play target assets scored (SOXL/IONQ excluded per Recovery rule above). Top and bottom of the field:
+
+| Symbol | RSI14 | EMA9_now | EMA9_prior | Price_vs_EMA% | EMA_Slope% | Momentum_Score |
+|---|---|---|---|---|---|---|
+| **GM** | 69.05 | 81.04 | 76.79 | 10.68 | 5.54 | **35.26** |
+| AAPL | 67.33 | 327.60 | 322.09 | 3.54 | 1.71 | 22.58 |
+| F | 59.74 | 14.28 | 14.00 | 4.09 | 1.97 | 15.81 |
+| GE | 58.27 | 352.05 | 352.81 | 3.30 | -0.22 | 11.35 |
+| SMCI | 51.17 | 28.54 | 26.08 | -0.44 | 9.41 | 10.13 |
+| COIN | 52.42 | 163.37 | 160.23 | 1.18 | 1.96 | 5.56 |
+| NEE | 51.88 | 88.97 | 88.46 | 0.51 | 0.58 | 2.97 |
+| MSFT | 49.25 | 389.05 | 392.94 | 1.33 | -0.99 | -0.40 |
+| AVGO | 47.94 | 385.24 | 381.33 | -0.56 | 1.02 | -1.59 |
+| PLTR | 52.62 | 128.62 | 131.94 | -4.15 | -2.51 | -4.04 |
+| MSTR | 45.41 | 96.43 | 95.98 | -0.71 | 0.46 | -4.84 |
+| UNH | 49.09 | 423.75 | 423.51 | 1.40 | 0.06 | 0.54 |
+| NFLX | 39.78 | 70.39 | 72.13 | 3.33 | -2.41 | -9.30 |
+| NVDA | 42.31 | 205.01 | 205.06 | -3.68 | -0.03 | -11.40 |
+| MU | 45.43 | 932.11 | 916.11 | -11.35 | 1.75 | -14.17 |
+| META | 43.64 | 619.96 | 645.18 | -4.30 | -3.91 | -14.56 |
+| IBM | 36.42 | 220.64 | 239.11 | 2.87 | -7.72 | -18.43 |
+| AMD | 44.74 | 522.92 | 519.34 | -12.10 | 0.69 | -16.67 |
+| GOOG | 37.23 | 336.68 | 354.60 | -0.89 | -5.05 | -18.72 |
+| VRT | 42.05 | 297.45 | 301.42 | -9.73 | -1.32 | -19.00 |
+| AMZN | 36.37 | 239.91 | 247.90 | -3.68 | -3.22 | -20.53 |
+| HOOD | 43.27 | 101.69 | 106.69 | -9.72 | -4.68 | -21.14 |
+| ARM | 40.69 | 277.85 | 286.87 | -11.41 | -3.14 | -23.87 |
+| ORCL | 32.16 | 124.07 | 131.31 | -2.27 | -5.52 | -25.63 |
+| TQQQ | 37.19 | 67.96 | 71.75 | -8.92 | -5.28 | -27.01 |
+| INTC | 35.85 | 99.15 | 103.96 | -12.40 | -4.63 | -31.18 |
+| SPCX | 29.82 | 122.43 | 135.08 | -4.66 | -9.36 | -34.20 |
+| TSLA | 27.19 | 349.86 | 389.62 | -12.54 | -10.20 | -45.56 |
+
+**Alpha Leader: GM** (Momentum_Score +35.26 — price well above a sharply rising 9-EMA, RSI 69, still the strongest confirmed uptrend on the board).
+
+## GM Buy — BLOCKED by buy_price_diff_limit (Step 5)
+- GM 3-day (`no_of_days_for_price_compare`=3) session low (7/23–7/27): **$79.00**.
+- Current price: **$89.70** → **+13.54%** above the 3-day low, exceeding the **5%** `buy_price_diff_limit`.
+- Per the parabolic-move guard, GM's buy is skipped this cycle to avoid chasing the move — same block as this morning's 9:46 AM tick, now moderately worse (GM ran up another ~0.9% intraday). GM retains Alpha Leader identity for scoring/logging.
+- `multiplier_cash` ($10.43 theoretical at `reinvestment_multiplier_factor`=1.25) was never harvested — no Overweight position qualified for a legal trim this cycle (see below), so there was no sale to fund it in the first place, independent of the buy block.
+- CLAUDE.md's explicit "redirect the Alpha Leader's allocation pro-rata" clause is written specifically for the case where the Alpha Leader itself triggers a GET-THE-PROFITS sale — it does not literally cover a buy-price-diff-limit block. Since GM's $14.60 alpha-cash-allocation share was therefore never carved out of `base_deployable_cash` in the first place, the entire $41.70 pool was evaluated directly against the general pro-rata drift-coverage step; the distinction is immaterial here since the full $41.70 still fails to clear $10 for any single recipient (see below).
+
+## GET THE PROFITS Sweep (materialize_profit_percentage=4.0%, profit_sell_percentage=50%, materialize_profit_in_dollars=$12.50)
+| Symbol | Raw Gain % | Realized $ if sold | Fires? |
+|---|---|---|---|
+| GM | +14.34% | $2.89 | No — fails $12.50 dollar gate |
+| IBM | +7.20% | $0.72 | No — fails $12.50 dollar gate |
+| NFLX | +7.59% | $0.76 | No — fails $12.50 dollar gate |
+| F | +4.32% | $2.16 | No — fails $12.50 dollar gate |
+| GE | +4.29% | $2.14 | No — fails $12.50 dollar gate |
+| All other held positions | either <4.0% gain or underwater | n/a | No |
+
+**No GET THE PROFITS sales fired this cycle** — every position clearing the 4% margin bar is too small a lot to clear the $12.50 dollar floor.
+
+## Momentum Reversal Trim Check (momentum_reversal_threshold ≤ -10.0, min margin 1.0%, min dollars $12.50)
+Only symbols with both a qualifying raw gain (≥1.0%) *and* a passing $12.50 dollar amount needed a momentum-score check: **MSFT** (raw gain +2.08%, realized $33.15 — clears both gates). MSFT's `Momentum_Score` = **-0.40**, well above the -10.0 trigger — **no reversal confirmed, trim does not fire.** SMCI, AAPL, F, GM, IBM, NFLX, UNH, GE are all in profit ≥1% but fail the $12.50 dollar gate regardless of momentum score, so no further score checks were needed for them. **No Momentum Reversal Trims fired this cycle.**
+
+## Overweight Trim Evaluation (Step 4)
+TQQQ, PLTR, and META remain the only Overweight-breach assets, and **all three are still underwater** vs. average cost basis:
+- TQQQ: -16.26% raw gain — fails `overweight_sell_minimum_profit_margin_percent` (1.0%)
+- PLTR: -8.35% raw gain — fails
+- META: -10.65% raw gain — fails (also the largest overweight drift on the book, at 12.00 points)
+
+`forceSell` list is empty — none of the three are exempted. **No overweight trims executed.**
+
+## Underweight Buy Allocation — ALL SKIPPED (below $10 sell_or_buy_value_limit)
+The full $41.70 `base_deployable_cash` was evaluated pro-rata by drift magnitude across the 20 underweight/breaching assets (GM included, since its own drift also remains uncovered; SOXL/IONQ excluded per Recovery rule):
+
+| Symbol | Drift pts | Pro-rata $ | Status |
+|---|---|---|---|
+| MU | 3.4833 | $5.03 | SKIPPED (< $10) |
+| IBM | 1.8666 | $2.69 | SKIPPED (< $10) |
+| NFLX | 1.8664 | $2.69 | SKIPPED (< $10) |
+| SMCI | 1.8277 | $2.64 | SKIPPED (< $10) |
+| GM | 1.8151 | $2.62 | SKIPPED (< $10) |
+| GE | 1.6926 | $2.44 | SKIPPED (< $10) |
+| F | 1.6924 | $2.44 | SKIPPED (< $10) |
+| AAPL | 1.6916 | $2.44 | SKIPPED (< $10) |
+| TSLA | 1.3250 | $1.91 | SKIPPED (< $10) |
+| VRT | 1.2044 | $1.74 | SKIPPED (< $10) |
+| COIN | 1.1930 | $1.72 | SKIPPED (< $10) |
+| UNH | 1.1596 | $1.67 | SKIPPED (< $10) |
+| AVGO | 1.1460 | $1.65 | SKIPPED (< $10) |
+| ARM | 1.1426 | $1.65 | SKIPPED (< $10) |
+| AMD | 1.1394 | $1.64 | SKIPPED (< $10) |
+| HOOD | 1.1139 | $1.61 | SKIPPED (< $10) |
+| AMZN | 1.0796 | $1.56 | SKIPPED (< $10) |
+| NEE | 1.0440 | $1.51 | SKIPPED (< $10) |
+| INTC | 0.7408 | $1.07 | SKIPPED (< $10) |
+| MSTR | 0.6713 | $0.97 | SKIPPED (< $10) |
+
+**No orders were placed this cycle. Net result: NO TRADES.**
+
+## Total_High_Beta_Gains_Realized: $0.00
+No sells executed this cycle — no High-Beta ranking/beta calculation was needed (nothing legally trimmable).
+
+## Peak Price Updates (Step 6 — current price exceeded prior stored peak)
+- AAPL: $338.43 → **$339.19** (2026-07-28)
+- F: $14.855 → **$14.865** (2026-07-28)
+- GM: $88.90 → **$89.70** (2026-07-28)
+- IBM: $218.89 → **$226.975** (2026-07-28)
+All other symbols' peaks unchanged (current price below existing stored peak, or SOXL/IONQ excluded and also below peak). `lastPurchaseDate`, `liquidatedPrice/Date`, and `profitSellPrice/Date` are unchanged for every symbol — no trades executed this cycle.
+
+## Final Balances
+- Cash / buying power: **$9,291.70** (unchanged — no trades executed; well above `min_cash_absolute` $250, though far above the lean `min_cash_target` $500 due to the $9,000 reserve wall locking up nearly all spendable cash)
+- Total equity value: **$38,172.69**
+- Account balance: **$47,464.39**
+- Settlement reserve: unchanged, `pending_draws` empty, full $9,000 headroom available next cycle.
+
+## Notes
+This is the **second consecutive NO-TRADES cycle today** (following the 9:46 AM ET tick), both driven by the same root cause: GM's momentum lead is real but the stock has already run too far, too fast, to buy under the 5% parabolic-move guard, and the $9,000 settlement-reserve wall plus a net-YTD-loss tax reserve of $0 still leaves only ~$41.70 in truly deployable cash — nowhere near enough to fund even a single $10 minimum order once split pro-rata across ~20 underweight targets. TQQQ/PLTR/META remain overweight, underwater, and legally un-trimmable under the current guardrails; nothing changes there until one of them returns to profit or the `forceSell` list is deliberately populated by the user. Per repo convention, this entry is committed to a fresh feature branch and merged directly into `main` to preserve the unalterable paper trail.
+
+---
+ # 2026-07-28 09:46 AM EDT — Scheduled Rebalance Check — NO TRADES (Alpha Leader GM Blocked by Parabolic-Move Buy Limit; All Redirected Underweight Buys Fall Below the $10 Order Floor; TQQQ/PLTR/META Still Overweight but Underwater and Profit-Margin-Gated)
+
+## Account Snapshot
+- `account_cash` / `buying_power`: **$9,291.70**
+- `current_cash` (after `cap_on_total_cash_balance_to_use` + `settlement_reserve_target` cap): **$9,291.70** (cap of $19,000 not binding)
+- Total equity market value (28 held target positions): **$37,451.73**
+- `account_balance`: **$46,743.43**
+- `net_realized_gains_ytd`: **-$488.08** (net YTD loss) → `tax_reserve` = **$0.00** (floored at 0 per rule)
+- `base_deployable_cash` = max(0, 9,291.70 − 250 − 9,000 − 0) = **$41.70**
+- `settlement/reserve.json`: `pending_draws` empty; no draws outstanding, no settlements to reconcile this cycle.
+
+## Drawdown Audit (max_trailing_drawdown_percentage = 35%)
+No asset breached 35% drop from BOTH peak price and average cost basis — no emergency liquidations triggered. Closest: SPCX at 29.81% below peak / 29.17% below cost basis (still under the 35% trigger).
+
+## Drift Analysis (resolved per-asset `asset_drift_tolerance` shown)
+Overweight (current % > target %):
+- **TQQQ** 4.76% vs 2.87% target (drift 1.89% vs. 0.50% asset-level tolerance) — BREACH
+- **PLTR** 6.65% vs 4.78% target (drift 1.87% vs. 1.00% asset-level tolerance) — BREACH
+- **META** 14.14% vs 1.91% target (drift 12.23% vs. 0.50% asset-level tolerance) — BREACH (large legacy overweight)
+
+Underweight breaches (current % < target %, drift > resolved tolerance): INTC (0.75% vs 0.50% tol), MU (3.49% vs 1.00% tol), SOXL (excluded — see Recovery below), COIN (1.21% vs 0.50%), ARM (1.14% vs 0.50%), SMCI (1.83% vs 0.50%), IONQ (excluded), AMZN (1.02% vs 1.00%), TSLA (1.26% vs 1.00%), HOOD (1.12% vs 0.50%), AAPL (1.69% vs 0.50%), AMD (1.14% vs 0.50%), NEE (1.03% vs 0.50%), VRT (1.20% vs 0.50%), AVGO (1.16% vs 0.50%), F (1.69% vs 0.50%), GM (1.81% vs 0.50%), IBM (1.87% vs 0.50%), NFLX (1.87% vs 0.50%), UNH (1.16% vs 0.50%), GE (1.69% vs 0.50%).
+Within tolerance: NVDA, ORCL, GOOG, MSFT, SPCX.
+
+## Recovery / Repurchase Exclusions (Step 2)
+- **SOXL**: liquidated 2026-07-16 @ $147.6401; current $104.79 — price has NOT recovered (down, not up ≥5%) → still excluded from drift/buy consideration.
+- **IONQ**: liquidated 2026-07-13 @ $38.8001; current $32.5099 — not recovered → still excluded.
+- All other symbols with a prior `profitSellPrice` (TQQQ, COIN, ARM, SMCI, NVDA, AAPL, IBM, NFLX) currently hold a nonzero position, confirming those were partial trims, not full exits — no repurchase-wait exclusion applies; normal drift rules govern them.
+
+## Alpha Leader Selection — Momentum Score (momentum_lookback_days = 5)
+All 28 in-play target assets scored (SOXL/IONQ excluded per Recovery rule above):
+
+| Symbol | RSI14 | EMA9_now | EMA9_prior | Price_vs_EMA% | EMA_Slope% | Momentum_Score |
+|---|---|---|---|---|---|---|
+| **GM** | 69.05 | 81.04 | 76.79 | 9.69 | 5.54 | **34.28** |
+| AAPL | 67.33 | 327.60 | 322.09 | 3.31 | 1.71 | 22.35 |
+| F | 59.74 | 14.28 | 14.00 | 4.02 | 1.97 | 15.73 |
+| GE | 58.27 | 352.05 | 352.81 | 3.56 | -0.22 | 11.61 |
+| SMCI | 51.17 | 28.54 | 26.08 | -3.84 | 9.41 | 6.74 |
+| NEE | 51.88 | 88.97 | 88.46 | 1.04 | 0.58 | 3.50 |
+| COIN | 52.42 | 163.37 | 160.23 | -2.60 | 1.96 | 1.78 |
+| MSFT | 49.25 | 389.05 | 392.94 | 1.42 | -0.99 | -0.32 |
+| UNH | 49.09 | 423.75 | 423.51 | -0.74 | 0.06 | -1.59 |
+| AVGO | 47.94 | 385.24 | 381.33 | -3.27 | 1.02 | -4.31 |
+| PLTR | 52.62 | 128.62 | 131.94 | -6.41 | -2.51 | -6.30 |
+| MSTR | 45.41 | 96.43 | 95.98 | -3.18 | 0.46 | -7.31 |
+| NFLX | 39.78 | 70.39 | 72.13 | 4.14 | -2.41 | -8.49 |
+| NVDA | 42.31 | 205.01 | 205.06 | -5.75 | -0.03 | -13.47 |
+| META | 43.64 | 619.96 | 645.18 | -4.26 | -3.91 | -14.53 |
+| MU | 45.43 | 932.11 | 916.11 | -13.32 | 1.75 | -16.14 |
+| AMD | 44.74 | 522.92 | 519.34 | -13.47 | 0.69 | -18.04 |
+| VRT | 42.05 | 297.45 | 301.42 | -10.27 | -1.32 | -19.54 |
+| AMZN | 36.37 | 239.91 | 247.90 | -4.17 | -3.22 | -21.02 |
+| GOOG | 37.23 | 336.68 | 354.60 | -3.42 | -5.05 | -21.24 |
+| IBM | 36.42 | 220.64 | 239.11 | -0.79 | -7.72 | -22.09 |
+| HOOD | 43.27 | 101.69 | 106.69 | -12.27 | -4.68 | -23.68 |
+| ARM | 40.69 | 277.85 | 286.87 | -12.67 | -3.14 | -25.12 |
+| TQQQ | 37.19 | 67.96 | 71.75 | -11.75 | -5.28 | -29.84 |
+| ORCL | 32.16 | 124.07 | 131.31 | -6.91 | -5.52 | -30.27 |
+| INTC | 35.85 | 99.15 | 103.96 | -14.21 | -4.63 | -32.99 |
+| SPCX | 29.82 | 122.43 | 135.08 | -12.29 | -9.36 | -41.83 |
+| TSLA | 27.19 | 349.86 | 389.62 | -12.85 | -10.21 | -45.87 |
+
+**Alpha Leader: GM** (Momentum_Score +34.28 — price well above a sharply rising 9-EMA, RSI 69).
+
+## GM Buy — BLOCKED by buy_price_diff_limit (Step 5)
+- GM 3-day (`no_of_days_for_price_compare`=3) low: **$79.00** (7/23–7/27 session lows).
+- Current price: **$88.90** → **+12.53%** above the 3-day low, exceeding the **5%** `buy_price_diff_limit`.
+- Per the parabolic-move guard, GM's buy is skipped today to avoid chasing the move. GM retains its Alpha Leader identity for scoring/logging purposes, and its Step 3 allocation ($14.60 of the $41.70 base deployable cash, 35% `alpha_cash_allocation_percentage`) is redirected pro-rata into the remaining underweight/drifted targets, per the same "skip-and-redirect" precedent used for a blocked Alpha Leader elsewhere in the rules.
+- `multiplier_cash` ($10.43 theoretical, at `reinvestment_multiplier_factor`=1.25) was never harvested — no overweight position qualified for a legal trim this cycle (see below), so there was no sale to fund it.
+
+## GET THE PROFITS Sweep (materialize_profit_percentage=4.0%, profit_sell_percentage=50%, materialize_profit_in_dollars=$12.50)
+Every held position's raw unrealized gain and the dollar profit that a 50%-position sale would realize:
+
+| Symbol | Raw Gain % | Realized $ if sold | Fires? |
+|---|---|---|---|
+| GM | +13.32% | $2.68 | No — fails $12.50 dollar gate |
+| F | +4.25% | $2.12 | No — fails $12.50 dollar gate |
+| GE | +4.55% | $2.27 | No — fails $12.50 dollar gate |
+| NFLX | +8.44% | $0.85 | No — fails $12.50 dollar gate |
+| IBM | +3.38% | $0.34 | No — below 4.0% margin gate |
+| AAPL | +2.95% | $1.50 | No — below 4.0% margin gate |
+| MSFT | +2.17% | $34.59 | No — below 4.0% margin gate (dollar gate would've passed) |
+| NEE | +0.89% | $1.82 | No — below 4.0% margin gate |
+| UNH | +0.86% | $1.49 | No — below 4.0% margin gate |
+| All other held positions | negative (underwater) | n/a | No |
+
+**No GET THE PROFITS sales fired this cycle.**
+
+## Momentum Reversal Trim Check (momentum_reversal_threshold ≤ -10.0, min margin 1.0%, min dollars $12.50)
+Only symbols with both a qualifying raw gain (≥1.0%) *and* a passing dollar amount (≥$12.50) needed a score check: **MSFT** (raw gain +2.17%, realized $34.59 — clears both gates). MSFT's `Momentum_Score` = **-0.32**, which is well above the -10.0 trigger — **no reversal confirmed, trim does not fire.** All other in-profit holdings (GM, F, GE, NFLX, IBM, AAPL, NEE, UNH) fail the $12.50 dollar gate regardless of momentum score, so no further checks were needed. **No Momentum Reversal Trims fired this cycle.**
+
+## Overweight Trim Evaluation (Step 4)
+TQQQ, PLTR, and META are the only Overweight assets, all breaching drift, but **all three are underwater** vs. average cost basis:
+- TQQQ: -18.86% raw gain — fails `overweight_sell_minimum_profit_margin_percent` (1.0%)
+- PLTR: -10.51% raw gain — fails
+- META: -10.61% raw gain — fails (also the largest overweight drift on the book, at 12.23 points)
+
+`forceSell` list is empty — none of the three are exempted. **No overweight trims executed.** (Consistent with the 2026-07-23 journal entry noting the same underwater/gated condition.)
+
+## Redirected Underweight Buy Allocation — ALL SKIPPED (below $10 sell_or_buy_value_limit)
+With GM's buy blocked, the full $41.70 `base_deployable_cash` was redirected pro-rata by drift magnitude across the remaining underweight/breaching assets (excluding SOXL/IONQ):
+
+| Symbol | Drift pts | Pro-rata $ | Status |
+|---|---|---|---|
+| MU | 3.493 | $5.54 | SKIPPED (< $10) |
+| IBM | 1.868 | $2.96 | SKIPPED (< $10) |
+| NFLX | 1.865 | $2.96 | SKIPPED (< $10) |
+| SMCI | 1.829 | $2.90 | SKIPPED (< $10) |
+| AAPL | 1.689 | $2.68 | SKIPPED (< $10) |
+| F | 1.689 | $2.68 | SKIPPED (< $10) |
+| GE | 1.689 | $2.68 | SKIPPED (< $10) |
+| TSLA | 1.255 | $1.99 | SKIPPED (< $10) |
+| COIN | 1.209 | $1.92 | SKIPPED (< $10) |
+| VRT | 1.198 | $1.90 | SKIPPED (< $10) |
+| UNH | 1.164 | $1.85 | SKIPPED (< $10) |
+| AVGO | 1.155 | $1.83 | SKIPPED (< $10) |
+| ARM | 1.142 | $1.81 | SKIPPED (< $10) |
+| AMD | 1.140 | $1.81 | SKIPPED (< $10) |
+| HOOD | 1.124 | $1.78 | SKIPPED (< $10) |
+| NEE | 1.026 | $1.63 | SKIPPED (< $10) |
+| AMZN | 1.016 | $1.61 | SKIPPED (< $10) |
+| INTC | 0.747 | $1.18 | SKIPPED (< $10) |
+
+**No orders were placed this cycle.** Net result: NO TRADES.
+
+## Total_High_Beta_Gains_Realized: $0.00 (no sells this cycle — no High-Beta ranking/beta calc needed)
+
+## Peak Price Updates (Step 6 — current price exceeded prior peak)
+- AAPL: $336.21 → **$338.43** (2026-07-28)
+- F: $14.725 → **$14.855** (2026-07-28)
+- GM: $86.12 → **$88.90** (2026-07-28)
+- IBM: $218.844 → **$218.89** (2026-07-28)
+- NFLX: $70.4637 → **$73.305** (2026-07-28)
+- GE: $361.6559 → **$364.58** (2026-07-28)
+All other symbols' peaks unchanged (current price below existing peak, or SOXL/IONQ excluded and also below peak).
+
+## Final Balances
+- Cash / buying power: **$9,291.70** (unchanged — no trades executed; well above `min_cash_absolute` $250 and `min_cash_target` $500)
+- Total equity value: **$37,451.73**
+- Account balance: **$46,743.43**
+- Settlement reserve: unchanged, `pending_draws` empty, full $9,000 headroom available next cycle.
+
+## Execution Timestamp
+2026-07-28 09:46 AM EDT (13:46:37 UTC quote timestamp basis) — cycle completed with zero order placements.
+
+---
+ # 2026-07-27 03:18 PM EDT — Scheduled Rebalance Check — NO TRADES (Zero Deployable Cash as Buying Power Sits Exactly at the $9,250 Reserve+Floor Wall; Alpha Leader GM (Momentum Score +23.99) Blocked by Its Own +9.0% Pump Guard; SMCI/GM GET-THE-PROFITS Clear the % Bar but Miss the $12.50 Dollar Floor; IBM/NFLX Same-Day-Guard Blocked After This Morning's Trims; TQQQ/PLTR/META Still Overweight, Underwater, and Un-Trimmable)
+
+**Status:** NO TRADES. **0 of 0 intended orders filled** — fresh, stateless run for the 3:15 PM ET scheduled tick. `CLAUDE.md` re-pulled fresh from `main` (SHA `3da2efe30af286329c783b7279229cb98e58259f`, text version header "High-Risk Multiplier Volume 2.35.0", unchanged since this morning's 9:45 AM cycle). `portfolio_targets.json` (v2.25.0, last_updated 2026-07-26), `peak/prices.json`, and `settlement/reserve.json` all re-pulled fresh from `main` for this run.
+
+## Pre-check state (~3:17 PM ET, regular hours)
+* Account `795732718` ("Agentic", cash-type) confirmed via `get_accounts` as the only `agentic_allowed=true` account.
+* `buying_power` = **$9,250.00**, `cash` (ledger) = **$9,291.70** — a **$41.70 gap** with no corresponding `pending_draws` entry (file is empty). Not large enough to matter either way this cycle since `current_cash` is sourced from `buying_power`, not `cash`, per the clarified rule.
+* `current_cash` = Math.min($9,250.00, `cap_on_total_cash_balance_to_use` $10,000 + `settlement_reserve_target` $9,000 = $19,000) = **$9,250.00** — the $10,000 cap did not bind.
+* `get_equity_orders` confirmed 15 orders already placed on this account earlier today (the 9:45 AM ET cycle: 13 buys, 2 Momentum Reversal Trim sells on IBM and NFLX) and zero orders since.
+* Equity value (live quotes, 28 held target symbols; SOXL/IONQ at zero shares, both still recovery-excluded): **≈$38,510.27** (own snapshot from live per-symbol quotes; broker `get_portfolio` snapshot read **$38,501.78** a few seconds earlier — the ~$8 gap is ordinary quote-timing drift, immaterial to every conclusion below). `account_balance` ≈ **$47,751.78** (`get_portfolio` equity_value $38,501.78 + `current_cash` $9,250.00).
+
+## Settlement reserve reconciliation (Step 1)
+* `settlement/reserve.json` → `pending_draws` = `[]` — nothing to reconcile, unchanged from this morning.
+* `reserve_available_to_draw` = `settlement_reserve_target` ($9,000) − $0 drawn = **$9,000** (full, unused).
+
+## Tax reserve (Step 1)
+* `get_realized_pnl` (equity, 2026-01-01 → 2026-07-27, this account): `net_realized_gains_ytd` = **−$488.08** (net YTD loss; total_rate_of_return −2.57%).
+* Since YTD is net-negative, `tax_reserve` = Math.max(0, −488.08) × 30% = **$0.00**.
+
+## Drawdown audit (Step 1)
+Checked every held asset against `max_trailing_drawdown_percentage` (35%) vs. **both** `peakPrice` and `avg_cost_basis` (both legs must breach). **No asset breached 35% on either leg.** Closest: SPCX (27.10% off its $152.9988 peak / 26.43% off its $151.62 cost basis), TSLA (24.73% off peak / 20.68% off cost basis). **Zero emergency liquidations triggered.**
+
+## Liquidation recovery / cooldown check (Step 2)
+* **SOXL**: liquidated 2026-07-16 @ $147.6401. Cooldown (6 days) cleared (11 days elapsed), but current $127.3774 is **13.7% below** the liquidated price — a further decline, not the required ≥5% recovery. **Stays excluded from drift calc.**
+* **IONQ**: liquidated 2026-07-13 @ $38.8001. Cooldown cleared (14 days elapsed), but current $35.21 is **9.25% below** the liquidated price — no recovery. **Stays excluded from drift calc.**
+* All other symbols with a `profitSellDate` (TQQQ, COIN, ARM, SMCI, NVDA, AAPL, IBM, NFLX) currently hold a **nonzero position** — each prior profit-sell was a partial trim (50% `profit_sell_percentage`), not a full exit, so the repurchase-lock/recovery rule does not apply to them; they stay in normal drift play.
+
+## GET THE PROFITS sweep — portfolio-wide (Step 4, run first)
+Raw unrealized gain checked on all 28 currently-held target symbols against `materialize_profit_percentage` (4.0%). Three cleared the bar:
+| Symbol | Avg Cost | Current | Raw Gain % | `profitSellDate` today? | $12.50 dollar-floor check | Verdict |
+|---|---|---|---|---|---|---|
+| SMCI | 27.46 | 29.495 | +7.41% | No (07-22) | (29.495−27.46) × (1.408821×50%) = **$1.43** | Below $12.50 floor — **SKIP** |
+| GM | 78.45 | 86.12 | +9.78% | No (null) | (86.12−78.45) × (0.512931×50%) = **$1.97** | Below $12.50 floor — **SKIP** |
+| NFLX | 67.60 | 70.445 | +4.21% | **Yes (2026-07-27, this morning's Momentum Reversal Trim)** | n/a | Same-day guard — **SKIP** |
+
+**No GET THE PROFITS sale fires this cycle.**
+
+## MOMENTUM REVERSAL TRIM — portfolio-wide (Step 4)
+`Momentum_Score` (RSI14 + EMA9 slope, `momentum_lookback_days`=5) computed for all 28 in-play symbols via `get_equity_technical_indicators`. Threshold = **−10.0**, and raw gain must clear `overweight_sell_minimum_profit_margin_percent` (1.0%) to qualify:
+
+| Symbol | RSI14 | EMA9_now | EMA9_prior | Momentum_Score | Raw Gain % | Reversal candidate? |
+|---|---|---|---|---|---|---|
+| IBM | 36.76 | 221.74 | 245.64 | **−25.49** | +2.09% | Qualifies on score+gain, but `profitSellDate`=2026-07-27 (today) — **same-day guard SKIP** |
+| NFLX | 38.43 | 70.39 | 73.26 | **−15.41** | +4.21% | Qualifies on score+gain, but `profitSellDate`=2026-07-27 (today) — **same-day guard SKIP** |
+| MSTR | 37.35 | 95.87 | 95.53 | −9.20 | −0.54% | Above threshold, and underwater anyway |
+| META | 43.91 | 626.49 | 645.02 | −13.87 | −10.28% | Below threshold but underwater — gain gate fails |
+| VRT | 41.85 | 299.91 | 303.86 | −14.44 | −3.04% | Below threshold but underwater — gain gate fails |
+| All other in-profit symbols (MSFT +1.52%, SMCI +7.41%, AAPL +2.13%, F +2.18%, GM +9.78%, GE +3.42%) | — | — | — | all **above** −10.0 (strong uptrends) | n/a | Not triggered |
+| COIN | — | — | — | +0.36 | +0.86% | Below the 1.0% profit-margin gate regardless |
+
+**No new Momentum Reversal Trim fires this cycle** — the only two symbols whose score/gain combination would trigger (IBM, NFLX) were already sold once today and are blocked by the shared same-day guard.
+
+## Drift & Alpha Leader (Step 1 & 3)
+Target weights sum to 52.3 across 30 symbols. Drift computed against `account_balance` ≈ $47,751.78.
+
+**Overweight, breaching — all profit-margin-blocked, none in `forceSell`:**
+| Symbol | Current % | Target % | Drift | Asset tolerance | Avg Cost | Current | Raw Gain % | Sellable? |
+|---|---|---|---|---|---|---|---|---|
+| META | 13.89% | 1.91% | +11.98pp | 0.5% | 664.01 | 595.7401 | −10.28% | No — underwater |
+| PLTR | 7.10% | 4.78% | +2.32pp | 1.0% | 134.51 | 131.24 | −2.43% | No — underwater |
+| TQQQ | 4.92% | 2.87% | +2.05pp | 0.5% | 73.92 | 63.453 | −14.16% | No — underwater |
+
+**Underweight, breaching (all 20 unfunded this cycle — see Deployable cash below):**
+| Symbol | Current % | Target % | Drift | Asset tolerance |
+|---|---|---|---|---|
+| MU | 1.39% | 4.78% | 3.39pp | 1.0% |
+| TSLA | 5.95% | 7.27% | 1.32pp | 1.0% |
+| AMZN | 6.19% | 7.27% | 1.08pp | 1.0% |
+| IBM | 0.04% | 1.91% | 1.87pp | 0.5% |
+| NFLX | 0.04% | 1.91% | 1.87pp | 0.5% |
+| SMCI | 0.09% | 1.91% | 1.83pp | 0.5% |
+| GM | 0.09% | 1.91% | 1.82pp | 0.5% |
+| AAPL | 0.22% | 1.91% | 1.70pp | 0.5% |
+| GE | 0.22% | 1.91% | 1.70pp | 0.5% |
+| F | 0.21% | 1.91% | 1.70pp | 0.5% |
+| COIN | 0.72% | 1.91% | 1.19pp | 0.5% |
+| VRT | 0.75% | 1.91% | 1.17pp | 0.5% |
+| AVGO | 0.76% | 1.91% | 1.15pp | 0.5% |
+| UNH | 0.73% | 1.91% | 1.18pp | 0.5% |
+| ARM | 0.82% | 1.91% | 1.09pp | 0.5% |
+| AMD | 0.82% | 1.91% | 1.09pp | 0.5% |
+| HOOD | 0.82% | 1.91% | 1.09pp | 0.5% |
+| NEE | 0.86% | 1.91% | 1.06pp | 0.5% |
+| INTC | 1.23% | 1.91% | 0.68pp | 0.5% |
+| MSTR | 3.24% | 3.82% | 0.59pp | 0.5% |
+
+**Within tolerance, no action:** SPCX (0.09pp vs 0.5%), NVDA (0.93pp vs 1.0%), ORCL (0.97pp vs 2.0%), GOOG (0.87pp vs 1.0%), MSFT (0.49pp vs 1.5%).
+
+**Excluded from drift calc:** SOXL, IONQ (recovery not met — see Step 2).
+
+**Alpha Leader momentum ranking** (all 28 in-play symbols, `Momentum_Score` = Price_vs_EMA_Pct + EMA_Slope_Pct + (RSI14−50), 30-day daily RSI14/EMA9 via `get_equity_technical_indicators`):
+| Rank | Symbol | RSI14 | EMA9_now | EMA9_prior | Momentum_Score |
+|---|---|---|---|---|---|
+| 1 | **GM** | 62.48 | 79.55 | 77.04 | **+23.99** |
+| 2 | AAPL | 65.11 | 325.27 | 320.96 | +19.67 |
+| 3 | SMCI | 53.62 | 28.22 | 26.65 | +14.03 |
+| 4 | F | 55.83 | 14.18 | 14.01 | +9.73 |
+| 5 | NEE | 55.99 | 89.00 | 88.57 | +6.26 |
+| 6 | GE | 54.57 | 349.66 | 355.70 | +6.01 |
+| 7 | COIN | 46.18 | 162.34 | 160.18 | +0.36 |
+| 8 | UNH | 50.40 | 425.27 | 423.99 | −0.93 |
+| 9 | AVGO | 47.81 | 385.75 | 382.14 | −1.82 |
+| 10 | NVDA | 50.16 | 207.13 | 205.50 | −3.67 |
+| 11 | MSFT | 44.77 | 389.04 | 390.61 | −4.86 |
+| 12 | AMD | 50.35 | 529.92 | 523.31 | −5.42 |
+| 13 | MU | 47.63 | 940.11 | 928.85 | −6.06 |
+| 14 | PLTR | 42.90 | 127.89 | 131.21 | −7.01 |
+| 15 | MSTR | 37.35 | 95.87 | 95.53 | −9.20 |
+| 16 | META | 43.91 | 626.49 | 645.02 | −13.87 |
+| 17 | VRT | 41.85 | 299.91 | 303.86 | −14.44 |
+| 18 | NFLX | 38.43 | 70.39 | 73.26 | −15.41 |
+| 19 | AMZN | 37.27 | 242.04 | 247.39 | −18.78 |
+| 20 | ARM | 40.16 | 280.74 | 291.20 | −19.03 |
+| 21 | HOOD | 42.73 | 103.20 | 108.54 | −19.98 |
+| 22 | TQQQ | 38.19 | 69.10 | 72.78 | −25.04 |
+| 23 | IBM | 36.76 | 221.74 | 245.64 | −25.49 |
+| 24 | GOOG | 31.63 | 339.21 | 355.41 | −26.40 |
+| 25 | INTC | 36.84 | 101.02 | 105.69 | −26.45 |
+| 26 | ORCL | 28.23 | 125.11 | 133.80 | −32.64 |
+| 27 | SPCX | 30.55 | 124.67 | 138.89 | −40.21 |
+| 28 | TSLA | 27.75 | 360.03 | 394.65 | −45.44 |
+
+**Alpha Leader = GM** (highest `Momentum_Score`, +23.99 — strong confirmed uptrend, price above a rising 9-EMA, RSI on the bullish side). GM also independently triggered no profit-taking rule (gain +9.78% clears `materialize_profit_percentage` but misses the $12.50 dollar floor — see GET THE PROFITS sweep above). See Price limit check below: GM is pump-guard-blocked from any fresh buy this cycle regardless.
+
+## Deployable cash & Alpha Multiplier (Step 3)
+`base_deployable_cash` = Math.max(0, `current_cash` $9,250.00 − `min_cash_absolute` $250 − `settlement_reserve_target` $9,000 − `tax_reserve` $0) = **$0.00**.
+
+With `base_deployable_cash` at exactly zero, the reinvestment multiplier (1.25×) generates **$0** — there is no organic base to multiply, and (per Step 4 below) no legal Overweight trim exists to harvest `multiplier_cash` either. **No Alpha allocation, no pro-rata Underweight coverage possible this cycle.**
+
+## Overweight trim evaluation (Step 4)
+All three Overweight candidates (META, PLTR, TQQQ — see Drift table above) fail the `overweight_sell_minimum_profit_margin_percent` (1.0%) gate and none is listed in `forceSell`. **Zero legal Overweight trim source exists this cycle** — the High-Beta Gain Score ranking (Beta × Raw_Gain_%) was not computed since there is nothing to rank when every candidate is guardrail-blocked. `Total_High_Beta_Gains_Realized` (overweight-trim component) = **$0.00**.
+
+## Price limit / volatility halts (Step 5)
+Checked the Alpha Leader against `buy_price_diff_limit` (5%) for the record, even though it is moot on $0 deployable cash:
+* **GM**: 3-day (`no_of_days_for_price_compare`) low window (2026-07-22 to 2026-07-24) = **$79.00** (2026-07-23 low). Current $86.12 is **+9.01%** above that low — exceeds the 5% pump guard. **GM would have been buy-blocked even with cash available.**
+`sell_price_diff_limit` was not reached — no Overweight/stop-loss sell candidates survived to this stage.
+
+## Execution (Step 6)
+**No orders placed this cycle.** Zero legal sell sources (GET THE PROFITS and Momentum Reversal Trim both blocked; Overweight trims all underwater) means zero harvested capital, and `base_deployable_cash` is exactly $0.00 — every one of the 20 Underweight-breaching candidates is unfunded before even reaching the `sell_or_buy_value_limit` ($10) floor test. No `seek_approval_value` ($10,000) halt was relevant — no trade was sized at all. No buy/sell same-symbol conflict arose (nothing executed on either side). No settlement-reserve draws created or reconciled — `pending_draws` remains `[]`.
+
+## peak/prices.json updates
+* **GM**: `peakPrice` $85.80 → **$86.12** (new high, `peakDate` stays 2026-07-27).
+* All other 29 symbols: current price at or below stored `peakPrice` — no change. No `liquidatedPrice`/`liquidatedDate`, `profitSellPrice`/`profitSellDate`, or `lastPurchaseDate` fields changed (no sells or buys executed this cycle).
+
+## Total_High_Beta_Gains_Realized
+**$0.00** this cycle — no Overweight trims (all three candidates guardrail-blocked, underwater) and no GET THE PROFITS or Momentum Reversal Trim sale fired (dollar floor missed on SMCI/GM; same-day guard blocked IBM/NFLX after this morning's trims).
+
+## Final balances (unchanged — no trades)
+* Cash: `buying_power` **$9,250.00**, `cash` (ledger) **$9,291.70** (untracked $41.70 gap, no `pending_draws` entry — immaterial this cycle).
+* Equity value: **≈$38,501.78** (broker snapshot).
+* Account balance: **≈$47,751.78**.
+* Cash sits well above `min_cash_absolute` ($250) but far above the lean `min_cash_target` ($500) — the $9,000 `settlement_reserve_target` wall-off is the structural reason cash cannot be worked down closer to target this cycle; there is no legal sell source to generate the proceeds that would let it be deployed.
+
+## SKIPPED/PENDING trade matrix
+| Symbol | Intent | Amount | Reason |
+|---|---|---|---|
+| META | Sell (overweight trim) | n/a | −10.28% raw loss, below 1.0% profit-margin floor, not in `forceSell` |
+| PLTR | Sell (overweight trim) | n/a | −2.43% raw loss, below 1.0% profit-margin floor, not in `forceSell` |
+| TQQQ | Sell (overweight trim) | n/a | −14.16% raw loss, below 1.0% profit-margin floor, not in `forceSell` |
+| SMCI | GET THE PROFITS sell | n/a | +7.41% clears % bar; $1.43 realized profit misses $12.50 dollar floor |
+| GM | GET THE PROFITS sell / Alpha Leader buy | n/a | Sell: +9.78% clears % bar, $1.97 misses $12.50 floor. Buy: Alpha Leader but +9.01% above 3-day low, exceeds 5% pump guard |
+| NFLX | GET THE PROFITS / Momentum Reversal sell | n/a | `profitSellDate` = today (already trimmed this morning) — same-day guard |
+| IBM | Momentum Reversal sell | n/a | Score −25.49 (≤ −10 threshold) and +2.09% gain would qualify, but `profitSellDate` = today — same-day guard |
+| MU, TSLA, AMZN, COIN, ARM, HOOD, AAPL, AMD, NEE, VRT, AVGO, F, GE, INTC, MSTR, UNH | Buy (drift) | n/a (each) | Zero deployable cash ($0.00 `base_deployable_cash`, no harvested capital) |
+| SOXL | Buy (repurchase + drift) | n/a | Cooldown cleared (11d) but price still 13.7% below liquidated price — recovery not met |
+| IONQ | Buy (repurchase + drift) | n/a | Cooldown cleared (14d) but price still 9.25% below liquidated price — recovery not met |
+
+## Notes
+This is the second scheduled tick today — the 9:45 AM ET cycle already executed 13 Underweight buys and 2 Momentum Reversal Trims (IBM, NFLX), landing `buying_power` at exactly $9,250.00, i.e. precisely `min_cash_absolute` ($250) + `settlement_reserve_target` ($9,000) with nothing left over. That leaves `base_deployable_cash` at exactly $0.00 this cycle — not a near-miss, an exact wall. The Alpha Leader rotated intraday from this morning's GM-blocked-by-GM-only-slightly to a now more decisively pump-guard-blocked GM (+9.0% vs. this morning's smaller margin), so even a stray dollar of deployable cash would not have reached it. IBM and NFLX both technically qualify for a second profit-taking trim by Momentum_Score/gain math, but the shared same-day guard correctly suppresses re-selling a symbol already trimmed once today. META's +11.98pp overweight drift remains the dominant, structurally un-fixable imbalance — 10.3% underwater on cost basis and thus blocked from trimming under every current guardrail, unchanged from every prior cycle's assessment. Zero drawdown breaches, zero legal trims, zero deployable cash — a fully quiet cycle mechanically, despite an unusually large (23-symbol) drift-breach list underneath.
+Per repo convention, this entry is committed to a fresh feature branch and merged directly into `main` to preserve the unalterable paper trail.
+
+---
