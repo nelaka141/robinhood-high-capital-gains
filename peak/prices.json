@@ -99,7 +99,7 @@
 		"lastPurchaseDate": "2026-07-14"
 	},
 	"AMZN": {
-		"peakPrice": 266.8923,
+		"peakPrice": 271.207,
 		"peakDate": "2026-07-31",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -144,7 +144,7 @@
 		"lastPurchaseDate": "2026-07-30"
 	},
 	"MSFT": {
-		"peakPrice": 456.83,
+		"peakPrice": 462.48,
 		"peakDate": "2026-07-31",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
