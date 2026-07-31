@@ -31,8 +31,8 @@
 		"peakDate": "2026-07-10",
 		"liquidatedPrice": 862.81,
 		"liquidatedDate": "2026-07-16",
-		"profitSellPrice": 831.5101,
-		"profitSellDate": "2026-07-30",
+		"profitSellPrice": 879.6,
+		"profitSellDate": "2026-07-31",
 		"lastPurchaseDate": "2026-07-27"
 	},
 	"SOXL": {
@@ -60,7 +60,7 @@
 		"liquidatedDate": null,
 		"profitSellPrice": 175.7001,
 		"profitSellDate": "2026-07-21",
-		"lastPurchaseDate": "2026-07-30"
+		"lastPurchaseDate": "2026-07-31"
 	},
 	"ARM": {
 		"peakPrice": 288.06,
@@ -99,12 +99,12 @@
 		"lastPurchaseDate": "2026-07-14"
 	},
 	"AMZN": {
-		"peakPrice": 257.41,
-		"peakDate": "2026-07-30",
+		"peakPrice": 266.8923,
+		"peakDate": "2026-07-31",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
-		"profitSellPrice": 229.4101,
-		"profitSellDate": "2026-07-29",
+		"profitSellPrice": 266.8923,
+		"profitSellDate": "2026-07-31",
 		"lastPurchaseDate": "2026-07-30"
 	},
 	"TSLA": {
@@ -144,12 +144,12 @@
 		"lastPurchaseDate": "2026-07-30"
 	},
 	"MSFT": {
-		"peakPrice": 454.85,
-		"peakDate": "2026-07-30",
+		"peakPrice": 456.83,
+		"peakDate": "2026-07-31",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
-		"profitSellPrice": 447.39,
-		"profitSellDate": "2026-07-30",
+		"profitSellPrice": 456.83,
+		"profitSellDate": "2026-07-31",
 		"lastPurchaseDate": "2026-07-16"
 	},
 	"META": {
@@ -177,15 +177,15 @@
 		"liquidatedDate": null,
 		"profitSellPrice": 333.4801,
 		"profitSellDate": "2026-07-17",
-		"lastPurchaseDate": "2026-07-30"
+		"lastPurchaseDate": "2026-07-31"
 	},
 	"AMD": {
 		"peakPrice": 558.1,
 		"peakDate": "2026-07-14",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
-		"profitSellPrice": null,
-		"profitSellDate": null,
+		"profitSellPrice": 496.02,
+		"profitSellDate": "2026-07-31",
 		"lastPurchaseDate": "2026-07-29"
 	},
 	"NEE": {
@@ -222,7 +222,7 @@
 		"liquidatedDate": null,
 		"profitSellPrice": 16.06,
 		"profitSellDate": "2026-07-29",
-		"lastPurchaseDate": "2026-07-30"
+		"lastPurchaseDate": "2026-07-31"
 	},
 	"GM": {
 		"peakPrice": 91.48,
@@ -249,7 +249,7 @@
 		"liquidatedDate": null,
 		"profitSellPrice": null,
 		"profitSellDate": null,
-		"lastPurchaseDate": "2026-07-30"
+		"lastPurchaseDate": "2026-07-31"
 	},
 	"UNH": {
 		"peakPrice": 435.14,
