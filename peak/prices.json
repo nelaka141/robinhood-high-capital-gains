@@ -22,8 +22,8 @@
 		"peakDate": "2026-07-07",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
-		"profitSellPrice": 122.4601,
-		"profitSellDate": "2026-07-30",
+		"profitSellPrice": 125.8114,
+		"profitSellDate": "2026-08-03",
 		"lastPurchaseDate": "2026-07-30"
 	},
 	"MU": {
@@ -99,12 +99,12 @@
 		"lastPurchaseDate": "2026-07-14"
 	},
 	"AMZN": {
-		"peakPrice": 271.207,
-		"peakDate": "2026-07-31",
+		"peakPrice": 286.2201,
+		"peakDate": "2026-08-03",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
-		"profitSellPrice": 266.8923,
-		"profitSellDate": "2026-07-31",
+		"profitSellPrice": 286.2201,
+		"profitSellDate": "2026-08-03",
 		"lastPurchaseDate": "2026-07-30"
 	},
 	"TSLA": {
@@ -135,8 +135,8 @@
 		"lastPurchaseDate": "2026-07-16"
 	},
 	"GOOG": {
-		"peakPrice": 370.95,
-		"peakDate": "2026-07-16",
+		"peakPrice": 372.82,
+		"peakDate": "2026-08-03",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 331.2701,
@@ -144,12 +144,12 @@
 		"lastPurchaseDate": "2026-07-30"
 	},
 	"MSFT": {
-		"peakPrice": 462.48,
-		"peakDate": "2026-07-31",
+		"peakPrice": 488.56,
+		"peakDate": "2026-08-03",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
-		"profitSellPrice": 456.83,
-		"profitSellDate": "2026-07-31",
+		"profitSellPrice": 488.56,
+		"profitSellDate": "2026-08-03",
 		"lastPurchaseDate": "2026-07-16"
 	},
 	"META": {
@@ -243,8 +243,8 @@
 		"lastPurchaseDate": "2026-07-30"
 	},
 	"NFLX": {
-		"peakPrice": 73.36,
-		"peakDate": "2026-07-29",
+		"peakPrice": 73.78,
+		"peakDate": "2026-08-03",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": null,
