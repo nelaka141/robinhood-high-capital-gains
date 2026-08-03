@@ -1,7 +1,7 @@
 {
   "portfolio_metadata": {
-    "version": "2.30.0",
-    "last_updated": "2026-07-29",
+    "version": "2.31.0",
+    "last_updated": "2026-08-03",
     "global_drift_tolerance": 1.0,
     "max_trailing_drawdown_percentage": 35,
     "min_recovery_price_percentage": 5.0,
@@ -65,7 +65,8 @@
     "IBM": { "weight": 1.1, "drift": 0.5 },
     "NFLX": { "weight": 1.1, "drift": 0.5 },
     "UNH": { "weight": 1.1, "drift": 0.5 },
-    "GE": { "weight": 1.1, "drift": 0.5 }
+    "GE": { "weight": 1.1, "drift": 0.5 },
+    "LTRN": { "weight": 1.0, "drift": 0.5 }
   },
   "forceSell": []
 }
