@@ -366,6 +366,12 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
         st = ctx.price_state.get(sym, AssetPriceState())
         price = ctx.quotes[sym].last_trade_price
 
+        if pos.avg_cost_basis is None:
+            ctx.skipped.append(SkippedTrade(
+                sym, "cost basis pending transfer (fail-closed)", "Overweight trim",
+            ))
+            continue
+
         lp_date = _parse_date(st.lastPurchaseDate)
         locked_in = lp_date is not None and (ctx.current_date - lp_date).days <= cfg.meta.lock_in_period
         if locked_in and sym not in ctx.drawdown_liquidations:
