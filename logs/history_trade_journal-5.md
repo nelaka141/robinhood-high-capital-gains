@@ -2395,3 +2395,166 @@ This is the second scheduled tick today — the 9:45 AM ET cycle already execute
 Per repo convention, this entry is committed to a fresh feature branch and merged directly into `main` to preserve the unalterable paper trail.
 
 ---
+
+# 2026-07-30 09:57 AM EDT — Scheduled Rebalance Check — EXECUTED (12 Orders Filled: 5 GET THE PROFITS Sells Fund GM Alpha Multiplier + 6 Underweight Buys; MU/PLTR/NVDA/GOOG/MSFT All Clear Both the 4% Profit Gate and the $12.50 FIFO Dollar Gate; MSFT's Trim Also Cures Its Own Overweight Drift; ORCL/TSLA Remain Overweight But Underwater With No Legal Trim Source; COIN/SMCI/F/GM/AAPL Shielded From Profit-Taking by the 15-Day Resell Cooldown; AMD Momentum-Reversal Candidate Killed by a Negative FIFO Realized Gain)
+
+**Status:** EXECUTED. **12 of 12 intended orders filled** — fresh, stateless run for the 9:45 AM ET scheduled tick. `CLAUDE.md` re-pulled fresh from `main` via the GitHub API at session start (commit `a0aafaf`) and confirmed unchanged from the checked-in copy before evaluation began.
+
+## Account Snapshot (~9:47 AM ET, pre-trade)
+- `buying_power` (settled, spendable — this is `account_cash`/`current_cash`): **$25,539.24**
+- `cash` (ledger): **$25,539.24** — equal to `buying_power`, confirming all 7 of yesterday's pending settlement draws (PLTR/MU/NVDA/GOOG/F/GM/AMZN, totaling $7,999.99 drawn against $25,289.23 in sale proceeds) have now settled.
+- `current_cash` (after `cap_on_total_cash_balance_to_use` $10,000 + `settlement_reserve_target` $9,000 = $19,000 cap): **$19,000.00** (cap binding — real buying power exceeds it)
+- Total equity market value (28 held target positions pre-trade; SOXL/IONQ not held): **$71,422.48**
+- `account_balance` (equity MV + `current_cash`): **$90,422.48**
+- `net_realized_gains_ytd_pretrade` (Jan 1 – Jul 30, via `get_realized_pnl`): **$13,731.88** → placeholder `tax_reserve` = $13,731.88 × 30% = **$4,119.56** (superseded below once this cycle's sells confirmed)
+
+## Settlement Reserve Reconciliation (Step 1)
+All 7 `pending_draws` entries from the 2026-07-29 cycle (PLTR $2,093.37, MU $2,228.04, NVDA $1,900.20, GOOG $1,436.05, F $162.93, GM $252.51, AMZN $926.89) are confirmed settled — `cash` now equals `buying_power` exactly. `settlement/reserve.json` reset to `pending_draws: []`, fully replenishing the $9,000 reserve headroom.
+
+## Drawdown Audit (max_trailing_drawdown_percentage = 35%, both peak AND cost-basis drop required)
+No asset breached both legs simultaneously. Worst cases: SPCX (24.07% off peak / 23.38% off cost), META (21.25% / 19.75%), TSLA (25.28% off peak / only 3.33% off cost), HOOD (23.16% off peak / 6.22% off cost). No emergency liquidations triggered.
+
+## Liquidation Recovery / Resell-Cooldown Check (Step 2)
+- **SOXL**: liquidated 2026-07-16 @ $147.6401. Current $112.9508 — still a decrease, not a recovery. Stays excluded from drift/Alpha-Leader consideration.
+- **IONQ**: liquidated 2026-07-13 @ $38.8001. Current $34.2366 — still a decrease, not recovered. Stays excluded.
+- **`profit_resell_cooldown_days` = 15** guard (blocks GET THE PROFITS *and* Momentum Reversal Trim when `current_date − profitSellDate ≤ 15` **and** `current_price < profitSellPrice`):
+  | Symbol | profitSellDate | profitSellPrice | Current Price | Days Since | Blocked? |
+  |---|---|---|---|---|---|
+  | COIN | 2026-07-21 | $175.7001 | $163.90 | 9 | **YES** |
+  | SMCI | 2026-07-22 | $31.1228 | $27.75 | 8 | **YES** |
+  | F | 2026-07-29 | $16.06 | $14.825/$14.895 | 1 | **YES** |
+  | GM | 2026-07-29 | $91.48 | $88.04/$87.66 | 1 | **YES** |
+  | AAPL | 2026-07-17 | $333.4801 | $331.64/$331.76 | 13 | **YES** |
+  | PLTR | 2026-07-29 | $122.77 | $123.02 | 1 | no (price recovered above exit) |
+  | MU | 2026-07-29 | $795.2701 | $815.625 | 1 | no (price recovered above exit) |
+  | AMZN | 2026-07-29 | $229.4101 | $235.06 | 1 | no (price recovered above exit) |
+  | NVDA | 2026-07-29 | $193.0501 | $193.285 | 1 | no (price recovered above exit) |
+  | GOOG | 2026-07-29 | $331.67 | $332.50 | 1 | no (price recovered above exit) |
+  | IBM | 2026-07-27 | $218.844 | $222.23 | 3 | no (price recovered above exit) |
+  | TQQQ | 2026-07-09 | $76.83 | $62.105 | 21 | no (cooldown window elapsed) |
+  | ARM | 2026-07-09 | $333.5356 | $242.47 | 21 | no (cooldown window elapsed) |
+  COIN/SMCI/AAPL don't clear the 4% GTP gate anyway (raw gains -0.97%/+0.35%/+0.89%); F and GM *did* clear the GTP gate (+34.43%/+78.54%) but were exempted this cycle by the cooldown guard.
+
+## Momentum Score — Alpha Leader Selection (momentum_lookback_days = 5, 30 days RSI/EMA per symbol, in-play candidates)
+| Symbol | RSI14 | EMA9_now | EMA9_prior (7/22) | Price_vs_EMA% | EMA_Slope% | Momentum_Score |
+|---|---|---|---|---|---|---|
+| **GM** | 70.44 | 84.20 | 78.30 | 4.57 | 7.54 | **+32.54 ← ALPHA LEADER** |
+| F | 66.58 | 14.59 | 14.13 | 2.09 | 3.25 | +21.93 |
+| AAPL | 66.82 | 331.71 | 323.75 | -0.02 | 2.46 | +19.26 |
+| MSFT | 49.99 | 390.03 | 393.19 | 15.33 | -0.80 | +14.52 |
+| NFLX | 50.58 | 71.36 | 70.85 | 0.09 | 0.71 | +1.38 |
+| GE | 49.40 | 353.61 | 348.55 | -0.08 | 1.45 | +0.77 |
+| NEE | 49.65 | 88.92 | 88.56 | -0.55 | 0.40 | -0.50 |
+| UNH | 50.51 | 423.92 | 427.12 | -1.76 | -0.75 | -2.00 |
+| COIN | 47.47 | 163.44 | 163.90 | 0.28 | -0.28 | -2.54 |
+| SMCI | 41.27 | 27.96 | 26.88 | -1.54 | 3.98 | -6.28 |
+| AVGO | 42.96 | 381.56 | 385.25 | 0.24 | -0.96 | -7.76 |
+| MSTR | 41.20 | 95.76 | 97.74 | 0.75 | -2.02 | -10.07 |
+| IBM | 42.35 | 222.91 | 227.86 | -0.30 | -2.17 | -10.13 |
+| PLTR | 44.00 | 126.68 | 130.58 | -2.89 | -2.98 | -11.88 |
+| GOOG | 43.12 | 335.84 | 350.72 | -1.00 | -4.24 | -12.11 |
+| NVDA | 37.85 | 200.73 | 206.82 | -3.71 | -2.94 | -18.81 |
+| AMZN | 32.79 | 235.81 | 247.24 | -0.32 | -4.62 | -22.15 |
+| ORCL | 31.04 | 122.14 | 129.53 | 2.09 | -5.71 | -22.57 |
+| AMD | 35.52 | 493.32 | 529.95 | -4.17 | -6.91 | **-25.56 (MRT candidate)** |
+| META | 41.55 | 608.84 | 641.36 | -12.48 | -5.07 | -26.00 |
+| MU | 35.58 | 875.64 | 933.54 | -6.85 | -6.20 | -27.48 |
+| HOOD | 38.49 | 97.89 | 106.19 | -9.61 | -7.82 | -28.94 |
+| SPCX | 31.00 | 119.49 | 129.27 | -2.78 | -7.56 | -29.34 |
+| TQQQ | 31.69 | 64.89 | 71.40 | -4.30 | -9.11 | -31.72 |
+| ARM | 32.80 | 261.96 | 286.63 | -7.44 | -8.61 | -33.25 |
+| INTC | 30.70 | 93.64 | 103.93 | -4.20 | -9.90 | -33.40 |
+| VRT | 26.74 | 278.10 | 301.86 | -13.51 | -7.87 | -44.64 |
+| TSLA | 25.28 | 332.77 | 384.79 | -8.08 | -13.52 | -46.32 |
+
+**GM is Alpha Leader** with Momentum_Score +32.54 (price 4.57% above a rising 9-EMA, RSI 70.44 — strongest confirmed uptrend on the board). GM's own GET THE PROFITS sale is blocked this cycle by the resell-cooldown guard (see above), so it remains available for the standard multiplier buy allocation. `buy_price_diff_limit` check: GM's 3-day (7/27–7/29) low is $84.095; current $88.04 is +4.69% above it — under the 5% limit, buy proceeds.
+
+## GET THE PROFITS Sweep — portfolio-wide (Step 4; materialize_profit_percentage=4.0%, profit_sell_percentage=50%, materialize_profit_in_dollars=$12.50, FIFO lot-matched dollar gate)
+| Symbol | Raw_Gain% (avg cost) | %-Gate | FIFO Realized $ (50% of position) | $-Gate | Cooldown Guard | Fires? |
+|---|---|---|---|---|---|---|
+| MSFT | +12.46% | pass | $328.71 | pass | n/a (no prior sell) | **YES** |
+| MU | +296.42% | pass | $2,759.89 | pass | clear (price recovered) | **YES** |
+| PLTR | +48.27% | pass | $2,186.30 | pass | clear (price recovered) | **YES** |
+| NVDA | +13.22% | pass | $810.22 | pass | clear (price recovered) | **YES** |
+| GOOG | +4.14% | pass | $296.25 | pass | clear (price recovered) | **YES** |
+| IBM | +4.96% | pass | $0.50 (only 1 tiny lot, all near current price) | **FAIL (<$12.50)** | clear | no |
+| NFLX | +5.65% | pass | $0.57 (only 1 tiny lot) | **FAIL (<$12.50)** | n/a (never sold) | no |
+| F | +34.43% | pass | n/a | n/a | **BLOCKED** | no |
+| GM | +78.54% | pass | n/a | n/a | **BLOCKED** | no |
+| AAPL/COIN/SMCI/GE/NEE/AVGO/ARM/VRT/AMZN/TSLA/ORCL/HOOD/UNH/TQQQ/INTC/SPCX/MSTR | ≤ +2.26% | **FAIL (<4%)** | — | — | — | no |
+
+IBM and NFLX's whole positions consist of a single tiny lot each (0.095 / 0.298 shares from a $20 minimum-size buy) — the 50% FIFO slice is worth well under a dollar of profit, so the dollar gate correctly vetoes the sale despite a healthy percentage gain. MSFT is the standout: its GTP sale simultaneously realizes profit *and* cures its own Overweight drift breach (see Overweight ranking below), so no separate trim was needed for it.
+
+## Momentum Reversal Trim (Step 4; threshold ≤ -10.0, min margin 1.0%, min dollars $12.50)
+Score ≤ -10 AND raw gain ≥ 1%, excluding symbols already firing GTP this cycle (MSTR, IBM, PLTR, GOOG, NVDA, MU all excluded on that basis — GTP is mandatory-first): only **AMD** qualified (Score -25.56, raw gain +2.26%). FIFO lot walk on AMD's 4 short-dated lots (bought 7/13 @ $540.71, 7/24 @ $521.98, 7/27 @ $507.00, 7/29 @ $441.09) against the 50%-of-position target realizes **-$16.00** — the two oldest, highest-cost lots dominate the FIFO slice and are still underwater at the current $472.74 print, even though the *average*-cost-basis raw gain is positive. Since -$16.00 does not clear `momentum_reversal_minimum_profit_dollars` ($12.50), **AMD's trim does not fire** — a clean example of why the FIFO dollar gate exists (avg-cost method would have wrongly approved this sale). Position held unchanged.
+
+## Overweight High-Beta Ranking (Step 4)
+Drift-breached Overweight candidates: **ORCL** (raw gain -20.36%) and **TSLA** (raw gain -3.33%) — both fail `overweight_sell_minimum_profit_margin_percent` (1.0%) and `forceSell` is empty in `portfolio_targets.json`, so **no legal trim source exists** for either; both remain held at full size, unchanged. **META** is nominally Overweight (7.20% vs. 5.05% target) but its drift (1.444) is inside its 1.50 tolerance, so no action required. **MSFT**'s Overweight drift breach was resolved as a side effect of its mandatory GTP sale above (post-trade drift 0.351 vs. 1.00 tolerance — now compliant).
+
+## High-Beta Gains Calculation (beta_calculation_lookback_days=30 vs. SPY)
+| Symbol | Beta_asset | Raw_Gain% | High_Beta_Gain_Score | High_Beta_Gain_Dollars (FIFO) |
+|---|---|---|---|---|
+| MU | 4.413 | +296.42% | 1307.90 | $2,759.89 |
+| PLTR | 0.610 | +48.27% | 29.44 | $2,186.30 |
+| NVDA | 1.842 | +13.22% | 24.35 | $810.22 |
+| GOOG | 1.616 | +4.14% | 6.69 | $296.25 |
+| MSFT | 0.096 | +12.46% | 1.20 | $328.71 |
+
+**`Total_High_Beta_Gains_Realized` = $6,381.37** (all from mandatory GTP sales; no Overweight-ranked trims fired this cycle since ORCL/TSLA were both ineligible).
+
+## Price Limit Checks (Step 5, no_of_days_for_price_compare=3, ±5%)
+All 5 GTP sell candidates were flat-to-up on the day (no `sell_price_diff_limit` exemption triggered). Buy candidates' 3-day-low pump check: F +3.87%, IBM +3.31%, NFLX +2.23%, AAPL below its 3-day low (no pump), AMZN +3.94%, COIN +3.35%, GM +4.69% — all under the 5% `buy_price_diff_limit`, all proceed.
+
+## Tax Reserve — Final (Step 1/3/6, re-queried post-trade)
+- `net_realized_gains_ytd_effective` (post-sells `get_realized_pnl`, same Jan 1 – Jul 30 window): **$20,113.23** (up from the $13,731.88 pretrade figure by exactly this cycle's FIFO-realized gains: $6,381.37; small residual reflects Robinhood's own lot-matching vs. our FIFO estimate)
+- `prior_years_tax_base`: **$0.00** (no entries in `tax/realized_gains_by_year.json` before 2026)
+- `tax_reserve` = ($0.00 + $20,113.23) × 30% = **$6,033.97**
+- `tax/realized_gains_by_year.json` → `"2026": 20113.23` (updated)
+
+## Buy Sizing (Step 3/6, final figures post-tax-reserve)
+- `base_deployable_cash` = max(0, $19,000.00 − $250 min_cash_absolute − $9,000 settlement_reserve_target − $6,033.97 tax_reserve) = **$3,716.03**
+- `multiplier_cash` = $3,716.03 × (1.25 − 1.0) = **$929.01**
+- Alpha allocation (GM) = 35% × $3,716.03 + $929.01 = **$2,229.62** (well under the 35% single-asset portfolio cap)
+- Underweight pro-rata pool = $3,716.03 − $1,300.61 = **$2,415.42**, split pro-rata by drift weight across F (1.784), IBM (1.084), NFLX (1.084), AAPL (1.024), AMZN (1.014), COIN (0.848) — MU/PLTR/NVDA/GOOG excluded (already handled via mandatory GTP sale this cycle)
+- Total buy spend $4,645.03 funded entirely from settled `buying_power` ($25,539.24) — no reserve bridging was necessary; `reserve_available_to_draw` ($9,000 − $0 drawn − $6,033.97 tax_reserve = $2,966.03) was available but unused. Hard cap check: $4,645.03 ≪ `buying_power − min_cash_absolute − tax_reserve` = $19,255.27. ✓
+
+## Orders Executed (sequential, market orders, regular hours, all filled ~9:54–9:56 AM ET)
+**Sells (GET THE PROFITS, FIFO tax lots specified):**
+| # | Symbol | Qty | Avg Fill | Proceeds (net of fees) | FIFO Realized Profit |
+|---|---|---|---|---|---|
+| 1 | MSFT | 9.123230 | $447.39 | $4,081.55 | $328.71 |
+| 2 | MU | 3.936230 | $831.5101 | $3,272.95 | $2,759.89 |
+| 3 | PLTR | 23.956616 | $122.4601 | $2,933.66 | $2,186.30 |
+| 4 | NVDA | 13.829334 | $194.201 | $2,685.61 | $810.22 |
+| 5 | GOOG | 6.083255 | $331.2701 | $2,015.15 | $296.25 |
+
+**Buys (Underweight pro-rata + GM Alpha multiplier, dollar-based market orders):**
+| # | Symbol | Dollar Amount | Qty Filled | Avg Fill |
+|---|---|---|---|---|
+| 6 | GM (Alpha Leader) | $2,229.62 | 25.434890 | $87.6599 |
+| 7 | F | $630.16 | 42.441304 | $14.8478 |
+| 8 | IBM | $382.90 | 1.729371 | $221.4099 |
+| 9 | NFLX | $382.90 | 5.402857 | $70.8699 |
+| 10 | AAPL | $361.71 | 1.090572 | $331.6699 |
+| 11 | AMZN | $358.19 | 1.516790 | $236.1499 |
+| 12 | COIN | $299.55 | 1.820939 | $164.503 |
+
+No order approached `seek_approval_value` ($10,000); no manual halt required. All orders ≥ `sell_or_buy_value_limit` ($10). No 429/502 errors encountered — no retries needed.
+
+## Post-Trade Balances (~9:57 AM ET)
+- `buying_power`: **$20,894.21** (down $4,645.03 from pre-trade; today's $14,988.92 in sale proceeds still unsettled, expected to settle 2026-07-31 per `settlement_lag_days`=1)
+- `cash` (ledger): **$35,883.13**
+- Equity market value: **$61,314.35**
+- `account_balance`: **$82,208.56**
+- Note on `min_cash_target` ($500): final `buying_power` sits well above this lean target by design — `cap_on_total_cash_balance_to_use` ($10,000) + `settlement_reserve_target` ($9,000) deliberately wall off $6,539.24 of real cash from this cycle's deployable pool regardless of the lean-cash preference; that capital is intentionally left undeployed under current parameters, not a sizing miss.
+
+## Remaining Drift Post-Trade (breached only, weight units)
+MU (drift 3.795 vs. 1.50 asset-level tolerance — still Underweight after 50% GTP trim, expected), PLTR (3.592 vs. 1.50), NVDA (3.302 vs. 1.00), GOOG (2.548 vs. 1.00), ORCL (2.150 vs. 1.00 — Overweight, underwater, no legal trim), TSLA (1.815 vs. 1.00 — Overweight, underwater, no legal trim), F (1.239 vs. 1.00 — partial buy only), NFLX (0.770 vs. 0.50), IBM (0.768 vs. 0.50), AAPL (0.720 vs. 0.50), COIN (0.577 vs. 0.50), SOXL (1.100 vs. 0.60 — excluded, awaiting recovery), IONQ (1.100 vs. 0.50 — excluded, awaiting recovery). MSFT and GM both moved inside tolerance this cycle.
+
+## Draws / Settlements This Cycle
+7 prior-cycle `pending_draws` entries confirmed settled and cleared (see Settlement Reserve Reconciliation above). No new draws created this cycle — all buys funded from settled `buying_power` directly.
+
+## Git / Notification
+Committed `logs/trade_journal.md`, `peak/prices.json`, `settlement/reserve.json`, and `tax/realized_gains_by_year.json` on a new feature branch, merged to `main`. Summary emailed to adarsh_141@yahoo.com via Gmail with the `Send-With-Claude` label.
+
+---
