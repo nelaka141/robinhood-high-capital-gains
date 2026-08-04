@@ -127,10 +127,15 @@ class RunContext:
     drift_results: Dict[str, DriftResult] = field(default_factory=dict)
     excluded_symbols: Dict[str, str] = field(default_factory=dict)      # fully out of play (liquidation/full-exit)
     buy_guarded_symbols: Dict[str, str] = field(default_factory=dict)   # buys blocked, otherwise in play
+    blocked_symbols: Dict[str, str] = field(default_factory=dict)       # `blocked` list — exempt from ALL buy/sell
+                                                                          # this cycle (drawdown, GTP/MRT, Overweight
+                                                                          # trims, Underweight/Alpha buys), including
+                                                                          # any symbol liquidated via blocked_liquidations
 
     momentum_scores: Dict[str, MomentumScore] = field(default_factory=dict)
     alpha_leader: Optional[str] = None
 
+    blocked_liquidations: List[str] = field(default_factory=list)  # blocked AND forceSell AND held -> liquidate 100%
     drawdown_liquidations: List[str] = field(default_factory=list)
     profit_taking_sells: List[TradeIntent] = field(default_factory=list)  # GET THE PROFITS + Momentum Reversal Trim
     overweight_trims: List[TradeIntent] = field(default_factory=list)

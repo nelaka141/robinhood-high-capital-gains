@@ -57,6 +57,7 @@ class PortfolioConfig:
     meta: PortfolioMetadata
     targets: Dict[str, AssetTarget]
     force_sell: List[str]
+    blocked: List[str]  # exempt from ALL buy/sell this cycle, except forceSell + currently held -> liquidate 100%
 
     @property
     def sum_of_weights(self) -> float:
@@ -89,4 +90,8 @@ def load_portfolio_config(path: str | Path = "portfolio_targets.json") -> Portfo
         for sym, t in data["targets"].items()
     }
 
-    return PortfolioConfig(meta=meta, targets=targets, force_sell=list(data.get("forceSell", [])))
+    return PortfolioConfig(
+        meta=meta, targets=targets,
+        force_sell=list(data.get("forceSell", [])),
+        blocked=list(data.get("blocked", [])),
+    )

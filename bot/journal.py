@@ -82,7 +82,10 @@ def render_no_trades_entry(ctx: RunContext) -> str:
 
 def render_entry(ctx: RunContext) -> str:
     ts = ctx.current_date.isoformat()
-    n_sells = len(ctx.drawdown_liquidations) + len(ctx.profit_taking_sells) + len(ctx.overweight_trims)
+    n_sells = (
+        len(ctx.drawdown_liquidations) + len(ctx.blocked_liquidations)
+        + len(ctx.profit_taking_sells) + len(ctx.overweight_trims)
+    )
     n_buys = len(ctx.buys)
 
     lines = [
@@ -106,6 +109,12 @@ def render_entry(ctx: RunContext) -> str:
     for sym, reason in ctx.buy_guarded_symbols.items():
         if sym not in ctx.excluded_symbols:
             lines.append(f"- **{sym}** (buy-guarded only): {reason}")
+
+    lines += ["", "## Blocked Assets (`blocked` list)"]
+    for sym, reason in ctx.blocked_symbols.items():
+        lines.append(f"- **{sym}**: {reason}")
+    if not ctx.blocked_symbols:
+        lines.append("- none this cycle")
 
     lines += [
         "",
@@ -169,10 +178,14 @@ def render_entry(ctx: RunContext) -> str:
 
 
 def render_email_summary(ctx: RunContext) -> str:
+    n_sells = (
+        len(ctx.drawdown_liquidations) + len(ctx.blocked_liquidations)
+        + len(ctx.profit_taking_sells) + len(ctx.overweight_trims)
+    )
     return (
         f"Scheduled rebalance {ctx.current_date.isoformat()}: "
         f"{len(ctx.buys)} buy(s), "
-        f"{len(ctx.drawdown_liquidations) + len(ctx.profit_taking_sells) + len(ctx.overweight_trims)} sell(s). "
+        f"{n_sells} sell(s). "
         f"Alpha Leader: {ctx.alpha_leader or 'n/a'}. "
         f"Total_High_Beta_Gains_Realized: ${ctx.total_high_beta_gains_realized:,.2f}. "
         f"Final buying_power: ${ctx.account_cash:,.2f}. "

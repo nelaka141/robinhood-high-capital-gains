@@ -61,9 +61,29 @@ def step1_fetch_state(ctx: RunContext, broker: BrokerClient, repo_dir: str = "."
     )
     ctx.account_balance = equity_value + ctx.current_cash
 
+    # --- `blocked` list: exempt from ALL buy/sell this cycle (drawdown audit included), except
+    # when the same symbol is ALSO in `forceSell` and currently held — in that one case, liquidate
+    # the full position instead of freezing it. Computed before the Drawdown Audit loop below so a
+    # blocked (non-exception) symbol is skipped there too, and before has_any_breach() so a
+    # blocked+forceSell+held liquidation alone is enough to keep the cycle from taking the NO
+    # TRADES early exit.
+    for sym in cfg.blocked:
+        if sym not in cfg.targets:
+            continue  # stale/unknown symbol in the blocked list — nothing to do
+        pos = ctx.positions.get(sym)
+        held = pos is not None and pos.quantity > 0
+        if sym in cfg.force_sell and held:
+            ctx.blocked_symbols[sym] = "blocked, but forceSell + currently held — liquidating full position instead of freezing"
+            ctx.blocked_liquidations.append(sym)
+        else:
+            ctx.blocked_symbols[sym] = "blocked — exempt from all buy/sell activity this cycle"
+
     # --- Drawdown Audit: BOTH the peak leg AND the cost-basis leg must breach simultaneously ---
     drawdown_pct = cfg.meta.max_trailing_drawdown_percentage
     for sym in symbols:
+        if sym in ctx.blocked_symbols:
+            continue  # blocked -> exempt even from the drawdown stop-loss (the forceSell+held
+                       # exception is handled unconditionally via blocked_liquidations above)
         pos = ctx.positions.get(sym)
         if not pos or pos.quantity <= 0 or pos.avg_cost_basis is None:
             continue
@@ -113,8 +133,13 @@ def step1_fetch_state(ctx: RunContext, broker: BrokerClient, repo_dir: str = "."
 
 
 def has_any_breach(ctx: RunContext) -> bool:
-    """Step 1's early-exit condition: no breach and no drawdown -> log status & terminate."""
-    return bool(ctx.drawdown_liquidations) or any(d.breached for d in ctx.drift_results.values())
+    """Step 1's early-exit condition: no breach, no drawdown, and no pending blocked+forceSell
+    liquidation -> log status & terminate."""
+    return (
+        bool(ctx.drawdown_liquidations)
+        or bool(ctx.blocked_liquidations)
+        or any(d.breached for d in ctx.drift_results.values())
+    )
 
 
 # ============================================================================================
@@ -180,7 +205,7 @@ def step2_guardrails(ctx: RunContext) -> None:
 
 
 def in_play_symbols(ctx: RunContext) -> List[str]:
-    return [s for s in ctx.config.targets if s not in ctx.excluded_symbols]
+    return [s for s in ctx.config.targets if s not in ctx.excluded_symbols and s not in ctx.blocked_symbols]
 
 
 # ============================================================================================
@@ -274,6 +299,9 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
     for sym, pos in ctx.positions.items():
         if sym not in cfg.targets or pos.quantity <= 0 or pos.avg_cost_basis is None:
             continue  # not a target, not held, or cost basis unresolved (fail closed)
+        if sym in ctx.blocked_symbols:
+            continue  # blocked -> exempt from GET THE PROFITS / Momentum Reversal Trim too;
+                       # a forceSell+held exception is liquidated separately via blocked_liquidations
 
         st = ctx.price_state.get(sym, AssetPriceState())
         price = ctx.quotes[sym].last_trade_price
@@ -428,6 +456,7 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
     candidates = [
         sym for sym, dr in ctx.drift_results.items()
         if sym in cfg.targets and dr.breached and dr.is_overweight and sym not in already_sold
+        and sym not in ctx.blocked_symbols
     ]
 
     bench = cfg.meta.beta_benchmark_symbol
@@ -543,9 +572,10 @@ def step5_price_limits(ctx: RunContext, broker: BrokerClient, buy_candidates: Di
 # ============================================================================================
 
 def step6a_prepare_sells(ctx: RunContext) -> tuple[List[TradeIntent], bool, Optional[str]]:
-    """Builds the final sell order list (drawdown liquidations + GET THE PROFITS/Momentum
-    Reversal Trim + Overweight High-Beta trims), applies sell_or_buy_value_limit, and checks
-    the seek_approval_value halt. Returns (sells_to_place, halted, halt_reason). Places nothing.
+    """Builds the final sell order list (drawdown liquidations + blocked+forceSell liquidations +
+    GET THE PROFITS/Momentum Reversal Trim + Overweight High-Beta trims), applies
+    sell_or_buy_value_limit, and checks the seek_approval_value halt. Returns (sells_to_place,
+    halted, halt_reason). Places nothing.
     """
     cfg = ctx.config
 
@@ -554,7 +584,12 @@ def step6a_prepare_sells(ctx: RunContext) -> tuple[List[TradeIntent], bool, Opti
                     reason="Drawdown Audit emergency liquidation (100%)")
         for sym in ctx.drawdown_liquidations if sym in ctx.positions
     ]
-    all_sells = liquidations + ctx.profit_taking_sells + ctx.overweight_trims
+    blocked_liquidations = [
+        TradeIntent(symbol=sym, side="sell", quantity=ctx.positions[sym].quantity,
+                    reason="Blocked + forceSell: liquidating full position (100%)")
+        for sym in ctx.blocked_liquidations if sym in ctx.positions
+    ]
+    all_sells = liquidations + blocked_liquidations + ctx.profit_taking_sells + ctx.overweight_trims
 
     gross_sell_value = sum((t.quantity or 0.0) * ctx.quotes[t.symbol].last_trade_price for t in all_sells)
     if gross_sell_value > cfg.meta.seek_approval_value:
@@ -583,6 +618,7 @@ def step6a_prepare_sells(ctx: RunContext) -> tuple[List[TradeIntent], bool, Opti
     # counted candidates that were actually skipped) and, for drawdown_liquidations specifically,
     # would have made cli.py's _update_peak_prices mark a never-sold symbol as liquidated.
     ctx.drawdown_liquidations = [s for s in ctx.drawdown_liquidations if s in placed_symbols]
+    ctx.blocked_liquidations = [s for s in ctx.blocked_liquidations if s in placed_symbols]
     ctx.profit_taking_sells = [t for t in ctx.profit_taking_sells if t.symbol in placed_symbols]
     ctx.overweight_trims = [t for t in ctx.overweight_trims if t.symbol in placed_symbols]
 
@@ -602,8 +638,8 @@ def step6b_finalize_buys(
     cfg = ctx.config
 
     selling_syms = {t.symbol for t in ctx.profit_taking_sells} | {t.symbol for t in ctx.overweight_trims} \
-        | set(ctx.drawdown_liquidations)
-    planned_buys = {s: d for s, d in planned_buys.items() if s not in selling_syms}
+        | set(ctx.drawdown_liquidations) | set(ctx.blocked_liquidations)
+    planned_buys = {s: d for s, d in planned_buys.items() if s not in selling_syms and s not in ctx.blocked_symbols}
 
     ctx.net_realized_gains_ytd_effective = net_realized_gains_ytd_effective
     prior_years_base = sum(v for y, v in ctx.tax_by_year.items() if int(y) < ctx.current_date.year)

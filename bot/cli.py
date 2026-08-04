@@ -143,7 +143,7 @@ def _update_peak_prices(ctx: RunContext) -> None:
         price = ctx.quotes[sym].last_trade_price
         if st.peakPrice is None or price > st.peakPrice:
             st.peakPrice, st.peakDate = price, today
-        if sym in ctx.drawdown_liquidations:
+        if sym in ctx.drawdown_liquidations or sym in ctx.blocked_liquidations:
             st.liquidatedPrice, st.liquidatedDate = price, today
 
 
