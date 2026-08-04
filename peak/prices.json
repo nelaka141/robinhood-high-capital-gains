@@ -18,7 +18,7 @@
 		"lastPurchaseDate": "2026-07-27"
 	},
 	"PLTR": {
-		"peakPrice": 154.86,
+		"peakPrice": 164.03,
 		"peakDate": "2026-08-04",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -72,12 +72,12 @@
 		"lastPurchaseDate": "2026-07-29"
 	},
 	"SMCI": {
-		"peakPrice": 31.1228,
-		"peakDate": "2026-07-22",
+		"peakPrice": 31.595,
+		"peakDate": "2026-08-04",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
-		"profitSellPrice": 31.1228,
-		"profitSellDate": "2026-07-22",
+		"profitSellPrice": 31.595,
+		"profitSellDate": "2026-08-04",
 		"lastPurchaseDate": "2026-07-29"
 	},
 	"IONQ": {
@@ -135,7 +135,7 @@
 		"lastPurchaseDate": "2026-07-16"
 	},
 	"GOOG": {
-		"peakPrice": 375.425,
+		"peakPrice": 377.07,
 		"peakDate": "2026-08-04",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -144,7 +144,7 @@
 		"lastPurchaseDate": "2026-07-30"
 	},
 	"MSFT": {
-		"peakPrice": 493.565,
+		"peakPrice": 497.4699,
 		"peakDate": "2026-08-04",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -207,7 +207,7 @@
 		"lastPurchaseDate": "2026-07-29"
 	},
 	"AVGO": {
-		"peakPrice": 409.35,
+		"peakPrice": 421.76,
 		"peakDate": "2026-08-04",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -234,12 +234,12 @@
 		"lastPurchaseDate": "2026-07-30"
 	},
 	"IBM": {
-		"peakPrice": 229.315,
-		"peakDate": "2026-07-29",
+		"peakPrice": 233.455,
+		"peakDate": "2026-08-04",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
-		"profitSellPrice": 218.844,
-		"profitSellDate": "2026-07-27",
+		"profitSellPrice": 233.455,
+		"profitSellDate": "2026-08-04",
 		"lastPurchaseDate": "2026-07-30"
 	},
 	"NFLX": {
@@ -261,7 +261,7 @@
 		"lastPurchaseDate": "2026-07-29"
 	},
 	"GE": {
-		"peakPrice": 372.49,
+		"peakPrice": 377.9768,
 		"peakDate": "2026-08-04",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -270,7 +270,7 @@
 		"lastPurchaseDate": "2026-07-24"
 	},
 	"LTRN": {
-		"peakPrice": 2.77,
+		"peakPrice": 2.795,
 		"peakDate": "2026-08-04",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -288,7 +288,7 @@
 		"lastPurchaseDate": "2026-08-04"
 	},
 	"JNJ": {
-		"peakPrice": 252.215,
+		"peakPrice": 253.91,
 		"peakDate": "2026-08-04",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -297,7 +297,7 @@
 		"lastPurchaseDate": "2026-08-04"
 	},
 	"JPM": {
-		"peakPrice": 359.29,
+		"peakPrice": 359.4351,
 		"peakDate": "2026-08-04",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -306,7 +306,7 @@
 		"lastPurchaseDate": "2026-08-04"
 	},
 	"BRK.B": {
-		"peakPrice": 512.035,
+		"peakPrice": 516.49,
 		"peakDate": "2026-08-04",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -315,7 +315,7 @@
 		"lastPurchaseDate": "2026-08-04"
 	},
 	"V": {
-		"peakPrice": 365.23,
+		"peakPrice": 369.73,
 		"peakDate": "2026-08-04",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -324,7 +324,7 @@
 		"lastPurchaseDate": "2026-08-04"
 	},
 	"HD": {
-		"peakPrice": 341.36,
+		"peakPrice": 349.0601,
 		"peakDate": "2026-08-04",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -333,7 +333,7 @@
 		"lastPurchaseDate": "2026-08-04"
 	},
 	"CAT": {
-		"peakPrice": 880.745,
+		"peakPrice": 887.8995,
 		"peakDate": "2026-08-04",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -342,7 +342,7 @@
 		"lastPurchaseDate": null
 	},
 	"UNP": {
-		"peakPrice": 290.9775,
+		"peakPrice": 295.75,
 		"peakDate": "2026-08-04",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -351,7 +351,7 @@
 		"lastPurchaseDate": "2026-08-04"
 	},
 	"WMT": {
-		"peakPrice": 109.49,
+		"peakPrice": 111.1423,
 		"peakDate": "2026-08-04",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -360,7 +360,7 @@
 		"lastPurchaseDate": "2026-08-04"
 	},
 	"PG": {
-		"peakPrice": 145.695,
+		"peakPrice": 147.75,
 		"peakDate": "2026-08-04",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -369,7 +369,7 @@
 		"lastPurchaseDate": "2026-08-04"
 	},
 	"COST": {
-		"peakPrice": 942.01,
+		"peakPrice": 948.045,
 		"peakDate": "2026-08-04",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -378,7 +378,7 @@
 		"lastPurchaseDate": "2026-08-04"
 	},
 	"XOM": {
-		"peakPrice": 151.445,
+		"peakPrice": 154.475,
 		"peakDate": "2026-08-04",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -387,7 +387,7 @@
 		"lastPurchaseDate": "2026-08-04"
 	},
 	"CVX": {
-		"peakPrice": 189.16,
+		"peakPrice": 190.81,
 		"peakDate": "2026-08-04",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -396,7 +396,7 @@
 		"lastPurchaseDate": "2026-08-04"
 	},
 	"COP": {
-		"peakPrice": 116.99,
+		"peakPrice": 118.09,
 		"peakDate": "2026-08-04",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -405,7 +405,7 @@
 		"lastPurchaseDate": "2026-08-04"
 	},
 	"SO": {
-		"peakPrice": 91.87,
+		"peakPrice": 93.17,
 		"peakDate": "2026-08-04",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -414,7 +414,7 @@
 		"lastPurchaseDate": "2026-08-04"
 	},
 	"PLD": {
-		"peakPrice": 140.17,
+		"peakPrice": 140.36,
 		"peakDate": "2026-08-04",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -423,7 +423,7 @@
 		"lastPurchaseDate": "2026-08-04"
 	},
 	"AMT": {
-		"peakPrice": 170.305,
+		"peakPrice": 175.3799,
 		"peakDate": "2026-08-04",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -432,7 +432,7 @@
 		"lastPurchaseDate": "2026-08-04"
 	},
 	"EQIX": {
-		"peakPrice": 1024.75,
+		"peakPrice": 1051.585,
 		"peakDate": "2026-08-04",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -441,7 +441,7 @@
 		"lastPurchaseDate": "2026-08-04"
 	},
 	"LIN": {
-		"peakPrice": 482.255,
+		"peakPrice": 482.9482,
 		"peakDate": "2026-08-04",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -450,7 +450,7 @@
 		"lastPurchaseDate": "2026-08-04"
 	},
 	"FCX": {
-		"peakPrice": 66.715,
+		"peakPrice": 67.19,
 		"peakDate": "2026-08-04",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -459,7 +459,7 @@
 		"lastPurchaseDate": null
 	},
 	"SHW": {
-		"peakPrice": 358.34,
+		"peakPrice": 359.8875,
 		"peakDate": "2026-08-04",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -468,7 +468,7 @@
 		"lastPurchaseDate": null
 	},
 	"DUK": {
-		"peakPrice": 122.81,
+		"peakPrice": 124.685,
 		"peakDate": "2026-08-04",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
