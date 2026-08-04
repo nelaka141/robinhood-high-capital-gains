@@ -278,41 +278,72 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
         st = ctx.price_state.get(sym, AssetPriceState())
         price = ctx.quotes[sym].last_trade_price
         raw_gain_pct = (price - pos.avg_cost_basis) / pos.avg_cost_basis * 100
-        # Rounded to a whole share up front (not after the fact) so the FIFO dollar-gate figure
-        # below is computed against the exact quantity that will actually be ordered — see
-        # round_sell_quantity's docstring for why the broker requires this.
-        sell_qty = round_sell_quantity(pos.quantity * cfg.meta.profit_sell_percentage / 100, pos.quantity)
-
-        # min_value_of_trade: if the profit_sell_percentage slice alone is worth less than the
-        # floor, sell additional shares from the same position — up to everything held — to
-        # clear it, even past profit_sell_percentage. Checked before the zero-quantity skip
-        # below so a slice that rounds to 0 shares still gets a chance to reach the floor.
-        #
-        # The bump target is computed in two stages, same as profit_sell_percentage's own target
-        # above: (1) the exact fractional share count needed, rounded UP to the 3rd decimal (not
-        # nearest) so the rounded figure still clears the floor — e.g. min_value_of_trade=$100 at
-        # $35/share needs 2.857142...  shares; a plain round-to-3-decimals gives 2.857 ($99.995,
-        # short), so this rounds up to 2.858 ($100.03) instead; then (2) that 3-decimal target is
-        # run through round_sell_quantity — the same whole-share lot-rounding fix applied to the
-        # profit_sell_percentage target above — since this sale still goes out as a specified-lot
-        # (tax_lots) order, which requires a whole-share top-level quantity.
         min_trade_value = cfg.meta.min_value_of_trade
         whole_shares_held = math.floor(pos.quantity + 1e-9)
-        if min_trade_value > 0 and sell_qty * price < min_trade_value:
-            target_3dp = math.ceil(min_trade_value / price * 1000 - 1e-9) / 1000
-            sell_qty = max(sell_qty, round_sell_quantity(target_3dp, pos.quantity))
+
+        # Whole position is itself a sub-whole-share balance (e.g. 0.5 shares left after a
+        # fractional buy) -> a specified-lot (tax_lots) sell can NEVER work here, no matter how
+        # the lots are chosen: place_equity_order rejects any tax_lots order whose top-level
+        # quantity is fractional, and every possible sell target from a <1-share position is
+        # fractional by definition. round_sell_quantity would floor this to 0 every time (see its
+        # docstring), permanently blocking GET THE PROFITS / Momentum Reversal Trim on this
+        # position even though Robinhood happily sells fractional quantities on an ORDINARY
+        # (non-specified-lot) order. Fall back to that instead: size the sale in raw fractional
+        # shares (uncapped by whole-share rounding), and — down in the TradeIntent construction
+        # below — omit `tax_lots` so it goes out as an ordinary order using Robinhood's own
+        # default lot matching. `fifo_realized_profit` below still walks the held lots oldest-
+        # first for gating purposes, but since those lots aren't shipped to the order, its figure
+        # is only an estimate of what Robinhood will actually realize (see CLAUDE.md's own note
+        # that default matching isn't guaranteed to be date-ordered FIFO).
+        fractional_position = whole_shares_held == 0
+
+        if fractional_position:
+            sell_qty = min(pos.quantity, pos.quantity * cfg.meta.profit_sell_percentage / 100)
+            if min_trade_value > 0 and sell_qty * price < min_trade_value:
+                sell_qty = max(sell_qty, min(pos.quantity, min_trade_value / price))
+        else:
+            # Rounded to a whole share up front (not after the fact) so the FIFO dollar-gate
+            # figure below is computed against the exact quantity that will actually be ordered
+            # — see round_sell_quantity's docstring for why the broker requires this.
+            sell_qty = round_sell_quantity(pos.quantity * cfg.meta.profit_sell_percentage / 100, pos.quantity)
+
+            # min_value_of_trade: if the profit_sell_percentage slice alone is worth less than
+            # the floor, sell additional shares from the same position — up to everything held —
+            # to clear it, even past profit_sell_percentage. Checked before the zero-quantity
+            # skip below so a slice that rounds to 0 shares still gets a chance to reach the
+            # floor.
+            #
+            # The bump target is computed in two stages, same as profit_sell_percentage's own
+            # target above: (1) the exact fractional share count needed, rounded UP to the 3rd
+            # decimal (not nearest) so the rounded figure still clears the floor — e.g.
+            # min_value_of_trade=$100 at $35/share needs 2.857142... shares; a plain
+            # round-to-3-decimals gives 2.857 ($99.995, short), so this rounds up to 2.858
+            # ($100.03) instead; then (2) that 3-decimal target is run through
+            # round_sell_quantity — the same whole-share lot-rounding fix applied to the
+            # profit_sell_percentage target above — since this sale still goes out as a
+            # specified-lot (tax_lots) order, which requires a whole-share top-level quantity.
+            if min_trade_value > 0 and sell_qty * price < min_trade_value:
+                target_3dp = math.ceil(min_trade_value / price * 1000 - 1e-9) / 1000
+                sell_qty = max(sell_qty, round_sell_quantity(target_3dp, pos.quantity))
 
         if sell_qty <= 0:
             ctx.skipped.append(SkippedTrade(
-                sym, f"profit_sell_percentage of {pos.quantity:.4f} shares rounds to 0 whole shares",
+                sym,
+                "position is a sub-whole-share balance too small to sell any amount"
+                if fractional_position else
+                f"profit_sell_percentage of {pos.quantity:.4f} shares rounds to 0 whole shares",
                 "partial profit-take sale",
             ))
             continue
 
         if min_trade_value > 0 and sell_qty * price < min_trade_value:
+            held_desc = (
+                f"all {pos.quantity:.4f} fractional share(s) held" if fractional_position
+                else f"all {whole_shares_held} whole share(s) held"
+            )
             ctx.skipped.append(SkippedTrade(
-                sym, f"even selling all {whole_shares_held} whole share(s) held "
-                     f"(${sell_qty * price:.2f}) falls short of min_value_of_trade (${min_trade_value:.2f})",
+                sym, f"even selling {held_desc} (${sell_qty * price:.2f}) falls short of "
+                     f"min_value_of_trade (${min_trade_value:.2f})",
                 "partial profit-take sale",
             ))
             continue
@@ -334,10 +365,14 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
             else:
                 fifo = fifo_realized_profit(broker.get_tax_lots(ctx.account_number, sym), sell_qty, price)
                 if fifo.fully_covered and fifo.realized_profit_dollars > cfg.meta.materialize_profit_in_dollars:
+                    reason = f"GET THE PROFITS: +{raw_gain_pct:.2f}%, FIFO ${fifo.realized_profit_dollars:.2f}"
+                    if fractional_position:
+                        reason += (" (ordinary order — sub-whole-share position, Robinhood "
+                                    "default lot matching; FIFO figure is an estimate)")
                     ctx.profit_taking_sells.append(TradeIntent(
-                        symbol=sym, side="sell", quantity=sell_qty,
-                        reason=f"GET THE PROFITS: +{raw_gain_pct:.2f}%, FIFO ${fifo.realized_profit_dollars:.2f}",
-                        tax_lots=[{"open_lot_id": l["open_lot_id"], "quantity": l["quantity"]} for l in fifo.lots_consumed],
+                        symbol=sym, side="sell", quantity=sell_qty, reason=reason,
+                        tax_lots=None if fractional_position else
+                            [{"open_lot_id": l["open_lot_id"], "quantity": l["quantity"]} for l in fifo.lots_consumed],
                         realized_profit_dollars=fifo.realized_profit_dollars,
                         raw_gain_pct=raw_gain_pct,
                     ))
@@ -366,10 +401,14 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
             else:
                 fifo = fifo_realized_profit(broker.get_tax_lots(ctx.account_number, sym), sell_qty, price)
                 if fifo.fully_covered and fifo.realized_profit_dollars > cfg.meta.momentum_reversal_minimum_profit_dollars:
+                    reason = f"MOMENTUM REVERSAL TRIM: score {mscore.score:.2f}, FIFO ${fifo.realized_profit_dollars:.2f}"
+                    if fractional_position:
+                        reason += (" (ordinary order — sub-whole-share position, Robinhood "
+                                    "default lot matching; FIFO figure is an estimate)")
                     ctx.profit_taking_sells.append(TradeIntent(
-                        symbol=sym, side="sell", quantity=sell_qty,
-                        reason=f"MOMENTUM REVERSAL TRIM: score {mscore.score:.2f}, FIFO ${fifo.realized_profit_dollars:.2f}",
-                        tax_lots=[{"open_lot_id": l["open_lot_id"], "quantity": l["quantity"]} for l in fifo.lots_consumed],
+                        symbol=sym, side="sell", quantity=sell_qty, reason=reason,
+                        tax_lots=None if fractional_position else
+                            [{"open_lot_id": l["open_lot_id"], "quantity": l["quantity"]} for l in fifo.lots_consumed],
                         realized_profit_dollars=fifo.realized_profit_dollars,
                         raw_gain_pct=raw_gain_pct,
                     ))

@@ -12,11 +12,26 @@ import math
 from datetime import date
 
 from bot.config import AssetTarget, PortfolioConfig, PortfolioMetadata
-from bot.models import RunContext, SkippedTrade, TradeIntent
-from bot.steps import _enforce_min_trade_value_buys, round_sell_quantity
+from bot.models import Position, Quote, RunContext, SkippedTrade, TaxLot, TradeIntent
+from bot.steps import _enforce_min_trade_value_buys, round_sell_quantity, step4_profit_taking
 
 
-def _minimal_ctx(alpha_leader: str | None = None) -> RunContext:
+class _TaxLotOnlyBroker:
+    """Minimal BrokerClient stub for step4_profit_taking: only get_tax_lots (for the FIFO
+    dollar-gate) and get_daily_closes (unconditionally called once for the beta benchmark in
+    step4's Overweight-ranking tail, even when there are no Overweight candidates) are needed."""
+
+    def __init__(self, lots: dict):
+        self._lots = lots
+
+    def get_tax_lots(self, account_number: str, symbol: str):
+        return self._lots.get(symbol, [])
+
+    def get_daily_closes(self, symbol: str, start, end):
+        return []
+
+
+def _minimal_ctx(alpha_leader: str | None = None, targets: dict | None = None) -> RunContext:
     meta = PortfolioMetadata(
         global_drift_tolerance=1.0, max_trailing_drawdown_percentage=35,
         min_recovery_price_percentage=5.0, reinvestment_multiplier_factor=1.25,
@@ -34,7 +49,7 @@ def _minimal_ctx(alpha_leader: str | None = None) -> RunContext:
         materialize_profit_in_dollars=12.5, keep_aside_profits_for_tax_percent=30.0,
         momentum_lookback_days=5, momentum_reversal_threshold=-10.0,
     )
-    cfg = PortfolioConfig(meta=meta, targets={}, force_sell=[])
+    cfg = PortfolioConfig(meta=meta, targets=targets or {}, force_sell=[])
     ctx = RunContext(current_date=date(2026, 8, 4), config=cfg, account_number="TEST")
     ctx.alpha_leader = alpha_leader
     return ctx
@@ -160,6 +175,53 @@ def test_journal_counter_ctx_filtering() -> None:
     print("[journal-counter-fix] ctx sell lists match sells_to_place exactly — OK")
 
 
+def test_fractional_position_falls_back_to_ordinary_order() -> None:
+    """The exact scenario raised in review: a position whose ENTIRE remaining balance is a
+    sub-whole-share quantity (e.g. 0.5 MU shares left after a fractional buy). A specified-lot
+    sell can never work here (round_sell_quantity would floor everything to 0 shares forever),
+    so GET THE PROFITS should still fire, sized in raw fractional shares, going out as an
+    ordinary order (tax_lots=None) rather than being permanently blocked."""
+    targets = {"MU": AssetTarget(symbol="MU", weight=1.0)}
+    ctx = _minimal_ctx(targets=targets)
+    ctx.positions = {"MU": Position(symbol="MU", quantity=0.5, avg_cost_basis=600.0)}
+    ctx.quotes = {"MU": Quote(symbol="MU", last_trade_price=850.0)}  # +41.67% unrealized gain
+    lots = {"MU": [TaxLot(open_lot_id="mu-1", quantity=0.5, cost_per_share=600.0,
+                           open_date=date(2026, 7, 1), is_selectable=True)]}
+    broker = _TaxLotOnlyBroker(lots)
+
+    step4_profit_taking(ctx, broker)
+
+    assert len(ctx.profit_taking_sells) == 1, ctx.profit_taking_sells
+    t = ctx.profit_taking_sells[0]
+    assert t.symbol == "MU"
+    assert t.tax_lots is None, "sub-whole-share position must go out as an ordinary order"
+    assert t.quantity == 0.25, t.quantity  # profit_sell_percentage=50% of 0.5 shares, unrounded
+    assert round(t.quantity * 850.0, 2) == 212.5, "well above the $100 floor, no bump needed"
+    assert "ordinary order" in t.reason
+    print(f"[fractional-position-fallback] MU sold {t.quantity} shares (tax_lots={t.tax_lots}) — {t.reason}")
+
+
+def test_fractional_position_still_skipped_if_unreachable() -> None:
+    """Same sub-whole-share position, but priced low enough that even selling all 0.5 shares
+    can't clear the $100 min_value_of_trade floor -> skipped, not placed under the floor."""
+    targets = {"MU": AssetTarget(symbol="MU", weight=1.0)}
+    ctx = _minimal_ctx(targets=targets)
+    ctx.positions = {"MU": Position(symbol="MU", quantity=0.5, avg_cost_basis=100.0)}
+    ctx.quotes = {"MU": Quote(symbol="MU", last_trade_price=150.0)}  # +50% gain, but 0.5*150=$75
+    lots = {"MU": [TaxLot(open_lot_id="mu-1", quantity=0.5, cost_per_share=100.0,
+                           open_date=date(2026, 7, 1), is_selectable=True)]}
+    broker = _TaxLotOnlyBroker(lots)
+
+    step4_profit_taking(ctx, broker)
+
+    assert ctx.profit_taking_sells == [], ctx.profit_taking_sells
+    assert any(
+        s.symbol == "MU" and "fractional share(s) held" in s.reason and "min_value_of_trade" in s.reason
+        for s in ctx.skipped
+    ), ctx.skipped
+    print("[fractional-position-unreachable] MU (0.5 sh @ $150 = $75) correctly skipped, not under-floored")
+
+
 def main() -> None:
     test_buy_bump_within_budget()
     test_buy_cascading_drop_when_pool_too_small()
@@ -168,6 +230,8 @@ def main() -> None:
     test_sell_bump_matches_user_example()
     test_sell_bump_capped_at_shares_held()
     test_journal_counter_ctx_filtering()
+    test_fractional_position_falls_back_to_ordinary_order()
+    test_fractional_position_still_skipped_if_unreachable()
     print("\nSMOKE TEST (min_value_of_trade + journal counter) PASSED")
 
 
