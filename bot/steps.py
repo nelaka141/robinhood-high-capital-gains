@@ -7,6 +7,7 @@ own structure section-by-section, so you can read a step's code next to its CLAU
 """
 from __future__ import annotations
 
+import math
 import time
 from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional
@@ -281,9 +282,27 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
         # below is computed against the exact quantity that will actually be ordered — see
         # round_sell_quantity's docstring for why the broker requires this.
         sell_qty = round_sell_quantity(pos.quantity * cfg.meta.profit_sell_percentage / 100, pos.quantity)
+
+        # min_value_of_trade: if the profit_sell_percentage slice alone is worth less than the
+        # floor, sell additional whole shares from the same position — up to everything held —
+        # to clear it, even past profit_sell_percentage. Checked before the zero-quantity skip
+        # below so a slice that rounds to 0 shares still gets a chance to reach the floor.
+        min_trade_value = cfg.meta.min_value_of_trade
+        whole_shares_held = math.floor(pos.quantity + 1e-9)
+        if min_trade_value > 0 and sell_qty * price < min_trade_value:
+            sell_qty = max(sell_qty, min(whole_shares_held, math.ceil(min_trade_value / price - 1e-9)))
+
         if sell_qty <= 0:
             ctx.skipped.append(SkippedTrade(
                 sym, f"profit_sell_percentage of {pos.quantity:.4f} shares rounds to 0 whole shares",
+                "partial profit-take sale",
+            ))
+            continue
+
+        if min_trade_value > 0 and sell_qty * price < min_trade_value:
+            ctx.skipped.append(SkippedTrade(
+                sym, f"even selling all {whole_shares_held} whole share(s) held "
+                     f"(${sell_qty * price:.2f}) falls short of min_value_of_trade (${min_trade_value:.2f})",
                 "partial profit-take sale",
             ))
             continue
@@ -498,6 +517,7 @@ def step6a_prepare_sells(ctx: RunContext) -> tuple[List[TradeIntent], bool, Opti
         return [], True, reason
 
     sells_to_place = []
+    placed_symbols = set()
     for intent in all_sells:
         qty = intent.quantity or 0.0
         value = qty * ctx.quotes[intent.symbol].last_trade_price
@@ -505,6 +525,17 @@ def step6a_prepare_sells(ctx: RunContext) -> tuple[List[TradeIntent], bool, Opti
             ctx.skipped.append(SkippedTrade(intent.symbol, "below sell_or_buy_value_limit", "sell"))
             continue
         sells_to_place.append(intent)
+        placed_symbols.add(intent.symbol)
+
+    # Keep ctx's per-category sell lists in sync with what actually survived this filter. Before
+    # this, ctx.overweight_trims/ctx.profit_taking_sells/ctx.drawdown_liquidations still held
+    # every ranked/logged candidate regardless of whether it cleared sell_or_buy_value_limit here
+    # — which desynced Step 7's journal (its "N sell(s)" header count and per-section listings
+    # counted candidates that were actually skipped) and, for drawdown_liquidations specifically,
+    # would have made cli.py's _update_peak_prices mark a never-sold symbol as liquidated.
+    ctx.drawdown_liquidations = [s for s in ctx.drawdown_liquidations if s in placed_symbols]
+    ctx.profit_taking_sells = [t for t in ctx.profit_taking_sells if t.symbol in placed_symbols]
+    ctx.overweight_trims = [t for t in ctx.overweight_trims if t.symbol in placed_symbols]
 
     return sells_to_place, False, None
 
@@ -540,6 +571,8 @@ def step6b_finalize_buys(
         scale = hard_cap / total_planned
         planned_buys = {s: d * scale for s, d in planned_buys.items()}
 
+    planned_buys = _enforce_min_trade_value_buys(ctx, planned_buys, cfg.meta.min_value_of_trade)
+
     buys: List[TradeIntent] = []
     for sym, dollars in planned_buys.items():
         if dollars < cfg.meta.sell_or_buy_value_limit:
@@ -549,6 +582,64 @@ def step6b_finalize_buys(
         ctx.buys.append(intent)
 
     return buys
+
+
+def _enforce_min_trade_value_buys(
+    ctx: RunContext, planned_buys: Dict[str, float], min_value: float
+) -> Dict[str, float]:
+    """CLAUDE.md's `min_value_of_trade` control: every buy that survives should be worth at
+    least `min_value_of_trade` dollars. Rather than simply dropping anything under the floor (as
+    `sell_or_buy_value_limit` already does for genuinely tiny amounts), a buy that's short of the
+    floor is bumped up to it by borrowing dollars from lower-priority buys — the Alpha Leader buy
+    (if any) is always highest priority, then the rest ranked by their own planned dollar amount
+    descending (a bigger amount reflects a bigger drift gap, i.e. more urgent). Lower-priority
+    buys are drained from the bottom of that ranking first, cascading: a buy drained below its
+    own floor gets its own turn to borrow from whatever is left further down. A buy that still
+    can't reach the floor once every lower-ranked buy is exhausted is dropped (logged to
+    ctx.skipped) rather than placed under-sized; its dollars simply stay wherever they were
+    already redirected to.
+    """
+    if min_value <= 0 or not planned_buys:
+        return planned_buys
+
+    order = sorted(planned_buys, key=lambda s: (s != ctx.alpha_leader, -planned_buys[s]))
+    amounts = dict(planned_buys)
+    n = len(order)
+    for i, sym in enumerate(order):
+        val = amounts.get(sym, 0.0)
+        if val <= 0 or val >= min_value:
+            continue
+        shortfall = min_value - val
+        for j in range(n - 1, i, -1):
+            if shortfall <= 0:
+                break
+            donor = order[j]
+            donor_val = amounts.get(donor, 0.0)
+            if donor_val <= 0:
+                continue
+            take = min(donor_val, shortfall)
+            amounts[donor] = donor_val - take
+            val += take
+            shortfall -= take
+        amounts[sym] = val
+
+    result: Dict[str, float] = {}
+    for sym in order:
+        val = amounts.get(sym, 0.0)
+        original = planned_buys.get(sym, 0.0)
+        if val >= min_value:
+            result[sym] = val
+        elif val > 1e-9:
+            ctx.skipped.append(SkippedTrade(
+                sym, f"below min_value_of_trade (${val:.2f} < ${min_value:.2f}) even after "
+                     "borrowing from lower-ranked buys", "buy",
+            ))
+        elif original > 1e-9:
+            ctx.skipped.append(SkippedTrade(
+                sym, f"drained to fund a higher-ranked buy's min_value_of_trade floor "
+                     f"(started at ${original:.2f})", "buy",
+            ))
+    return result
 
 
 def step6_execute_live(ctx: RunContext, broker: BrokerClient, planned_buys: Dict[str, float], dry_run: bool = True) -> None:

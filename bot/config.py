@@ -41,6 +41,7 @@ class PortfolioMetadata:
     momentum_reversal_minimum_profit_dollars: float
     profit_resell_cooldown_days: int
     sell_or_buy_value_limit: float
+    min_value_of_trade: float
     settlement_reserve_target: float
     settlement_lag_days: int
     materialize_profit_percentage: float
