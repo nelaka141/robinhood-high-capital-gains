@@ -83,7 +83,7 @@ def _update_price_state(ctx: RunContext) -> None:
     today = ctx.current_date.isoformat()
     bought = {t.symbol for t in ctx.buys}
     sold_for_profit = {t.symbol for t in ctx.profit_taking_sells}
-    liquidated = set(ctx.drawdown_liquidations)
+    liquidated = set(ctx.drawdown_liquidations) | set(ctx.blocked_liquidations)
 
     for sym in ctx.config.targets:
         st = ctx.price_state.setdefault(sym, AssetPriceState())
