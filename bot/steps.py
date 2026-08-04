@@ -13,7 +13,7 @@ from typing import Dict, List, Optional
 
 from .broker import BrokerClient
 from .cost_basis import resolve_avg_cost_basis
-from .fifo import fifo_realized_profit
+from .fifo import fifo_realized_profit, round_sell_quantity
 from .indicators import beta, daily_returns, ema_series, rsi_series
 from .models import DriftResult, MomentumScore, RunContext, SkippedTrade, TradeIntent
 from .state import AssetPriceState, load_transferred_basis
@@ -277,7 +277,16 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
         st = ctx.price_state.get(sym, AssetPriceState())
         price = ctx.quotes[sym].last_trade_price
         raw_gain_pct = (price - pos.avg_cost_basis) / pos.avg_cost_basis * 100
-        sell_qty = pos.quantity * cfg.meta.profit_sell_percentage / 100
+        # Rounded to a whole share up front (not after the fact) so the FIFO dollar-gate figure
+        # below is computed against the exact quantity that will actually be ordered — see
+        # round_sell_quantity's docstring for why the broker requires this.
+        sell_qty = round_sell_quantity(pos.quantity * cfg.meta.profit_sell_percentage / 100, pos.quantity)
+        if sell_qty <= 0:
+            ctx.skipped.append(SkippedTrade(
+                sym, f"profit_sell_percentage of {pos.quantity:.4f} shares rounds to 0 whole shares",
+                "partial profit-take sale",
+            ))
+            continue
 
         already_today = st.profitSellDate == ctx.current_date.isoformat()
         cooldown_blocks = (
