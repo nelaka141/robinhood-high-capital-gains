@@ -284,13 +284,23 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
         sell_qty = round_sell_quantity(pos.quantity * cfg.meta.profit_sell_percentage / 100, pos.quantity)
 
         # min_value_of_trade: if the profit_sell_percentage slice alone is worth less than the
-        # floor, sell additional whole shares from the same position — up to everything held —
-        # to clear it, even past profit_sell_percentage. Checked before the zero-quantity skip
+        # floor, sell additional shares from the same position — up to everything held — to
+        # clear it, even past profit_sell_percentage. Checked before the zero-quantity skip
         # below so a slice that rounds to 0 shares still gets a chance to reach the floor.
+        #
+        # The bump target is computed in two stages, same as profit_sell_percentage's own target
+        # above: (1) the exact fractional share count needed, rounded UP to the 3rd decimal (not
+        # nearest) so the rounded figure still clears the floor — e.g. min_value_of_trade=$100 at
+        # $35/share needs 2.857142...  shares; a plain round-to-3-decimals gives 2.857 ($99.995,
+        # short), so this rounds up to 2.858 ($100.03) instead; then (2) that 3-decimal target is
+        # run through round_sell_quantity — the same whole-share lot-rounding fix applied to the
+        # profit_sell_percentage target above — since this sale still goes out as a specified-lot
+        # (tax_lots) order, which requires a whole-share top-level quantity.
         min_trade_value = cfg.meta.min_value_of_trade
         whole_shares_held = math.floor(pos.quantity + 1e-9)
         if min_trade_value > 0 and sell_qty * price < min_trade_value:
-            sell_qty = max(sell_qty, min(whole_shares_held, math.ceil(min_trade_value / price - 1e-9)))
+            target_3dp = math.ceil(min_trade_value / price * 1000 - 1e-9) / 1000
+            sell_qty = max(sell_qty, round_sell_quantity(target_3dp, pos.quantity))
 
         if sell_qty <= 0:
             ctx.skipped.append(SkippedTrade(

@@ -8,6 +8,7 @@ Run: PYTHONPATH=. python3 bot/_smoke_test_min_trade_value.py
 """
 from __future__ import annotations
 
+import math
 from datetime import date
 
 from bot.config import AssetTarget, PortfolioConfig, PortfolioMetadata
@@ -89,30 +90,44 @@ def test_buy_noop_when_min_value_zero() -> None:
     print("[buy-noop-zero-floor] OK")
 
 
+def _bump_target_3dp(min_trade_value: float, price: float) -> float:
+    """Mirrors step4_profit_taking's exact two-stage bump target: round UP to the 3rd decimal
+    (not nearest) so the intermediate figure still clears the floor, then hand off to
+    round_sell_quantity for the whole-share specified-lot-order rounding."""
+    return math.ceil(min_trade_value / price * 1000 - 1e-9) / 1000
+
+
 def test_sell_bump_matches_user_example() -> None:
-    """User's own example: profit_sell_percentage produces 2 shares @ $35 = $70 (< $100 floor);
-    1 more share is held, so the bump should sell 3 shares = $105."""
+    """User's own example, refined: profit_sell_percentage produces 2 shares @ $35 = $70
+    (< $100 floor). The bump target is 100/35 = 2.857142... shares, rounded UP to the 3rd
+    decimal (not nearest — a plain round(2.857142, 3) gives 2.857, i.e. $99.995, which still
+    falls short) so it becomes 2.858 ($100.03). That 3-decimal figure then goes through
+    round_sell_quantity — the same whole-share lot-rounding fix specified-lot sell orders
+    require — which rounds 2.858 to 3 whole shares (1 more share is held). Final: 3 shares =
+    $105."""
     sell_qty = round_sell_quantity(2.0, 3.0)  # profit_sell_percentage slice = 2 shares
     price = 35.0
     min_trade_value = 100.0
     assert sell_qty * price == 70.0
-    import math
-    whole_shares_held = math.floor(3.0 + 1e-9)
-    bumped = max(sell_qty, min(whole_shares_held, math.ceil(min_trade_value / price - 1e-9)))
+
+    target_3dp = _bump_target_3dp(min_trade_value, price)
+    assert target_3dp == 2.858, target_3dp
+    assert round(target_3dp * price, 2) == 100.03  # confirms 2.858, not a naive round-to-3dp
+
+    bumped = max(sell_qty, round_sell_quantity(target_3dp, 3.0))
     assert bumped == 3.0, bumped
     assert bumped * price == 105.0
-    print(f"[sell-bump] {sell_qty} shares (${sell_qty*price}) -> {bumped} shares (${bumped*price})")
+    print(f"[sell-bump] {sell_qty} shares (${sell_qty*price}) -> target {target_3dp} -> {bumped} shares (${bumped*price})")
 
 
 def test_sell_bump_capped_at_shares_held() -> None:
-    """If bumping to the floor would need more shares than are actually held, the bump is
-    capped at what's held (still short of the floor) — the caller then skips the sale."""
-    import math
+    """If bumping to the floor would need more shares than are actually held, round_sell_quantity
+    caps at what's held (still short of the floor) — the caller then skips the sale."""
     sell_qty = round_sell_quantity(1.0, 1.0)  # only 1 share held, all of it in the slice
     price = 35.0
     min_trade_value = 100.0
-    whole_shares_held = math.floor(1.0 + 1e-9)
-    bumped = max(sell_qty, min(whole_shares_held, math.ceil(min_trade_value / price - 1e-9)))
+    target_3dp = _bump_target_3dp(min_trade_value, price)
+    bumped = max(sell_qty, round_sell_quantity(target_3dp, 1.0))
     assert bumped == 1.0, bumped
     assert bumped * price == 35.0 < min_trade_value
     print(f"[sell-bump-capped] {bumped} shares (${bumped*price}) still below ${min_trade_value} floor -> caller skips")
