@@ -117,7 +117,7 @@
 		"lastPurchaseDate": "2026-07-27"
 	},
 	"NVDA": {
-		"peakPrice": 220.6,
+		"peakPrice": 221.745,
 		"peakDate": "2026-08-05",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -234,7 +234,7 @@
 		"lastPurchaseDate": "2026-07-30"
 	},
 	"IBM": {
-		"peakPrice": 234.735,
+		"peakPrice": 237.675,
 		"peakDate": "2026-08-05",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -270,8 +270,8 @@
 		"lastPurchaseDate": "2026-07-24"
 	},
 	"LTRN": {
-		"peakPrice": 2.795,
-		"peakDate": "2026-08-04",
+		"peakPrice": 2.8638,
+		"peakDate": "2026-08-05",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": null,
@@ -288,7 +288,7 @@
 		"lastPurchaseDate": "2026-08-04"
 	},
 	"JNJ": {
-		"peakPrice": 254.8,
+		"peakPrice": 258.095,
 		"peakDate": "2026-08-05",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -306,8 +306,8 @@
 		"lastPurchaseDate": "2026-08-05"
 	},
 	"BRK.B": {
-		"peakPrice": 516.49,
-		"peakDate": "2026-08-04",
+		"peakPrice": 516.82,
+		"peakDate": "2026-08-05",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": null,
@@ -324,7 +324,7 @@
 		"lastPurchaseDate": "2026-08-05"
 	},
 	"HD": {
-		"peakPrice": 349.86,
+		"peakPrice": 351.33,
 		"peakDate": "2026-08-05",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -414,8 +414,8 @@
 		"lastPurchaseDate": "2026-08-05"
 	},
 	"PLD": {
-		"peakPrice": 140.36,
-		"peakDate": "2026-08-04",
+		"peakPrice": 140.54,
+		"peakDate": "2026-08-05",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": null,
@@ -432,8 +432,8 @@
 		"lastPurchaseDate": "2026-08-05"
 	},
 	"EQIX": {
-		"peakPrice": 1051.585,
-		"peakDate": "2026-08-04",
+		"peakPrice": 1054.57,
+		"peakDate": "2026-08-05",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": null,
@@ -441,7 +441,7 @@
 		"lastPurchaseDate": "2026-08-05"
 	},
 	"LIN": {
-		"peakPrice": 490.305,
+		"peakPrice": 491.72,
 		"peakDate": "2026-08-05",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -450,7 +450,7 @@
 		"lastPurchaseDate": "2026-08-04"
 	},
 	"FCX": {
-		"peakPrice": 69.75,
+		"peakPrice": 69.805,
 		"peakDate": "2026-08-05",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -459,7 +459,7 @@
 		"lastPurchaseDate": null
 	},
 	"SHW": {
-		"peakPrice": 364.86,
+		"peakPrice": 366.205,
 		"peakDate": "2026-08-05",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
