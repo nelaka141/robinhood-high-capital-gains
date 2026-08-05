@@ -16,6 +16,12 @@ class AssetTarget:
 
 
 @dataclass(frozen=True)
+class ForceSellEntry:
+    asset: str
+    trigger_price: Optional[float] = None  # None -> sell at whatever the current price is
+
+
+@dataclass(frozen=True)
 class PortfolioMetadata:
     global_drift_tolerance: float
     max_trailing_drawdown_percentage: float
@@ -56,7 +62,7 @@ class PortfolioMetadata:
 class PortfolioConfig:
     meta: PortfolioMetadata
     targets: Dict[str, AssetTarget]
-    force_sell: List[str]
+    force_sell: Dict[str, ForceSellEntry]  # keyed by asset symbol
     blocked: List[str]  # exempt from ALL buy/sell this cycle, except forceSell + currently held -> liquidate 100%
 
     @property
@@ -73,10 +79,39 @@ class PortfolioConfig:
         override = self.targets[symbol].drift
         return override if override is not None else self.meta.global_drift_tolerance
 
+    def force_sell_active(self, symbol: str, current_price: float) -> bool:
+        """Whether forceSell's override (bypassing the profit-margin/lock-in/blocked-freeze
+        gates) is currently in effect for `symbol`. Not listed in forceSell at all -> False.
+        Listed with no `triggerPrice` -> always True (sell at whatever the current price is).
+        Listed with a `triggerPrice` -> True only once `current_price` has recovered strictly
+        above it; re-evaluated fresh every cycle as price moves, so the override can flip back
+        off if price falls back below the trigger before the sale fires."""
+        entry = self.force_sell.get(symbol)
+        if entry is None:
+            return False
+        if entry.trigger_price is None:
+            return True
+        return current_price > entry.trigger_price
+
 
 # Fields present in portfolio_targets.json's portfolio_metadata that are informational only
 # (not risk parameters) and shouldn't be passed into PortfolioMetadata's constructor.
 _METADATA_IGNORE_KEYS = {"version", "last_updated"}
+
+
+def _parse_force_sell(raw: list) -> Dict[str, ForceSellEntry]:
+    """Each entry is either a plain string (just the symbol, no trigger price — sell at
+    whatever the current price is, same as the old list-of-strings format) or an object
+    `{"asset": "SYM", "triggerPrice": <number>}` (triggerPrice optional there too)."""
+    out: Dict[str, ForceSellEntry] = {}
+    for entry in raw:
+        if isinstance(entry, str):
+            out[entry] = ForceSellEntry(asset=entry)
+        else:
+            asset = entry["asset"]
+            trigger = entry.get("triggerPrice")
+            out[asset] = ForceSellEntry(asset=asset, trigger_price=float(trigger) if trigger is not None else None)
+    return out
 
 
 def load_portfolio_config(path: str | Path = "portfolio_targets.json") -> PortfolioConfig:
@@ -92,6 +127,6 @@ def load_portfolio_config(path: str | Path = "portfolio_targets.json") -> Portfo
 
     return PortfolioConfig(
         meta=meta, targets=targets,
-        force_sell=list(data.get("forceSell", [])),
+        force_sell=_parse_force_sell(data.get("forceSell", [])),
         blocked=list(data.get("blocked", [])),
     )

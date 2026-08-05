@@ -49,7 +49,7 @@ def _minimal_ctx(alpha_leader: str | None = None, targets: dict | None = None) -
         materialize_profit_in_dollars=12.5, keep_aside_profits_for_tax_percent=30.0,
         momentum_lookback_days=5, momentum_reversal_threshold=-10.0,
     )
-    cfg = PortfolioConfig(meta=meta, targets=targets or {}, force_sell=[], blocked=[])
+    cfg = PortfolioConfig(meta=meta, targets=targets or {}, force_sell={}, blocked=[])
     ctx = RunContext(current_date=date(2026, 8, 4), config=cfg, account_number="TEST")
     ctx.alpha_leader = alpha_leader
     return ctx

@@ -72,9 +72,18 @@ def step1_fetch_state(ctx: RunContext, broker: BrokerClient, repo_dir: str = "."
             continue  # stale/unknown symbol in the blocked list — nothing to do
         pos = ctx.positions.get(sym)
         held = pos is not None and pos.quantity > 0
-        if sym in cfg.force_sell and held:
+        price = ctx.quotes[sym].last_trade_price
+        if held and cfg.force_sell_active(sym, price):
             ctx.blocked_symbols[sym] = "blocked, but forceSell + currently held — liquidating full position instead of freezing"
             ctx.blocked_liquidations.append(sym)
+        elif held and sym in cfg.force_sell:
+            # Listed in forceSell but its triggerPrice hasn't been cleared yet this cycle —
+            # stays frozen (not liquidated) until price recovers above the trigger.
+            trigger = cfg.force_sell[sym].trigger_price
+            ctx.blocked_symbols[sym] = (
+                f"blocked; forceSell trigger not yet met (needs price > ${trigger:,.2f}, "
+                f"currently ${price:,.2f}) — staying frozen this cycle"
+            )
         else:
             ctx.blocked_symbols[sym] = "blocked — exempt from all buy/sell activity this cycle"
 
@@ -485,11 +494,16 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
             continue
 
         margin_pct = (price - pos.avg_cost_basis) / pos.avg_cost_basis * 100
-        if margin_pct < cfg.meta.overweight_sell_minimum_profit_margin_percent and sym not in cfg.force_sell:
-            ctx.skipped.append(SkippedTrade(
-                sym, f"underwater ({margin_pct:.2f}% margin) and not in forceSell",
-                "Overweight trim to fund Underweight/Multiplier",
-            ))
+        if margin_pct < cfg.meta.overweight_sell_minimum_profit_margin_percent and not cfg.force_sell_active(sym, price):
+            if sym in cfg.force_sell:
+                trigger = cfg.force_sell[sym].trigger_price
+                reason = (
+                    f"underwater ({margin_pct:.2f}% margin); forceSell trigger not yet met "
+                    f"(needs price > ${trigger:,.2f}, currently ${price:,.2f})"
+                )
+            else:
+                reason = f"underwater ({margin_pct:.2f}% margin) and not in forceSell"
+            ctx.skipped.append(SkippedTrade(sym, reason, "Overweight trim to fund Underweight/Multiplier"))
             continue
 
         asset_closes = broker.get_daily_closes(sym, start, end)
