@@ -2,3 +2,11 @@ __pycache__/
 *.pyc
 .pytest_cache/
 *.egg-info/
+
+# Per-cycle snapshot-driven pipeline scratch files (bot/README.md "Snapshot-driven mode").
+# Contain live account data (cash, positions, cost basis, tax lots) and/or an unapproved
+# trade plan awaiting user confirmation — never committed; only the specific files listed
+# in a plan/finalize result's `files_changed` are committed each cycle.
+/snapshot.json
+/plan_result.json
+/finalize_result.json
