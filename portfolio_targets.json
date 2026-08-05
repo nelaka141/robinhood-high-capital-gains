@@ -1,6 +1,6 @@
 {
   "portfolio_metadata": {
-    "version": "2.34.0",
+    "version": "2.35.0",
     "last_updated": "2026-08-04",
     "global_drift_tolerance": 1.0,
     "max_trailing_drawdown_percentage": 35,
@@ -91,6 +91,6 @@
 "SHW": { "weight": 1.1, "drift": 0.5 },
 "DUK": { "weight": 1.1, "drift": 0.5 }
 },
-  "forceSell": [{"asset": "LTRN"}],
+  "forceSell": [{"asset": "LTRN", "triggerPrice": 4.5}],
   "blocked": ["LTRN"]
 }
