@@ -227,3 +227,95 @@ Emergency liquidations: none
 ## Orders Placed
 ```
 ```
+
+# 2026-08-03 — Scheduled Rebalance Check — EXECUTED (3 sell(s), 0 buy(s))
+
+**Status:** EXECUTED. 3 sell order(s), 0 buy order(s) sized this cycle.
+
+## Account Snapshot
+- `buying_power` (settled): **$34,733.68**
+- `cash` (ledger): **$34,733.68**
+- `current_cash` (post-cap): **$19,000.00**
+- `account_balance`: **$99,854.00**
+
+## Drawdown Audit
+Emergency liquidations: none
+
+## Excluded / Buy-Guarded Symbols (Step 2)
+- **SOXL** (excluded): liquidated 2026-07-16 @ 147.6401 — recovery (5.0%) or cooldown (6d) not yet met
+- **IONQ** (excluded): liquidated 2026-07-13 @ 38.8001 — recovery (5.0%) or cooldown (6d) not yet met
+- **PLTR** (buy-guarded only): profit-sold 2026-07-30 @ 122.4601 — buy-guard active (partial, remainder still held)
+- **AMZN** (buy-guarded only): profit-sold 2026-07-31 @ 266.8923 — buy-guard active (partial, remainder still held)
+- **NVDA** (buy-guarded only): profit-sold 2026-07-30 @ 194.201 — buy-guard active (partial, remainder still held)
+- **GOOG** (buy-guarded only): profit-sold 2026-07-30 @ 331.2701 — buy-guard active (partial, remainder still held)
+- **MSFT** (buy-guarded only): profit-sold 2026-07-31 @ 456.83 — buy-guard active (partial, remainder still held)
+- **IBM** (buy-guarded only): profit-sold 2026-07-27 @ 218.844 — buy-guard active (partial, remainder still held)
+
+## Alpha Leader Selection — Momentum_Score
+| Symbol | RSI14 | EMA9_now | EMA9_prior | Price_vs_EMA% | EMA_Slope% | Score |
+|---|---|---|---|---|---|---|
+| MSFT ← ALPHA LEADER | 77.53 | 414.67 | 388.83 | +17.82 | +6.65 | +52.00 |
+| AMZN | 69.25 | 242.90 | 242.01 | +17.83 | +0.37 | +37.45 |
+| GM | 69.77 | 85.78 | 79.49 | +3.62 | +7.92 | +31.31 |
+| F | 58.77 | 14.64 | 14.15 | +2.10 | +3.44 | +14.32 |
+| GOOG | 51.20 | 339.76 | 339.53 | +9.73 | +0.07 | +11.00 |
+| AVGO | 55.70 | 384.22 | 386.09 | -1.98 | -0.48 | +3.24 |
+| ORCL | 44.38 | 124.61 | 125.29 | +8.74 | -0.54 | +2.59 |
+| SMCI | 52.58 | 28.01 | 28.21 | -1.20 | -0.72 | +0.66 |
+| NVDA | 53.74 | 199.73 | 206.84 | -0.50 | -3.44 | -0.20 |
+| GE | 42.72 | 355.29 | 350.14 | +2.57 | +1.47 | -3.24 |
+| UNH | 47.14 | 421.75 | 425.65 | -1.48 | -0.92 | -5.26 |
+| NFLX | 39.35 | 71.75 | 70.47 | +2.83 | +1.81 | -6.01 |
+| NEE | 44.98 | 88.34 | 88.95 | -2.23 | -0.68 | -7.93 |
+| MSTR | 43.31 | 95.59 | 95.88 | -3.24 | -0.31 | -10.24 |
+| PLTR | 40.78 | 125.33 | 128.15 | +0.38 | -2.20 | -11.04 |
+| AAPL | 42.68 | 327.44 | 325.31 | -6.64 | +0.66 | -13.31 |
+| META | 41.51 | 587.06 | 625.91 | -0.74 | -6.21 | -15.44 |
+| TQQQ | 39.70 | 64.59 | 69.12 | +0.57 | -6.56 | -16.29 |
+| IBM | 26.99 | 224.24 | 225.91 | +1.25 | -0.74 | -22.50 |
+| AMD | 41.60 | 488.92 | 530.82 | -6.31 | -7.89 | -22.60 |
+| MU | 41.71 | 864.79 | 939.56 | -9.40 | -7.96 | -25.65 |
+| COIN | 37.24 | 160.10 | 162.56 | -11.48 | -1.51 | -25.75 |
+| INTC | 32.80 | 92.56 | 101.04 | -6.20 | -8.40 | -31.79 |
+| ARM | 33.20 | 254.42 | 281.28 | -10.74 | -9.55 | -37.08 |
+| VRT | 30.14 | 262.95 | 300.66 | -7.43 | -12.54 | -39.84 |
+| TSLA | 22.04 | 324.86 | 360.74 | -2.85 | -9.95 | -40.75 |
+| HOOD | 24.33 | 94.01 | 103.77 | -7.92 | -9.41 | -42.99 |
+| SPCX | 16.89 | 116.23 | 125.07 | -7.39 | -7.06 | -47.56 |
+
+## Tax Reserve
+- `net_realized_gains_ytd_pretrade`: **$22,077.16**
+- `net_realized_gains_ytd_effective` (post-sells): **$30,505.64**
+- `tax_reserve` (final): **$9,151.69**
+
+## GET THE PROFITS / Momentum Reversal Trim Sells
+- **PLTR**: GET THE PROFITS: +177.73%, FIFO $8017.26
+- **AMZN**: GET THE PROFITS: +18.05%, FIFO $123.52
+- **MSFT**: GET THE PROFITS: +25.93%, FIFO $236.07
+
+## Overweight High-Beta Trims
+- none fired this cycle
+
+## Buys
+- none fired this cycle
+
+## Total_High_Beta_Gains_Realized: **$8,376.84**
+
+## SKIPPED/PENDING
+| Symbol | Reason | Would-be action |
+|---|---|---|
+| MU | GTP % gate clears (+81.39%) but profit_resell_cooldown_days active | partial profit-take sale |
+| MU | MRT gates clear (score -25.65) but profit_resell_cooldown_days active | partial profit-take sale |
+| GOOG | GTP % gate clears (+5.91%) but FIFO dollar gate fails ($-8.29 < $12.5) | partial profit-take sale |
+| AMD | MRT gates clear (score -22.60) but profit_resell_cooldown_days active | partial profit-take sale |
+| F | GTP % gate clears (+5.65%) but profit_resell_cooldown_days active | partial profit-take sale |
+| GM | GTP % gate clears (+9.05%) but profit_resell_cooldown_days active | partial profit-take sale |
+| IBM | MRT momentum/margin gates clear but FIFO dollar gate fails ($7.80 < $12.5) | partial profit-take sale |
+| TSLA | underwater (-0.25% margin) and not in forceSell | Overweight trim to fund Underweight/Multiplier |
+| ORCL | underwater (-13.45% margin) and not in forceSell | Overweight trim to fund Underweight/Multiplier |
+| MU | buy_price_diff_limit: +6.18% vs. 3-day low (limit 5%) | Underweight/Alpha buy |
+| AMD | buy_price_diff_limit: +8.02% vs. 3-day low (limit 5%) | Underweight/Alpha buy |
+
+## Orders Placed
+```
+```
