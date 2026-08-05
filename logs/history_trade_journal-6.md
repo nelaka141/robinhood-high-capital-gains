@@ -319,3 +319,93 @@ Emergency liquidations: none
 ## Orders Placed
 ```
 ```
+
+# 2026-08-03 03:25 PM EDT — Scheduled Rebalance Check — ABORTED: PRIORITY ERROR (bot/steps.py crash — unhandled `avg_cost_basis=None` in Overweight High-Beta ranking)
+
+**Status:** ABORTED. **0 of 0 intended orders evaluated/filled** — routine
+halted inside `python3 -m bot.cli plan` during Step 4 (Evaluate Aggressive
+Profit-Taking & Reallocation), after Steps 1–3 completed successfully. This
+was a fresh, stateless run for the 3:15 PM ET scheduled tick. `CLAUDE.md`
+re-pulled fresh from `main` (commit `7e0d385e87fb14a3d2756227fe1f9cab663607a3`,
+text version header "Volume 2.44.0"), diffed byte-identical against the
+working checkout. `portfolio_targets.json`, `peak/prices.json`,
+`settlement/reserve.json`, `tax/realized_gains_by_year.json`,
+`transferred_basis.json` all re-pulled fresh from `main` for this run.
+
+## What happened
+* Account `795732718` ("Agentic", cash-type) confirmed as the only
+  `agentic_allowed=true` account via `get_accounts`.
+* Snapshot built successfully: `get_portfolio` (`buying_power` $34,733.68,
+  `cash` $34,733.68), `get_equity_positions` (28 held target symbols;
+  SOXL/IONQ unheld), `get_equity_quotes` (30/30 target symbols),
+  `get_equity_historicals` (31/31 symbols incl. SPY, 63 daily bars each,
+  2026-05-01 → 2026-07-31), `get_equity_tax_lots` (28/28 held symbols),
+  `get_realized_pnl` (`total_returns` = $30,505.64 YTD, equity, Jan 1 →
+  today).
+* `python3 -m bot.cli plan --snapshot snapshot.json --repo-dir . --out
+  plan_result.json` ran Steps 1–3 successfully (drift/drawdown audit,
+  guardrails, Alpha Leader selection — MSFT-family multiplier candidates
+  identified) then **crashed** inside Step 4 with:
+  ```
+  File "bot/steps.py", line 375, in step4_profit_taking
+      margin_pct = (price - pos.avg_cost_basis) / pos.avg_cost_basis * 100
+                    ~~~~~~^~~~~~~~~~~~~~~~~~~~
+  TypeError: unsupported operand type(s) for -: 'float' and 'NoneType'
+  ```
+
+## Root cause
+`bot/steps.py`'s Overweight High-Beta ranking loop (line 375, inside
+`step4_profit_taking`) computes `margin_pct` from `pos.avg_cost_basis`
+without checking for `None` first — unlike the GET THE PROFITS loop
+earlier in the same function (line 274:
+`... or pos.avg_cost_basis is None: continue`) and the drawdown-audit loop
+in Step 1 (line 67), both of which correctly skip cost-basis-dependent
+gates per `CLAUDE.md` Step 1 rule #4 ("fail closed... log the asset as
+SKIPPED (cost basis pending transfer)... Drift/Overweight/Underweight
+sizing uses market value only and is unaffected").
+
+A diagnostic re-run of Steps 1–3 only (no orders placed, no state files
+touched) confirms the trigger: **NVDA** and **ORCL** are both
+drift-breached and Overweight this cycle, and both have
+`avg_cost_basis = None` — their tax lots don't fully reconcile to the
+held quantity (partial coverage) and `transferred_basis.json` is empty
+(`{}`), so Step 1's waterfall correctly fails closed on primary/tax-lot/
+override resolution for both. `step4_profit_taking`'s Overweight-ranking
+loop then iterates into one of them and crashes instead of emitting the
+`SKIPPED (cost basis pending transfer)` entry the spec requires.
+
+## Why the routine stopped here instead of improvising
+`CLAUDE.md`'s Execution Mode section is explicit: *"If `bot/cli.py`
+itself errors or its output doesn't match this contract, treat that the
+same as any other unrecognized state — abort, log, do not fall back to
+manually re-deriving the decision from the rules below."* This is a
+genuine `bot/` bug — a missing `None` guard, not a business-rule
+ambiguity — so per that instruction this session aborted rather than
+hand-computing Steps 4–6 from the markdown spec, or attempting an
+unreviewed live fix to `bot/steps.py` immediately before placing real
+orders.
+
+## State impact
+No orders were placed or reviewed. No `peak/prices.json`,
+`settlement/reserve.json`, or `tax/realized_gains_by_year.json` updates
+were made — all three are unchanged from the pre-run state pulled above.
+`snapshot.json` and `plan_result.json` (partial, from the crashed run)
+exist only in the working tree for debugging and are not committed; this
+journal entry is the only change pushed.
+
+## Next steps
+`bot/steps.py` line 375 needs a `pos.avg_cost_basis is None` guard added
+to the Overweight High-Beta ranking loop, symmetric with the existing
+guard at line 274 — skip the symbol with a
+`SkippedTrade(sym, "cost basis pending transfer (fail-closed)", "Overweight trim")`
+entry instead of computing `margin_pct`/`score` against a `None` basis,
+consistent with `CLAUDE.md` Step 1 rule #4. Recommend fixing and
+validating (`PYTHONPATH=. python3 bot/_smoke_test.py &&
+PYTHONPATH=. python3 bot/_smoke_test_cli.py`, plus a re-run of this
+cycle's `snapshot.json` through `bot.cli plan`) via a reviewed PR before
+the next scheduled tick, rather than a same-cycle unattended fix given
+real orders sit on the other side of this code path. Separately, NVDA's
+and ORCL's cost-basis shortfall is worth investigating directly — either
+their tax lots will finish reconciling on their own, or their
+transferred-share cost basis needs an entry added to
+`transferred_basis.json`.
