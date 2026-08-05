@@ -10,13 +10,25 @@ from __future__ import annotations
 
 from datetime import date
 
-from bot.config import AssetTarget, PortfolioConfig, PortfolioMetadata
-from bot.models import Position, Quote, RunContext
+from bot.config import AssetTarget, ForceSellEntry, PortfolioConfig, PortfolioMetadata
+from bot.models import DriftResult, Position, Quote, RunContext
 from bot.state import SettlementReserve
 from bot.steps import (
     has_any_breach, in_play_symbols, step1_fetch_state, step2_guardrails,
     step4_profit_taking, step6a_prepare_sells,
 )
+
+
+def _force_sell_dict(entries) -> dict:
+    """entries: list of symbol strings (no trigger) or (symbol, trigger_price) tuples."""
+    out = {}
+    for e in entries:
+        if isinstance(e, tuple):
+            sym, trigger = e
+            out[sym] = ForceSellEntry(asset=sym, trigger_price=trigger)
+        else:
+            out[e] = ForceSellEntry(asset=e)
+    return out
 
 
 def _cfg(blocked, force_sell) -> PortfolioConfig:
@@ -41,7 +53,7 @@ def _cfg(blocked, force_sell) -> PortfolioConfig:
         "LTRN": AssetTarget(symbol="LTRN", weight=0.5, drift=0.3),
         "AAPL": AssetTarget(symbol="AAPL", weight=1.1, drift=0.5),
     }
-    return PortfolioConfig(meta=meta, targets=targets, force_sell=force_sell, blocked=blocked)
+    return PortfolioConfig(meta=meta, targets=targets, force_sell=_force_sell_dict(force_sell), blocked=blocked)
 
 
 class _FakeBroker:
@@ -156,10 +168,79 @@ def test_blocked_but_forcesell_not_held_is_still_frozen() -> None:
     print("[blocked-forcesell-unheld] LTRN (blocked+forceSell, not held) stays frozen — OK")
 
 
+def test_forcesell_trigger_price_not_met_stays_frozen() -> None:
+    """LTRN blocked + forceSell with triggerPrice=4.5, currently $2.70 (below trigger) and
+    held -> forceSell's override is NOT active yet, so it stays frozen rather than liquidating."""
+    cfg = _cfg(blocked=["LTRN"], force_sell=[("LTRN", 4.5)])
+    ctx = _base_ctx(cfg)
+    positions = {"LTRN": Position(symbol="LTRN", quantity=300.0, avg_cost_basis=7.0)}
+    price = {"LTRN": 2.70, "AAPL": 300.0}
+    broker = _FakeBroker(positions, price)
+
+    step1_fetch_state(ctx, broker)
+    assert ctx.blocked_liquidations == [], "triggerPrice not cleared -> no liquidation yet"
+    assert "trigger not yet met" in ctx.blocked_symbols["LTRN"], ctx.blocked_symbols["LTRN"]
+    print(f"[forcesell-trigger-not-met] {ctx.blocked_symbols['LTRN']}")
+
+
+def test_forcesell_trigger_price_met_liquidates() -> None:
+    """Same setup, but price has recovered to $5.00 (above the $4.50 trigger) -> forceSell's
+    override is now active, so the blocked+held position gets liquidated in full."""
+    cfg = _cfg(blocked=["LTRN"], force_sell=[("LTRN", 4.5)])
+    ctx = _base_ctx(cfg)
+    positions = {"LTRN": Position(symbol="LTRN", quantity=300.0, avg_cost_basis=7.0)}
+    price = {"LTRN": 5.00, "AAPL": 300.0}
+    broker = _FakeBroker(positions, price)
+
+    step1_fetch_state(ctx, broker)
+    assert ctx.blocked_liquidations == ["LTRN"], ctx.blocked_liquidations
+    sells, halted, _ = step6a_prepare_sells(ctx)
+    assert not halted
+    matches = [t for t in sells if t.symbol == "LTRN"]
+    assert len(matches) == 1 and matches[0].quantity == 300.0
+    print(f"[forcesell-trigger-met] LTRN liquidated at ${price['LTRN']} (trigger $4.50): {matches[0].reason}")
+
+
+def test_overweight_trim_forcesell_trigger_price_gate() -> None:
+    """The same triggerPrice gate applies to forceSell's OTHER role: overriding the
+    overweight_sell_minimum_profit_margin_percent gate on a routine (non-blocked) Overweight
+    trim. AAPL is overweight, underwater, and forceSell-listed with triggerPrice=250 — below
+    the trigger it's skipped (profit-margin gate stands); at/above it, forceSell overrides the
+    margin gate and AAPL is ranked as a trim candidate."""
+    cfg = _cfg(blocked=[], force_sell=[("AAPL", 250.0)])
+
+    def _run(price: float):
+        ctx = _base_ctx(cfg)
+        positions = {"AAPL": Position(symbol="AAPL", quantity=10.0, avg_cost_basis=300.0)}
+        broker = _FakeBroker(positions, {"AAPL": price, "LTRN": 2.7})
+        ctx.positions = positions
+        ctx.quotes = {"AAPL": Quote(symbol="AAPL", last_trade_price=price), "LTRN": Quote(symbol="LTRN", last_trade_price=2.7)}
+        ctx.account_balance = 10_000.0
+        ctx.drift_results = {
+            "AAPL": DriftResult(
+                symbol="AAPL", current_percentage=90.0, actual_weight=5.0, target_weight=1.1,
+                target_percentage=10.0, drift=3.9, asset_drift_tolerance=0.5, market_value=price * 10,
+            ),
+        }
+        step4_profit_taking(ctx, broker)
+        return ctx
+
+    below = _run(240.0)  # underwater, price below the $250 trigger
+    assert all(t.symbol != "AAPL" for t in below.overweight_trims), below.overweight_trims
+    assert any(s.symbol == "AAPL" and "trigger not yet met" in s.reason for s in below.skipped), below.skipped
+
+    above = _run(260.0)  # still underwater vs. $300 cost, but above the $250 trigger
+    assert any(t.symbol == "AAPL" for t in above.overweight_trims), above.overweight_trims
+    print("[overweight-forcesell-trigger] below trigger -> skipped; above trigger -> ranked as trim candidate — OK")
+
+
 def main() -> None:
     test_blocked_and_not_forcesell_is_fully_frozen()
     test_blocked_and_forcesell_and_held_liquidates_fully()
     test_blocked_but_forcesell_not_held_is_still_frozen()
+    test_forcesell_trigger_price_not_met_stays_frozen()
+    test_forcesell_trigger_price_met_liquidates()
+    test_overweight_trim_forcesell_trigger_price_gate()
     print("\nSMOKE TEST (blocked list) PASSED")
 
 
