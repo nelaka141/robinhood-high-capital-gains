@@ -147,10 +147,44 @@ Emergency liquidations: none
 | LIN | buy_price_diff_limit: +5.02% vs. 3-day low (limit 5%) | Underweight/Alpha buy |
 | FCX | buy_price_diff_limit: +14.40% vs. 3-day low (limit 5%) | Underweight/Alpha buy |
 | SHW | buy_price_diff_limit: +8.11% vs. 3-day low (limit 5%) | Underweight/Alpha buy |
-| ALL SELLS | gross sell value $20,664.15 exceeds seek_approval_value ($15,000.00) — halting for user approval | sell batch |
+
+*Note: the plan initially halted on "gross sell value $20,664.15 exceeds seek_approval_value ($15,000.00)" — the row that would appear here has been removed since the user explicitly approved the batch below and it executed in full; see "Orders Placed".*
 
 ## Orders Placed
+Sells (13, all filled, specified-lot except LLY):
 ```
+PLTR   sell  20.000000 @ 161.4801   id=6a7347aa-cc0b-46b6-94eb-7907f3d949ab
+MU     sell   4.000000 @ 919.5012   id=6a7347b0-d2bf-45f1-be24-fb7bd51b4796
+NVDA   sell  22.000000 @ 221.5801   id=6a7347b5-5c30-447c-b3b3-5cf3a50ecf66
+GOOG   sell   7.000000 @ 377.7901   id=6a7347bb-62db-4c13-88de-9127cf428ee2
+TQQQ   sell  19.000000 @ 75.5200    id=6a7347c2-9932-44bb-a85c-bf3d32fde9f8
+ARM    sell   1.000000 @ 273.0701   id=6a7347c7-3853-45ab-baab-67daab88234a
+VRT    sell   1.000000 @ 278.5190   id=6a7347cc-a806-4603-9a92-34d51ad27195
+AVGO   sell   1.000000 @ 422.3674   id=6a7347d1-835e-4b12-9e5a-c9d80436e713
+GM     sell  24.000000 @ 89.2401    id=6a7347d7-1bb6-4bba-8308-b7374725a969
+IBM    sell   1.000000 @ 234.6201   id=6a7347dd-4a0f-4272-a417-1afc2c6ea35e
+NFLX   sell   9.000000 @ 74.0801    id=6a7347e3-f432-4de3-be06-b7396e1c8baf
+GE     sell   1.000000 @ 384.1771   id=6a7347e8-0408-494f-b7c2-330b71b34d97
+LLY    sell   0.304328 @ 1160.8000  id=6a7347ed-556b-43af-b7cb-bca31b6f718b  (ordinary order, fractional)
+```
+Buys (16, all filled, dollar-based market orders):
+```
+AMT    buy   3.838540 @ 164.8908   $632.94   id=6a734823-716f-4d76-96b9-e8d224fc1da4
+DUK    buy   5.078985 @ 123.3199   $626.34   id=6a734827-c5e1-4236-a5ca-648b55a0c91d
+COP    buy   5.389412 @ 116.1815   $626.15   id=6a73482b-dfc1-4b21-9ab4-3a223b5072ee
+PG     buy   4.276292 @ 146.3534   $625.85   id=6a73482f-eb37-4392-8780-f21c9c1c6d3d
+SO     buy   6.727358 @ 92.9399    $625.24   id=6a734833-65dc-47a7-9176-b46b9e20e868
+XOM    buy   4.105196 @ 152.2899   $625.18   id=6a734837-7144-46b1-be69-90f341ac45c1
+PLD    buy   4.462637 @ 139.9800   $624.68   id=6a73483a-42c1-42cc-a7cd-f2221f4e3be0
+CVX    buy   3.328822 @ 187.6099   $624.52   id=6a73483e-00cb-40d3-9bcb-26193cb1e84a
+COST   buy   0.662055 @ 942.8210   $624.20   id=6a734845-fe1c-4fbd-bc4c-5a1e2493bdce
+EQIX   buy   0.598336 @ 1042.3900  $623.70   id=6a73484a-9f0e-4e7e-bffd-05d9a2b449ca
+UNP    buy   2.110775 @ 295.2848   $623.28   id=6a73484e-a2b8-4f87-a572-8f91c9ce9faf
+BRK.B  buy   1.203489 @ 516.4065   $621.49   id=6a734851-ee33-4405-8267-4781920cb87b
+V      buy   1.681822 @ 369.2482   $621.01   id=6a734855-bbf0-4008-a2fb-3784afde6a37
+JNJ    buy   2.413417 @ 257.1499   $620.61   id=6a734859-06f5-46eb-ae28-866f185852d1
+JPM    buy   1.715550 @ 361.5342   $620.23   id=6a73485d-4e20-40f8-8c30-72565f747ea0
+WMT    buy   5.514780 @ 112.2692   $619.14   id=6a734860-93a6-4154-846e-db83760c3256
 ```
 
 # 2026-08-04 — Scheduled Rebalance Check — EXECUTED (4 sell(s), 18 buy(s))
