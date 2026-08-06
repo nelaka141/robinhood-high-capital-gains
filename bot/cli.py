@@ -10,6 +10,10 @@ Usage:
     python3 -m bot.cli plan     --snapshot snapshot.json --repo-dir . --out plan_result.json
     python3 -m bot.cli finalize --resume resume_state.json --post-sell-pnl <float> \\
                                  --buying-power <float> --repo-dir . --out finalize_result.json
+
+    python3 -m bot.cli price-cache-plan  --repo-dir . --current-date <today> --out price_fetch_plan.json
+    python3 -m bot.cli price-cache-merge --repo-dir . --current-date <today> \\
+                                          --bars-in fetched_bars.json --out price_cache_result.json
 """
 from __future__ import annotations
 
@@ -18,7 +22,7 @@ import json
 from datetime import date
 from pathlib import Path
 
-from . import journal, steps
+from . import journal, price_cache, steps
 from .config import load_portfolio_config
 from .models import RunContext
 from .serialize import ctx_from_jsonable, ctx_to_jsonable, dump_json
@@ -174,6 +178,32 @@ def _update_profit_sell_and_purchase_dates(ctx: RunContext) -> None:
             st.liquidatedPrice, st.liquidatedDate = "", None
 
 
+def cmd_price_cache_plan(args: argparse.Namespace) -> None:
+    cfg = load_portfolio_config(f"{args.repo_dir}/portfolio_targets.json")
+    cache = price_cache.load_price_cache(f"{args.repo_dir}/price_history/daily_bars.json")
+    symbols = price_cache.cache_symbols(cfg)
+    result = price_cache.plan_fetches(cache, symbols, date.fromisoformat(args.current_date))
+    dump_json(result, args.out)
+    n_fetch = sum(len(b["symbols"]) for b in result["fetch_batches"])
+    print(f"PRICE CACHE PLAN — {n_fetch} symbol(s) across {len(result['fetch_batches'])} "
+          f"batch(es) need fetching, {len(result['up_to_date'])} already up to date. Wrote {args.out}.")
+
+
+def cmd_price_cache_merge(args: argparse.Namespace) -> None:
+    cache_path = f"{args.repo_dir}/price_history/daily_bars.json"
+    cache = price_cache.load_price_cache(cache_path)
+    if args.bars_in:
+        new_bars = json.loads(Path(args.bars_in).read_text())
+        price_cache.merge_bars(cache, new_bars)
+    current_date = date.fromisoformat(args.current_date)
+    price_cache.prune_cache(cache, current_date)
+    price_cache.save_price_cache(cache, cache_path)
+    daily_closes, daily_lows_highs = price_cache.slice_for_snapshot(cache, current_date)
+    dump_json({"daily_closes": daily_closes, "daily_lows_highs": daily_lows_highs}, args.out)
+    print(f"PRICE CACHE MERGE — cache now covers {len(cache)} symbol(s). "
+          f"Wrote {cache_path} and {args.out}.")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Snapshot-driven CLAUDE.md pipeline (no broker credentials needed).")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -193,6 +223,29 @@ def main() -> None:
     p_final.add_argument("--repo-dir", default=".")
     p_final.add_argument("--out", default="finalize_result.json")
     p_final.set_defaults(func=cmd_finalize)
+
+    p_pc_plan = sub.add_parser(
+        "price-cache-plan",
+        help="Decide which symbols/date-ranges still need a get_equity_historicals fetch, per price_history/daily_bars.json.",
+    )
+    p_pc_plan.add_argument("--repo-dir", default=".")
+    p_pc_plan.add_argument("--current-date", required=True, help="YYYY-MM-DD, US/Eastern")
+    p_pc_plan.add_argument("--out", default="price_fetch_plan.json")
+    p_pc_plan.set_defaults(func=cmd_price_cache_plan)
+
+    p_pc_merge = sub.add_parser(
+        "price-cache-merge",
+        help="Merge freshly fetched bars into price_history/daily_bars.json, prune, and slice daily_closes/daily_lows_highs for snapshot.json.",
+    )
+    p_pc_merge.add_argument("--repo-dir", default=".")
+    p_pc_merge.add_argument("--current-date", required=True, help="YYYY-MM-DD, US/Eastern")
+    p_pc_merge.add_argument(
+        "--bars-in", default=None,
+        help='JSON {"SYMBOL": [{"date","close","low","high"}, ...]} from this cycle\'s get_equity_historicals '
+             'fetches; omit if price-cache-plan\'s fetch_batches was empty (nothing needed fetching)',
+    )
+    p_pc_merge.add_argument("--out", default="price_cache_result.json")
+    p_pc_merge.set_defaults(func=cmd_price_cache_merge)
 
     args = parser.parse_args()
     args.func(args)

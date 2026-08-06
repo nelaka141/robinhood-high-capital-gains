@@ -17,6 +17,13 @@ This is what `CLAUDE.md`'s "Execution Mode" section instructs the scheduled rout
 cycle. Two commands, with the agent doing the actual order placement between them:
 
 ```bash
+python3 -m bot.cli price-cache-plan  --repo-dir . --current-date <today> --out price_fetch_plan.json
+# agent fetches only price_fetch_plan.json's fetch_batches via get_equity_historicals,
+# writes them to fetched_bars.json
+python3 -m bot.cli price-cache-merge --repo-dir . --current-date <today> \
+    --bars-in fetched_bars.json --out price_cache_result.json
+# price_cache_result.json's daily_closes/daily_lows_highs drop straight into snapshot.json
+
 python3 -m bot.cli plan     --snapshot snapshot.json --repo-dir . --out plan_result.json
 # agent executes plan_result.json's sells_to_place via its broker, then re-fetches
 # net_realized_gains_ytd and buying_power
@@ -26,9 +33,36 @@ python3 -m bot.cli finalize --resume plan_result.json \
 # agent executes finalize_result.json's buys_to_place via its broker
 ```
 
-Neither command calls `place_market_order`. Both are read-a-JSON-file-in,
+None of these commands call `place_market_order`. All are read-a-JSON-file-in,
 write-a-JSON-file-out — safe to run repeatedly while testing, and trivially unit-testable
-(`bot/_smoke_test_cli.py` runs both via `subprocess`, no mocking needed).
+(`bot/_smoke_test_cli.py` and `bot/_smoke_test_price_cache.py` run them via `subprocess`, no
+mocking needed).
+
+### Price history cache
+
+`price_history/daily_bars.json` is a persistent, git-tracked rolling ~90-day daily-bar cache
+(`bot/price_cache.py`) covering every target symbol plus `beta_benchmark_symbol`. It exists so
+the agent doesn't re-fetch a full ~90-day `get_equity_historicals` window for every symbol on
+every cycle — after the first cycle (a one-time full backfill), a normal day-over-day cycle
+only needs a 1-day incremental fetch per symbol.
+
+- **`price-cache-plan`** reads the cache and tells you, per symbol, whether it's `up_to_date`
+  (cache already covers through yesterday — no fetch needed) or needs a fetch: a full
+  ~90-day backfill if the symbol is missing/empty from the cache (new target, or the cache
+  doesn't exist yet), otherwise just the day(s) since the last cached bar (normally 1, more if
+  a cycle was skipped). Symbols needing the identical date range are grouped into one
+  `fetch_batches` entry so you can batch `get_equity_historicals` calls the normal way.
+- Fetch only what `fetch_batches` asks for, and write it to a JSON file shaped
+  `{"SYMBOL": [{"date": "YYYY-MM-DD", "close": ..., "low": ..., "high": ...}, ...]}` — map each
+  returned bar's `begins_at` (truncated to the date) to `date`, and `close_price`/`low_price`/
+  `high_price` to `close`/`low`/`high`. Omit a symbol entirely if it was already `up_to_date`.
+- **`price-cache-merge`** unions those bars into `price_history/daily_bars.json` (a fresh bar
+  overwrites any existing same-date entry), prunes anything older than the rolling window, and
+  writes `daily_closes`/`daily_lows_highs` — already sliced to the last ~90 calendar days, in
+  the exact `snapshot.json` schema shape — ready to copy straight in. Pass `--bars-in` only if
+  `fetch_batches` was non-empty; omitting it just re-slices/re-prunes the existing cache.
+- `price_history/daily_bars.json` is a normal state file — commit it alongside `peak/prices.json`
+  etc. whenever it changes (CLAUDE.md Step 7/8).
 
 ### `plan`
 
@@ -116,6 +150,7 @@ uses; kept for fully-standalone use outside of any MCP/agent setup.
 | `models.py` | — | Shared value objects (`Position`, `DriftResult`, `MomentumScore`, `TradeIntent`, `RunContext`, ...) |
 | `broker.py` | "You execute actions via the connected Robinhood MCP Server" | `BrokerClient` Protocol + a `robin_stocks` reference implementation (standalone mode only) |
 | `snapshot_broker.py` | — | `SnapshotBroker` — reads the same `BrokerClient` interface from a JSON snapshot instead of a live connection (snapshot-driven mode) |
+| `price_cache.py` | Execution Mode Step 2, `daily_closes`/`daily_lows_highs` sourcing | `price_history/daily_bars.json` — persistent rolling ~90-day cache; `price-cache-plan`/`price-cache-merge` (see "Price history cache" above) |
 | `serialize.py` | — | JSON round-trip of `RunContext` between `plan` and `finalize` |
 | `indicators.py` | Step 3's RSI/EMA formulas, Step 4's Beta formula | Pure-Python EMA(9), RSI(14), beta — no external indicator API needed |
 | `fifo.py` | Step 4, "Dollar-gate accounting for PARTIAL sales" | FIFO lot-matched realized-profit calculation |
