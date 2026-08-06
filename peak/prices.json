@@ -63,12 +63,12 @@
 		"lastPurchaseDate": "2026-07-31"
 	},
 	"ARM": {
-		"peakPrice": 288.06,
-		"peakDate": "2026-07-21",
+		"peakPrice": 288.8211,
+		"peakDate": "2026-08-06",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
-		"profitSellPrice": 278.74,
-		"profitSellDate": "2026-08-05",
+		"profitSellPrice": 288.8211,
+		"profitSellDate": "2026-08-06",
 		"lastPurchaseDate": "2026-07-29"
 	},
 	"SMCI": {
@@ -144,12 +144,12 @@
 		"lastPurchaseDate": "2026-07-30"
 	},
 	"MSFT": {
-		"peakPrice": 497.4699,
-		"peakDate": "2026-08-04",
+		"peakPrice": 497.9338,
+		"peakDate": "2026-08-06",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
-		"profitSellPrice": 493.565,
-		"profitSellDate": "2026-08-04",
+		"profitSellPrice": 497.9338,
+		"profitSellDate": "2026-08-06",
 		"lastPurchaseDate": "2026-07-16"
 	},
 	"META": {
@@ -207,8 +207,8 @@
 		"lastPurchaseDate": "2026-07-29"
 	},
 	"AVGO": {
-		"peakPrice": 422.59,
-		"peakDate": "2026-08-05",
+		"peakPrice": 423.39,
+		"peakDate": "2026-08-06",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 422.59,
@@ -306,7 +306,7 @@
 		"lastPurchaseDate": "2026-08-05"
 	},
 	"BRK.B": {
-		"peakPrice": 520.9,
+		"peakPrice": 523.64,
 		"peakDate": "2026-08-06",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -330,7 +330,7 @@
 		"liquidatedDate": null,
 		"profitSellPrice": null,
 		"profitSellDate": null,
-		"lastPurchaseDate": "2026-08-04"
+		"lastPurchaseDate": "2026-08-06"
 	},
 	"CAT": {
 		"peakPrice": 887.8995,
@@ -447,7 +447,7 @@
 		"liquidatedDate": null,
 		"profitSellPrice": null,
 		"profitSellDate": null,
-		"lastPurchaseDate": "2026-08-04"
+		"lastPurchaseDate": "2026-08-06"
 	},
 	"FCX": {
 		"peakPrice": 69.805,
@@ -465,7 +465,7 @@
 		"liquidatedDate": null,
 		"profitSellPrice": null,
 		"profitSellDate": null,
-		"lastPurchaseDate": null
+		"lastPurchaseDate": "2026-08-06"
 	},
 	"DUK": {
 		"peakPrice": 124.685,
