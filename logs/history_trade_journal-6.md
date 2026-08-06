@@ -409,3 +409,98 @@ and ORCL's cost-basis shortfall is worth investigating directly — either
 their tax lots will finish reconciling on their own, or their
 transferred-share cost basis needs an entry added to
 `transferred_basis.json`.
+
+# 2026-08-04 10:02 AM EDT — Scheduled Rebalance Check — ABORTED: PRIORITY ERROR (broker rejects fractional quantity on specified-lot sells)
+
+**Status:** ABORTED after user approval. **0 of 10 approved sell orders filled.** Routine
+halted during Step 6 order execution, after `python3 -m bot.cli plan` (Steps 1–5) completed
+successfully and the user explicitly approved proceeding past the `seek_approval_value` halt.
+
+## What happened
+* Account `795732718` ("Agentic", cash-type) confirmed as the only `agentic_allowed=true`
+  account via `get_accounts`.
+* Snapshot built successfully: `get_portfolio` (`buying_power` $46,834.51, `cash` $46,834.51),
+  `get_equity_positions` (29 held target symbols), `get_equity_quotes` (53/53 target symbols),
+  `get_equity_historicals` (54/54 symbols incl. SPY, ~64 daily bars each, 2026-05-01 →
+  2026-08-03), `get_equity_tax_lots` (29/29 held symbols), `get_realized_pnl` (`total_returns`
+  = $30,505.66 YTD, equity, Jan 1 → today).
+* `python3 -m bot.cli plan` ran Steps 1–5 successfully. A broad market rally (PLTR, MU, NVDA,
+  SOXL, AMD, CAT and others up mid-single- to triple-digit percent intraday) pushed **10
+  positions** past their GET THE PROFITS / Momentum Reversal Trim thresholds simultaneously —
+  PLTR, TSLA, NVDA, GOOG, MSFT, ARM, AMD, VRT, AVGO, GE — for a combined gross sell value of
+  **$29,704.45** (updated at execution time after a quote refresh; $33,444.52 at the initial
+  10:00 AM ET snapshot before ARM/MU shifted across their resell-cooldown/threshold gates as
+  prices moved). This exceeded `seek_approval_value` ($10,000), so `plan` correctly halted per
+  spec and wrote nothing to any state file.
+* Reported the full halt detail (per-symbol qty/value/realized-profit/reason table) to the user
+  via push notification. User replied explicitly: **"I approved it please proceed."**
+* Refreshed live quotes (buying power unchanged at $46,834.51 — no trades had occurred), rebuilt
+  `snapshot.json`, re-ran `plan` to get current-price candidate sells (same 10 symbols; MU
+  dropped off the list between the two `plan` runs as its price fell fractionally below
+  `profitSellPrice`, correctly re-arming the `profit_resell_cooldown_days` guard — confirms the
+  script is applying gates correctly on fresh data).
+* Began sequential `place_equity_order` sell execution per the approved list, passing each
+  entry's FIFO-selected `tax_lots` straight through per spec. **First order (PLTR, sell
+  39.8076505 shares from lot `7ba857cd-...`, specified-lot) was rejected:**
+  ```
+  API error 400: {"quantity":["Order quantity cannot include fractional shares."]}
+  ```
+  Isolated the cause via `review_equity_order` (which does NOT reproduce the error — the same
+  PLTR order with the same `tax_lots` previews cleanly) and a second live test on AMD (smallest
+  order in the batch, 0.7409445 shares from a single lot): **same rejection.** Confirmed this is
+  not transient (PLTR retried once with a fresh `ref_id`, same 400) and not symbol-specific.
+
+## Root cause
+This account's broker (`place_equity_order`) rejects **any specified-lot (`tax_lots`) sell order
+whose quantity is fractional** — even though `review_equity_order` does not simulate/catch this
+validation, and even though this account trades fractional shares freely on ordinary (non-
+specified-lot) orders (confirmed via a clean `review_equity_order` preview for the same PLTR
+quantity with `tax_lots` omitted).
+
+Every one of this cycle's 10 approved sells requires a **fractional partial-lot quantity** —
+`bot/steps.py`'s FIFO lot-matching (Step 4's dollar-gate rule) computes the exact fractional
+share count needed to realize the target profit percentage from a specific lot, and none of the
+10 happen to land on a whole-share boundary. This is a previously-undiscovered mismatch between
+`bot/`'s FIFO-lot-matched sell sizing (which assumes specified-lot orders accept any quantity,
+same as ordinary orders) and this broker's actual specified-lot order validation.
+
+## Why the routine stopped here instead of improvising
+`CLAUDE.md`'s Error Handling rule: *"If the Robinhood MCP server returns an API error or an
+unrecognized network state, immediately abort the routine, write a priority error log to
+`logs/trade_journal.md`, and terminate."* A 400 validation error is not a 429/502, so no retry
+loop applies. Two workarounds were considered and both rejected as out-of-scope for this cycle:
+* **Round each sell's quantity to whole shares** — would sell a different share count than the
+  amount the user approved, changing the realized-profit dollar figure that was gated on
+  (`materialize_profit_in_dollars` / `momentum_reversal_minimum_profit_dollars`) and left in the
+  approval message.
+* **Drop `tax_lots` and let the broker's default lot matching apply** — `CLAUDE.md` explicitly
+  warns default matching is "not guaranteed to be date-ordered FIFO," so this could realize a
+  materially different (and untracked) taxable gain than what was computed and approved, and
+  could also unpredictably deplete the wrong lot for future FIFO computations.
+
+Both are consequential, silent deviations from an already-approved live-money trade batch — per
+`CLAUDE.md`'s standing instruction not to improvise around a script/spec mismatch, this needs a
+`bot/` fix (e.g., round the FIFO-selected quantity to the nearest whole share *before* the dollar
+gate is evaluated, so the gate and the order agree) or a deliberate user decision on how to
+proceed, not a manual override mid-cycle.
+
+## Impact
+* **No orders filled.** No cash moved, no positions changed, no realized gains booked.
+* `peak/prices.json`, `settlement/reserve.json`, `tax/realized_gains_by_year.json`: **untouched**
+  — `plan`'s halt path never wrote to them, and this abort happened before `finalize` (the step
+  that would normally update them) ever ran.
+* The 10 flagged positions (PLTR, TSLA, NVDA, GOOG, MSFT, ARM, AMD, VRT, AVGO, GE) remain fully
+  held and will be re-evaluated fresh — including GET THE PROFITS / Momentum Reversal Trim gates
+  — on the next scheduled cycle.
+
+## Next steps (for the user / a future cycle)
+1. Fix `bot/steps.py`'s FIFO lot-selection to round each lot's consumed quantity to the nearest
+   whole share (redistributing any remainder across adjacent lots as needed) so specified-lot
+   sell orders always place in whole shares, while keeping the dollar-gate math consistent with
+   what actually gets sold.
+2. Until that fix lands, large profit-taking sweeps like this one cannot execute via this
+   pipeline — flag to the user each time this condition recurs rather than silently working
+   around it.
+
+**Files changed this cycle:** `logs/trade_journal.md` only (this entry). No trades placed. No
+peak/reserve/tax state modified.

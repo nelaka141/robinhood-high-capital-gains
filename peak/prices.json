@@ -117,12 +117,12 @@
 		"lastPurchaseDate": "2026-07-27"
 	},
 	"NVDA": {
-		"peakPrice": 221.745,
-		"peakDate": "2026-08-05",
+		"peakPrice": 223.195,
+		"peakDate": "2026-08-06",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
-		"profitSellPrice": 220.6,
-		"profitSellDate": "2026-08-05",
+		"profitSellPrice": 223.195,
+		"profitSellDate": "2026-08-06",
 		"lastPurchaseDate": "2026-07-30"
 	},
 	"ORCL": {
@@ -261,8 +261,8 @@
 		"lastPurchaseDate": "2026-07-29"
 	},
 	"GE": {
-		"peakPrice": 382.1775,
-		"peakDate": "2026-08-05",
+		"peakPrice": 386.55,
+		"peakDate": "2026-08-06",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 382.1775,
@@ -279,17 +279,17 @@
 		"lastPurchaseDate": null
 	},
 	"LLY": {
-		"peakPrice": 1183.65,
-		"peakDate": "2026-08-05",
+		"peakPrice": 1196.43,
+		"peakDate": "2026-08-06",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
-		"profitSellPrice": 1183.65,
-		"profitSellDate": "2026-08-05",
+		"profitSellPrice": 1196.43,
+		"profitSellDate": "2026-08-06",
 		"lastPurchaseDate": "2026-08-04"
 	},
 	"JNJ": {
-		"peakPrice": 258.095,
-		"peakDate": "2026-08-05",
+		"peakPrice": 258.78,
+		"peakDate": "2026-08-06",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": null,
@@ -297,8 +297,8 @@
 		"lastPurchaseDate": "2026-08-05"
 	},
 	"JPM": {
-		"peakPrice": 360.2,
-		"peakDate": "2026-08-05",
+		"peakPrice": 360.375,
+		"peakDate": "2026-08-06",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": null,
@@ -306,8 +306,8 @@
 		"lastPurchaseDate": "2026-08-05"
 	},
 	"BRK.B": {
-		"peakPrice": 516.82,
-		"peakDate": "2026-08-05",
+		"peakPrice": 520.9,
+		"peakDate": "2026-08-06",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": null,
@@ -342,8 +342,8 @@
 		"lastPurchaseDate": null
 	},
 	"UNP": {
-		"peakPrice": 295.75,
-		"peakDate": "2026-08-04",
+		"peakPrice": 295.77,
+		"peakDate": "2026-08-06",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": null,
@@ -351,8 +351,8 @@
 		"lastPurchaseDate": "2026-08-05"
 	},
 	"WMT": {
-		"peakPrice": 111.91,
-		"peakDate": "2026-08-05",
+		"peakPrice": 112.945,
+		"peakDate": "2026-08-06",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": null,
@@ -369,8 +369,8 @@
 		"lastPurchaseDate": "2026-08-05"
 	},
 	"COST": {
-		"peakPrice": 948.045,
-		"peakDate": "2026-08-04",
+		"peakPrice": 952.63,
+		"peakDate": "2026-08-06",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": null,
@@ -432,8 +432,8 @@
 		"lastPurchaseDate": "2026-08-05"
 	},
 	"EQIX": {
-		"peakPrice": 1054.57,
-		"peakDate": "2026-08-05",
+		"peakPrice": 1056.8025,
+		"peakDate": "2026-08-06",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": null,
@@ -441,8 +441,8 @@
 		"lastPurchaseDate": "2026-08-05"
 	},
 	"LIN": {
-		"peakPrice": 491.72,
-		"peakDate": "2026-08-05",
+		"peakPrice": 494.72,
+		"peakDate": "2026-08-06",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": null,
@@ -459,8 +459,8 @@
 		"lastPurchaseDate": null
 	},
 	"SHW": {
-		"peakPrice": 366.205,
-		"peakDate": "2026-08-05",
+		"peakPrice": 367.87,
+		"peakDate": "2026-08-06",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": null,
