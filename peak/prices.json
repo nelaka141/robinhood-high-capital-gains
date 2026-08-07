@@ -18,7 +18,7 @@
 		"lastPurchaseDate": "2026-07-27"
 	},
 	"PLTR": {
-		"peakPrice": 167.105,
+		"peakPrice": 170.7,
 		"peakDate": "2026-08-07",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -204,10 +204,10 @@
 		"liquidatedDate": null,
 		"profitSellPrice": 280.515,
 		"profitSellDate": "2026-08-05",
-		"lastPurchaseDate": "2026-07-29"
+		"lastPurchaseDate": "2026-08-07"
 	},
 	"AVGO": {
-		"peakPrice": 426.4,
+		"peakPrice": 427.222,
 		"peakDate": "2026-08-07",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -243,8 +243,8 @@
 		"lastPurchaseDate": "2026-07-30"
 	},
 	"NFLX": {
-		"peakPrice": 74.16,
-		"peakDate": "2026-08-05",
+		"peakPrice": 74.3226,
+		"peakDate": "2026-08-07",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 74.16,
@@ -324,7 +324,7 @@
 		"lastPurchaseDate": "2026-08-07"
 	},
 	"HD": {
-		"peakPrice": 354.56,
+		"peakPrice": 354.67,
 		"peakDate": "2026-08-07",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -468,8 +468,8 @@
 		"lastPurchaseDate": "2026-08-06"
 	},
 	"DUK": {
-		"peakPrice": 124.685,
-		"peakDate": "2026-08-04",
+		"peakPrice": 125.24,
+		"peakDate": "2026-08-07",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": null,
