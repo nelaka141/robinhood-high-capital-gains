@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional
 
 if TYPE_CHECKING:
     from .config import PortfolioConfig
-    from .state import AssetPriceState, SettlementReserve
+    from .state import AlphaReserve, AssetPriceState, SettlementReserve
 
 
 @dataclass
@@ -134,6 +134,11 @@ class RunContext:
 
     momentum_scores: Dict[str, MomentumScore] = field(default_factory=dict)
     alpha_leader: Optional[str] = None
+    alpha_reserve: Optional["AlphaReserve"] = None  # loaded alpha_reserve.json — Step 3 input
+    alpha_target_dollars: float = 0.0  # this cycle's full desired Alpha Leader allocation (raw
+                                        # target, or reserve-boosted+capped if eligible) — used to
+                                        # refresh alpha_reserve.json if the leader doesn't end up
+                                        # buying (see steps.resolve_alpha_reserve)
 
     blocked_liquidations: List[str] = field(default_factory=list)  # blocked AND forceSell AND held -> liquidate 100%
     drawdown_liquidations: List[str] = field(default_factory=list)

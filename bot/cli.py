@@ -28,8 +28,9 @@ from .models import RunContext
 from .serialize import ctx_from_jsonable, ctx_to_jsonable, dump_json
 from .snapshot_broker import SnapshotBroker
 from .state import (
-    AssetPriceState, load_price_state, load_settlement_reserve, load_tax_by_year,
-    save_price_state, save_settlement_reserve, save_tax_by_year,
+    AssetPriceState, load_alpha_reserve, load_price_state, load_settlement_reserve,
+    load_tax_by_year, save_alpha_reserve, save_price_state, save_settlement_reserve,
+    save_tax_by_year,
 )
 
 
@@ -54,6 +55,7 @@ def cmd_plan(args: argparse.Namespace) -> None:
     ctx.price_state = load_price_state(f"{repo_dir}/peak/prices.json")
     ctx.reserve = load_settlement_reserve(f"{repo_dir}/settlement/reserve.json")
     ctx.tax_by_year = load_tax_by_year(f"{repo_dir}/tax/realized_gains_by_year.json")
+    ctx.alpha_reserve = load_alpha_reserve(f"{repo_dir}/alpha_reserve.json")
 
     steps.step1_fetch_state(ctx, broker, repo_dir)
 
@@ -123,6 +125,7 @@ def cmd_finalize(args: argparse.Namespace) -> None:
     save_settlement_reserve(ctx.reserve, f"{repo_dir}/settlement/reserve.json")
     ctx.tax_by_year[str(ctx.current_date.year)] = max(0.0, ctx.net_realized_gains_ytd_effective or 0.0)
     save_tax_by_year(ctx.tax_by_year, f"{repo_dir}/tax/realized_gains_by_year.json")
+    save_alpha_reserve(steps.resolve_alpha_reserve(ctx), f"{repo_dir}/alpha_reserve.json")
 
     entry_md = journal.render_entry(ctx)
     journal.prepend_entry(entry_md, f"{repo_dir}/logs")
@@ -136,7 +139,8 @@ def cmd_finalize(args: argparse.Namespace) -> None:
         "journal_entry_markdown": entry_md,
         "email_summary": journal.render_email_summary(ctx),
         "files_changed": ["peak/prices.json", "settlement/reserve.json",
-                           "tax/realized_gains_by_year.json", "logs/trade_journal.md"],
+                           "tax/realized_gains_by_year.json", "alpha_reserve.json",
+                           "logs/trade_journal.md"],
     }
     dump_json(result, args.out)
     print(f"FINALIZE OK — {len(buys_to_place)} buy(s) to execute. State files written. Wrote {args.out}.")

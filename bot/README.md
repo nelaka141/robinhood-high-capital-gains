@@ -148,7 +148,7 @@ uses; kept for fully-standalone use outside of any MCP/agent setup.
 | File | CLAUDE.md section | What it does |
 |---|---|---|
 | `config.py` | "Core Parameters & Risk Triggers", `targets`/`forceSell` | Loads `portfolio_targets.json` into typed dataclasses |
-| `state.py` | `peak/prices.json`, `settlement/reserve.json`, `tax/realized_gains_by_year.json`, `transferred_basis.json` | Load/save the four persistent state files |
+| `state.py` | `peak/prices.json`, `settlement/reserve.json`, `tax/realized_gains_by_year.json`, `alpha_reserve.json`, `transferred_basis.json` | Load/save the five persistent state files |
 | `models.py` | — | Shared value objects (`Position`, `DriftResult`, `MomentumScore`, `TradeIntent`, `RunContext`, ...) |
 | `broker.py` | "You execute actions via the connected Robinhood MCP Server" | `BrokerClient` Protocol + a `robin_stocks` reference implementation (standalone mode only) |
 | `snapshot_broker.py` | — | `SnapshotBroker` — reads the same `BrokerClient` interface from a JSON snapshot instead of a live connection (snapshot-driven mode) |
@@ -157,7 +157,7 @@ uses; kept for fully-standalone use outside of any MCP/agent setup.
 | `indicators.py` | Step 3's RSI/EMA formulas, Step 4's Beta formula | Pure-Python EMA(9), RSI(14), beta — no external indicator API needed |
 | `fifo.py` | Step 4, "Dollar-gate accounting for PARTIAL sales" | FIFO lot-matched realized-profit calculation |
 | `cost_basis.py` | Step 1, `avg_cost_basis` sourcing waterfall | primary → tax-lots → `transferred_basis.json` override → fail closed |
-| `steps.py` | **Steps 1–6**, in order | Drift/drawdown, guardrails, Alpha Leader + multiplier, GET THE PROFITS / Momentum Reversal Trim / Overweight ranking, price-limit halts. Step 6 is split: `step6a_prepare_sells`/`step6b_finalize_buys` (planning-only, used by `cli.py`) vs. `step6_execute_live` (actually places orders, used by `main.py`) |
+| `steps.py` | **Steps 1–6**, in order | Drift/drawdown, guardrails, Alpha Leader + multiplier (incl. the Alpha Reserve hold-aside/merge in `step3_alpha_leader` and `resolve_alpha_reserve`), GET THE PROFITS / Momentum Reversal Trim / Overweight ranking (incl. the `minimum_alpha_leader_sell_profit` guard), price-limit halts. Step 6 is split: `step6a_prepare_sells`/`step6b_finalize_buys` (planning-only, used by `cli.py`) vs. `step6_execute_live` (actually places orders, used by `main.py`) |
 | `journal.py` | Step 7, `logs/trade_journal.md` | Markdown entry rendering + the 5-live/10-per-history-file rotation rule |
 | `gitops.py` | Step 7, "branch... merge it directly into main" | git branch/commit/push + GitHub REST API PR-and-merge (standalone mode only — the agent does this itself in snapshot-driven mode) |
 | `notify.py` | Step 7, "Draft an email... via Gmail" | Gmail draft creation + `Send-With-Claude` label (standalone mode only) |
