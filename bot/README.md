@@ -73,11 +73,13 @@ Steps 1–5 and Step 6's sell-side planning. Writes `--out` as one of:
 - `{"no_trades": true, ...}` — Step 1's early exit (no drift breach, no drawdown). Already wrote
   the NO TRADES journal entry and updated peak prices / the tax file — nothing left to do except
   commit those changes.
-- `{"halted_for_approval": true, "halt_reason": "...", ...}` — gross sell value exceeds
-  `seek_approval_value`. **Stop. Do not execute anything. Nothing was written to any state
-  file.** Report `halt_reason` to the user and wait for explicit confirmation before re-running
-  with a manual override (this package has no "confirmed" flag — that's a deliberate forcing
-  function to keep a human in the loop for large sells).
+- `{"halted_for_approval": true, "halt_reason": "...", ...}` — some individual planned trade
+  this cycle (a single sell, or a single provisionally-sized buy) exceeds `seek_approval_value`
+  — checked per trade, not against the summed total of the cycle. **Stop. Do not execute
+  anything. Nothing was written to any state file.** Report `halt_reason` to the user and wait
+  for explicit confirmation before re-running with a manual override (this package has no
+  "confirmed" flag — that's a deliberate forcing function to keep a human in the loop for large
+  trades).
 - Otherwise: `{"sells_to_place": [...], "resume_state": {...}}`. Execute `sells_to_place`
   exactly as given — each entry is `{"symbol", "side": "sell", "quantity", "tax_lots", "reason"}`;
   pass `tax_lots` straight through to your sell order's specified-lot parameter if your broker
