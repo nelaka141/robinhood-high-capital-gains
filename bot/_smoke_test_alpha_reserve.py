@@ -41,7 +41,7 @@ def _meta(**overrides) -> PortfolioMetadata:
         settlement_lag_days=1, materialize_profit_percentage=2.0, profit_sell_percentage=50.0,
         materialize_profit_in_dollars=0.0, keep_aside_profits_for_tax_percent=30.0,
         momentum_lookback_days=5, momentum_reversal_threshold=-10.0,
-        minimum_alpha_leader_sell_profit=5.0,
+        minimum_alpha_leader_sell_profit=600.0,  # a DOLLAR floor, not a percentage
     )
     base.update(overrides)
     return PortfolioMetadata(**base)
@@ -193,41 +193,43 @@ def _ctx_for_step4(alpha_leader: str = "ALPHA") -> RunContext:
 
 
 def test_alpha_leader_gtp_blocked_below_threshold_but_fires_above() -> None:
+    # sell_qty = 5 shares (profit_sell_percentage=50% of 10 held). _Step4Broker's tax lot has
+    # cost_per_share=1.0, so FIFO realized profit = (price - 1.0) * 5.
     ctx = _ctx_for_step4()
     ctx.positions = {"ALPHA": Position("ALPHA", quantity=10.0, avg_cost_basis=100.0)}
-    ctx.quotes = {"ALPHA": Quote("ALPHA", last_trade_price=103.0)}  # +3% > materialize_profit_percentage(2%) but < 5% guard
+    ctx.quotes = {"ALPHA": Quote("ALPHA", last_trade_price=103.0)}  # FIFO=(103-1)*5=$510 < $600 guard
     step4_profit_taking(ctx, _Step4Broker())
     assert not ctx.profit_taking_sells, "GTP should be blocked for the Alpha Leader below minimum_alpha_leader_sell_profit"
     assert any("Alpha Leader sell guard" in s.reason for s in ctx.skipped)
-    print("[alpha-gtp-blocked] ALPHA at +3% margin (< 5% guard) -> GTP correctly blocked")
+    print("[alpha-gtp-blocked] ALPHA FIFO $510 (< $600 guard) -> GTP correctly blocked")
 
     ctx2 = _ctx_for_step4()
     ctx2.positions = {"ALPHA": Position("ALPHA", quantity=10.0, avg_cost_basis=100.0)}
-    ctx2.quotes = {"ALPHA": Quote("ALPHA", last_trade_price=106.0)}  # +6% > 5% guard
+    ctx2.quotes = {"ALPHA": Quote("ALPHA", last_trade_price=250.0)}  # FIFO=(250-1)*5=$1,245 > $600 guard
     step4_profit_taking(ctx2, _Step4Broker())
     assert any(t.symbol == "ALPHA" for t in ctx2.profit_taking_sells), "GTP should fire once ALPHA clears the guard"
-    print("[alpha-gtp-fires-above] ALPHA at +6% margin (> 5% guard) -> GTP fires normally")
+    print("[alpha-gtp-fires-above] ALPHA FIFO $1,245 (> $600 guard) -> GTP fires normally")
 
 
 def test_non_leader_gtp_unaffected_by_alpha_guard() -> None:
     ctx = _ctx_for_step4(alpha_leader="ALPHA")
     ctx.positions = {"OTHER": Position("OTHER", quantity=10.0, avg_cost_basis=100.0)}
-    ctx.quotes = {"OTHER": Quote("OTHER", last_trade_price=103.0)}  # +3%, would be blocked if it were the leader
+    ctx.quotes = {"OTHER": Quote("OTHER", last_trade_price=103.0)}  # FIFO=$510, would be blocked if it were the leader
     step4_profit_taking(ctx, _Step4Broker())
     assert any(t.symbol == "OTHER" for t in ctx.profit_taking_sells), "non-leader GTP must be unaffected by the Alpha Leader guard"
-    print("[non-leader-gtp-unaffected] OTHER (not Alpha Leader) at +3% -> GTP fires, guard doesn't apply")
+    print("[non-leader-gtp-unaffected] OTHER (not Alpha Leader) FIFO $510 -> GTP fires, guard doesn't apply")
 
 
 def test_alpha_leader_mrt_blocked_below_threshold() -> None:
     ctx = _ctx_for_step4()
     ctx.positions = {"ALPHA": Position("ALPHA", quantity=10.0, avg_cost_basis=100.0)}
-    ctx.quotes = {"ALPHA": Quote("ALPHA", last_trade_price=101.5)}  # +1.5%: below materialize_profit_percentage(2%) so GTP never fires
+    ctx.quotes = {"ALPHA": Quote("ALPHA", last_trade_price=101.5)}  # +1.5%: below materialize_profit_percentage(2%) so GTP never fires; FIFO=(101.5-1)*5=$502.50 < $600 guard
     ctx.momentum_scores = {"ALPHA": MomentumScore("ALPHA", rsi14=20, ema9_now=95, ema9_prior=100,
                                                    price_vs_ema_pct=-15, ema_slope_pct=-5)}  # score well below threshold -10
     step4_profit_taking(ctx, _Step4Broker())
     assert not ctx.profit_taking_sells, "MRT should be blocked for the Alpha Leader below minimum_alpha_leader_sell_profit"
     assert any("Alpha Leader sell guard" in s.reason for s in ctx.skipped)
-    print("[alpha-mrt-blocked] ALPHA at +1.5% margin (MRT gates clear, but < 5% guard) -> MRT correctly blocked")
+    print("[alpha-mrt-blocked] ALPHA FIFO $502.50 (MRT gates clear, but < $600 guard) -> MRT correctly blocked")
 
 
 def test_alpha_leader_overweight_trim_blocked_below_threshold() -> None:
@@ -236,7 +238,9 @@ def test_alpha_leader_overweight_trim_blocked_below_threshold() -> None:
         "ALPHA": Position("ALPHA", quantity=10.0, avg_cost_basis=100.0),
         "OTHER": Position("OTHER", quantity=10.0, avg_cost_basis=100.0),
     }
-    ctx.quotes = {"ALPHA": Quote("ALPHA", last_trade_price=102.0), "OTHER": Quote("OTHER", last_trade_price=102.0)}  # both +2%
+    # unrealized_dollars = (price - avg_cost_basis) * quantity = (102-100)*10 = $20, well under
+    # the $600 guard (the Overweight-trim path estimates off the full position, not a FIFO slice).
+    ctx.quotes = {"ALPHA": Quote("ALPHA", last_trade_price=102.0), "OTHER": Quote("OTHER", last_trade_price=102.0)}
     ctx.momentum_scores = {}  # keep MRT out of the picture entirely
     ctx.drift_results = {
         "ALPHA": DriftResult("ALPHA", 60, 60, 50, 50, 10, 1, market_value=1020.0),
@@ -246,7 +250,7 @@ def test_alpha_leader_overweight_trim_blocked_below_threshold() -> None:
     trimmed = {t.symbol for t in ctx.overweight_trims}
     assert "ALPHA" not in trimmed, "Overweight trim should be blocked for the Alpha Leader below the guard"
     assert "OTHER" in trimmed, "non-leader Overweight trim must be unaffected by the Alpha Leader guard"
-    print(f"[alpha-overweight-blocked] ranked candidates={trimmed} — ALPHA excluded, OTHER included — OK")
+    print(f"[alpha-overweight-blocked] est. unrealized $20 (< $600 guard) -> ranked candidates={trimmed} — ALPHA excluded, OTHER included — OK")
 
 
 def main() -> None:

@@ -416,29 +416,32 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
             and price < (st.profitSellPrice if st.profitSellPrice is not None else float("inf"))
         )
 
-        # Extra profit-margin floor when the candidate is the CURRENT Alpha Leader — protects it
-        # from being sold too cheaply just because a routine sell gate cleared. Independent of,
-        # and typically stricter than, each mechanism's own gate.
-        alpha_leader_guard_blocks = (
-            sym == ctx.alpha_leader and raw_gain_pct < cfg.meta.minimum_alpha_leader_sell_profit
-        )
-
         # --- GET THE PROFITS ---
         if not already_today and raw_gain_pct > cfg.meta.materialize_profit_percentage:
-            if alpha_leader_guard_blocks:
-                ctx.skipped.append(SkippedTrade(
-                    sym, f"GTP % gate clears (+{raw_gain_pct:.2f}%) but Alpha Leader sell guard blocks "
-                         f"(needs >= {cfg.meta.minimum_alpha_leader_sell_profit}% margin)",
-                    "partial profit-take sale",
-                ))
-            elif cooldown_blocks:
+            if cooldown_blocks:
                 ctx.skipped.append(SkippedTrade(
                     sym, f"GTP % gate clears (+{raw_gain_pct:.2f}%) but profit_resell_cooldown_days active",
                     "partial profit-take sale",
                 ))
             else:
                 fifo = fifo_realized_profit(broker.get_tax_lots(ctx.account_number, sym), sell_qty, price)
-                if fifo.fully_covered and fifo.realized_profit_dollars > cfg.meta.materialize_profit_in_dollars:
+                # Extra dollar-profit floor when the candidate is the CURRENT Alpha Leader —
+                # protects it from being sold too cheaply just because a routine sell gate
+                # cleared. Checked against the same FIFO-matched realized dollar figure the
+                # mechanism's own dollar gate uses (not the raw percentage) — independent of,
+                # and typically stricter than, materialize_profit_in_dollars.
+                alpha_leader_guard_blocks = (
+                    sym == ctx.alpha_leader and fifo.fully_covered
+                    and fifo.realized_profit_dollars < cfg.meta.minimum_alpha_leader_sell_profit
+                )
+                if alpha_leader_guard_blocks:
+                    ctx.skipped.append(SkippedTrade(
+                        sym,
+                        f"GTP gates clear (FIFO ${fifo.realized_profit_dollars:.2f}) but Alpha Leader sell "
+                        f"guard blocks (needs >= ${cfg.meta.minimum_alpha_leader_sell_profit:.2f})",
+                        "partial profit-take sale",
+                    ))
+                elif fifo.fully_covered and fifo.realized_profit_dollars > cfg.meta.materialize_profit_in_dollars:
                     reason = f"GET THE PROFITS: +{raw_gain_pct:.2f}%, FIFO ${fifo.realized_profit_dollars:.2f}"
                     if fractional_position:
                         reason += (" (ordinary order — sub-whole-share position, Robinhood "
@@ -467,20 +470,25 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
             and mscore.score <= cfg.meta.momentum_reversal_threshold
             and raw_gain_pct >= cfg.meta.momentum_reversal_minimum_profit_margin_percent
         ):
-            if alpha_leader_guard_blocks:
-                ctx.skipped.append(SkippedTrade(
-                    sym, f"MRT gates clear (score {mscore.score:.2f}) but Alpha Leader sell guard blocks "
-                         f"(needs >= {cfg.meta.minimum_alpha_leader_sell_profit}% margin)",
-                    "partial profit-take sale",
-                ))
-            elif cooldown_blocks:
+            if cooldown_blocks:
                 ctx.skipped.append(SkippedTrade(
                     sym, f"MRT gates clear (score {mscore.score:.2f}) but profit_resell_cooldown_days active",
                     "partial profit-take sale",
                 ))
             else:
                 fifo = fifo_realized_profit(broker.get_tax_lots(ctx.account_number, sym), sell_qty, price)
-                if fifo.fully_covered and fifo.realized_profit_dollars > cfg.meta.momentum_reversal_minimum_profit_dollars:
+                alpha_leader_guard_blocks = (
+                    sym == ctx.alpha_leader and fifo.fully_covered
+                    and fifo.realized_profit_dollars < cfg.meta.minimum_alpha_leader_sell_profit
+                )
+                if alpha_leader_guard_blocks:
+                    ctx.skipped.append(SkippedTrade(
+                        sym,
+                        f"MRT gates clear (FIFO ${fifo.realized_profit_dollars:.2f}) but Alpha Leader sell "
+                        f"guard blocks (needs >= ${cfg.meta.minimum_alpha_leader_sell_profit:.2f})",
+                        "partial profit-take sale",
+                    ))
+                elif fifo.fully_covered and fifo.realized_profit_dollars > cfg.meta.momentum_reversal_minimum_profit_dollars:
                     reason = f"MOMENTUM REVERSAL TRIM: score {mscore.score:.2f}, FIFO ${fifo.realized_profit_dollars:.2f}"
                     if fractional_position:
                         reason += (" (ordinary order — sub-whole-share position, Robinhood "
@@ -549,15 +557,20 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
             ctx.skipped.append(SkippedTrade(sym, reason, "Overweight trim to fund Underweight/Multiplier"))
             continue
 
+        # minimum_alpha_leader_sell_profit is a DOLLAR floor. Overweight-trim sizing isn't
+        # determined until later (Step 6 harvests only as much as Underweight/Alpha buys
+        # actually need), so at ranking time the best available estimate is the FULL held
+        # position's unrealized dollar gain — the ceiling on what this trim could ever realize.
+        unrealized_dollars = (price - pos.avg_cost_basis) * pos.quantity
         if (
             sym == ctx.alpha_leader
-            and margin_pct < cfg.meta.minimum_alpha_leader_sell_profit
+            and unrealized_dollars < cfg.meta.minimum_alpha_leader_sell_profit
             and not cfg.force_sell_active(sym, price)
         ):
             ctx.skipped.append(SkippedTrade(
                 sym,
-                f"Alpha Leader sell guard blocks Overweight trim (margin +{margin_pct:.2f}% < "
-                f"minimum_alpha_leader_sell_profit {cfg.meta.minimum_alpha_leader_sell_profit}%)",
+                f"Alpha Leader sell guard blocks Overweight trim (est. unrealized ${unrealized_dollars:.2f} < "
+                f"minimum_alpha_leader_sell_profit ${cfg.meta.minimum_alpha_leader_sell_profit:.2f})",
                 "Overweight trim to fund Underweight/Multiplier",
             ))
             continue
