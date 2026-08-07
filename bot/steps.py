@@ -47,13 +47,12 @@ def step1_fetch_state(ctx: RunContext, broker: BrokerClient, repo_dir: str = "."
         if pos.avg_cost_basis is None:
             ctx.skipped.append(SkippedTrade(sym, "cost basis pending transfer (fail-closed)", "any sell"))
 
-    # `account_cash`/`current_cash` = buying_power (settled, spendable) — NOT the raw cash ledger.
+    # `account_cash`/`current_cash` = buying_power — NOT the raw cash ledger. With limited margin
+    # enabled on this account, buying_power already reflects unsettled sale proceeds immediately,
+    # so no settlement-reserve buffer/bridging is needed.
     ctx.account_cash = broker.get_buying_power(ctx.account_number)
     ctx.account_cash_ledger = broker.get_cash_ledger(ctx.account_number)
-    ctx.current_cash = min(
-        ctx.account_cash,
-        cfg.meta.cap_on_total_cash_balance_to_use + cfg.meta.settlement_reserve_target,
-    )
+    ctx.current_cash = min(ctx.account_cash, cfg.meta.cap_on_total_cash_balance_to_use)
 
     equity_value = sum(
         (ctx.positions[sym].quantity if sym in ctx.positions else 0.0) * ctx.quotes[sym].last_trade_price
@@ -123,12 +122,6 @@ def step1_fetch_state(ctx: RunContext, broker: BrokerClient, repo_dir: str = "."
             asset_drift_tolerance=cfg.drift_tolerance(sym),
             market_value=mv,
         )
-
-    # --- Settlement reserve reconciliation (empirical settle-check is broker-specific; here we
-    # trust the `settled` flag the caller/broker maintains on each pending draw) ---
-    ctx.reserve.pending_draws = [d for d in ctx.reserve.pending_draws if not d.settled]
-    drawn_total = sum(d.reserveDrawn for d in ctx.reserve.pending_draws)
-    ctx.reserve_available_to_draw = max(0.0, cfg.meta.settlement_reserve_target - drawn_total)
 
     # --- Tax reserve: pretrade placeholder (finalized again in Step 6 after this cycle's sells) ---
     year_start = date(ctx.current_date.year, 1, 1)
@@ -262,10 +255,7 @@ def step3_alpha_leader(ctx: RunContext, broker: BrokerClient) -> Dict[str, float
         return {}
     ctx.alpha_leader = max(ctx.momentum_scores, key=lambda s: ctx.momentum_scores[s].score)
 
-    base_deployable_cash = max(
-        0.0,
-        ctx.current_cash - cfg.meta.min_cash_absolute - cfg.meta.settlement_reserve_target - ctx.tax_reserve,
-    )
+    base_deployable_cash = max(0.0, ctx.current_cash - cfg.meta.min_cash_absolute - ctx.tax_reserve)
     if base_deployable_cash <= 0:
         ctx.alpha_target_dollars = 0.0
         ctx.harvest_needed_dollars = 0.0
@@ -866,8 +856,12 @@ def step6b_finalize_buys(
     buying_power_now: float,
 ) -> List[TradeIntent]:
     """Given the caller's post-sell realized P&L and fresh buying power (fetched via MCP/broker
-    AFTER the Step 6a sells were confirmed filled), finalizes tax_reserve, applies the
-    settlement-bridge + hard-cap scaling, and returns the final buy order list. Places nothing.
+    AFTER the Step 6a sells were confirmed filled), finalizes tax_reserve, applies the hard-cap
+    scaling, and returns the final buy order list. Places nothing.
+
+    `buying_power_now` is expected to already reflect this cycle's sale proceeds immediately
+    (limited margin enabled on this account makes unsettled proceeds spendable right away), so no
+    settlement-reserve bridging is needed here.
     """
     cfg = ctx.config
 
@@ -881,9 +875,7 @@ def step6b_finalize_buys(
     ) * cfg.meta.keep_aside_profits_for_tax_percent / 100
 
     total_planned = sum(planned_buys.values())
-    shortfall = max(0.0, total_planned - (buying_power_now - cfg.meta.min_cash_absolute))
-    bridged = _apply_settlement_bridge(ctx, shortfall)
-    hard_cap = max(0.0, buying_power_now - cfg.meta.min_cash_absolute - ctx.tax_reserve) + bridged
+    hard_cap = max(0.0, buying_power_now - cfg.meta.min_cash_absolute - ctx.tax_reserve)
 
     if total_planned > hard_cap and total_planned > 0:
         scale = hard_cap / total_planned
@@ -1006,34 +998,6 @@ def step6_execute_live(ctx: RunContext, broker: BrokerClient, planned_buys: Dict
         order = _place(broker, ctx.account_number, intent.symbol, "buy",
                         dollar_amount=intent.dollar_amount, dry_run=dry_run)
         ctx.executed_orders.append(order)
-
-
-def _apply_settlement_bridge(ctx: RunContext, needed: float) -> float:
-    """Draws against pre-existing unsettled pending_draws entries (FIFO by saleDate) to bridge
-    this cycle's buys, per CLAUDE.md Step 6. Creating a FRESH same-cycle-sell pending_draws
-    entry requires knowing that specific sell's settlement status via your broker (e.g.
-    review_equity_order / a rejected buy) — that check is broker-specific and is left as a
-    TODO for your BrokerClient implementation; this function only bridges pre-existing entries."""
-    cfg = ctx.config
-    reserve_headroom = max(
-        0.0,
-        cfg.meta.settlement_reserve_target
-        - sum(d.reserveDrawn for d in ctx.reserve.pending_draws if not d.settled)
-        - ctx.tax_reserve,
-    )
-    if reserve_headroom <= 0 or needed <= 0:
-        return 0.0
-
-    bridged = 0.0
-    for draw in sorted((d for d in ctx.reserve.pending_draws if not d.settled), key=lambda d: d.saleDate):
-        if needed - bridged <= 0 or reserve_headroom - bridged <= 0:
-            break
-        capacity = draw.saleProceeds - draw.reserveDrawn
-        take = min(capacity, reserve_headroom - bridged, needed - bridged)
-        if take > 0:
-            draw.reserveDrawn += take
-            bridged += take
-    return bridged
 
 
 def _place(

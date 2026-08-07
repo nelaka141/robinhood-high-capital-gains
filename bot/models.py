@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional
 
 if TYPE_CHECKING:
     from .config import PortfolioConfig
-    from .state import AlphaReserve, AssetPriceState, SettlementReserve
+    from .state import AlphaReserve, AssetPriceState
 
 
 @dataclass
@@ -111,13 +111,11 @@ class RunContext:
     positions: Dict[str, Position] = field(default_factory=dict)
     quotes: Dict[str, Quote] = field(default_factory=dict)
 
-    account_cash: float = 0.0          # buying_power (settled, spendable) = account_cash/current_cash source
-    account_cash_ledger: float = 0.0   # raw 'cash' (can include unsettled proceeds)
-    current_cash: float = 0.0          # min(account_cash, cap_on_total_cash_balance_to_use + settlement_reserve_target)
+    account_cash: float = 0.0          # buying_power (with limited margin enabled, already reflects
+                                        # unsettled proceeds immediately) = account_cash/current_cash source
+    account_cash_ledger: float = 0.0   # raw 'cash' (informational only)
+    current_cash: float = 0.0          # min(account_cash, cap_on_total_cash_balance_to_use)
     account_balance: float = 0.0       # equity market value + current_cash
-
-    reserve: "SettlementReserve" = None  # type: ignore[assignment]
-    reserve_available_to_draw: float = 0.0
 
     tax_by_year: Dict[str, float] = field(default_factory=dict)
     net_realized_gains_ytd_pretrade: float = 0.0

@@ -18,7 +18,7 @@ from .config import PortfolioConfig
 from .models import (
     DriftResult, MomentumScore, Position, Quote, RunContext, SkippedTrade, TradeIntent,
 )
-from .state import AssetPriceState, PendingDraw, SettlementReserve
+from .state import AssetPriceState
 
 
 class _DateEncoder(json.JSONEncoder):
@@ -41,8 +41,6 @@ def ctx_to_jsonable(ctx: RunContext) -> Dict[str, Any]:
         "account_cash_ledger": ctx.account_cash_ledger,
         "current_cash": ctx.current_cash,
         "account_balance": ctx.account_balance,
-        "reserve": {"pending_draws": [asdict(d) for d in ctx.reserve.pending_draws]},
-        "reserve_available_to_draw": ctx.reserve_available_to_draw,
         "tax_by_year": ctx.tax_by_year,
         "net_realized_gains_ytd_pretrade": ctx.net_realized_gains_ytd_pretrade,
         "tax_reserve": ctx.tax_reserve,
@@ -75,8 +73,6 @@ def ctx_from_jsonable(data: Dict[str, Any], cfg: PortfolioConfig) -> RunContext:
     ctx.account_cash_ledger = data["account_cash_ledger"]
     ctx.current_cash = data["current_cash"]
     ctx.account_balance = data["account_balance"]
-    ctx.reserve = SettlementReserve(pending_draws=[PendingDraw(**d) for d in data["reserve"]["pending_draws"]])
-    ctx.reserve_available_to_draw = data["reserve_available_to_draw"]
     ctx.tax_by_year = data["tax_by_year"]
     ctx.net_realized_gains_ytd_pretrade = data["net_realized_gains_ytd_pretrade"]
     ctx.tax_reserve = data["tax_reserve"]
