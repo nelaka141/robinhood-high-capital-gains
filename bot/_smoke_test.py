@@ -17,8 +17,8 @@ from bot.config import load_portfolio_config
 from bot.main import _update_price_state
 from bot.models import Position, Quote, RunContext, TaxLot
 from bot.state import (
-    AssetPriceState, load_price_state, load_settlement_reserve, load_tax_by_year,
-    save_price_state, save_settlement_reserve, save_tax_by_year,
+    AssetPriceState, load_price_state, load_tax_by_year,
+    save_price_state, save_tax_by_year,
 )
 
 random.seed(42)
@@ -93,17 +93,14 @@ def main() -> None:
         tmp = Path(tmp)
         (tmp / "logs").mkdir()
         (tmp / "peak").mkdir()
-        (tmp / "settlement").mkdir()
         (tmp / "tax").mkdir()
         shutil.copy(REPO / "portfolio_targets.json", tmp / "portfolio_targets.json")
         (tmp / "peak" / "prices.json").write_text("{}")
-        (tmp / "settlement" / "reserve.json").write_text('{"pending_draws": []}')
         (tmp / "tax" / "realized_gains_by_year.json").write_text('{"2025": 4000.0}')
         (tmp / "transferred_basis.json").write_text("{}")
 
         ctx = RunContext(current_date=date.today(), config=cfg, account_number="TEST")
         ctx.price_state = load_price_state(tmp / "peak" / "prices.json")
-        ctx.reserve = load_settlement_reserve(tmp / "settlement" / "reserve.json")
         ctx.tax_by_year = load_tax_by_year(tmp / "tax" / "realized_gains_by_year.json")
 
         steps.step1_fetch_state(ctx, broker, str(tmp))
@@ -153,11 +150,10 @@ def main() -> None:
 
         _update_price_state(ctx)
         save_price_state(ctx.price_state, tmp / "peak" / "prices.json")
-        save_settlement_reserve(ctx.reserve, tmp / "settlement" / "reserve.json")
         save_tax_by_year(ctx.tax_by_year, tmp / "tax" / "realized_gains_by_year.json")
         reread = load_price_state(tmp / "peak" / "prices.json")
         assert set(reread.keys()) == set(cfg.targets.keys())
-        print("[Step 7] state files round-trip OK (peak/prices.json, reserve.json, tax file)")
+        print("[Step 7] state files round-trip OK (peak/prices.json, tax file)")
 
     print("\nSMOKE TEST PASSED — full Step 1-7 pipeline ran end-to-end with no exceptions.")
 

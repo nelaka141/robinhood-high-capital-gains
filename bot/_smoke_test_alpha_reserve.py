@@ -37,8 +37,8 @@ def _meta(**overrides) -> PortfolioMetadata:
         lock_in_period=2, overweight_sell_minimum_profit_margin_percent=1.0,
         momentum_reversal_minimum_profit_margin_percent=1.0,
         momentum_reversal_minimum_profit_dollars=0.0, profit_resell_cooldown_days=15,
-        sell_or_buy_value_limit=10, min_value_of_trade=0, settlement_reserve_target=0,
-        settlement_lag_days=1, materialize_profit_percentage=2.0, profit_sell_percentage=50.0,
+        sell_or_buy_value_limit=10, min_value_of_trade=0,
+        materialize_profit_percentage=2.0, profit_sell_percentage=50.0,
         materialize_profit_in_dollars=0.0, keep_aside_profits_for_tax_percent=30.0,
         momentum_lookback_days=5, momentum_reversal_threshold=-10.0,
         minimum_alpha_leader_sell_profit=600.0,  # a DOLLAR floor, not a percentage
@@ -49,8 +49,8 @@ def _meta(**overrides) -> PortfolioMetadata:
 
 def _ctx_for_step3(uw1_market_value: float = 700.0, **meta_overrides) -> RunContext:
     """ALPHA (alpha leader) mv=$1000, UW1 (underweight) mv=$700 by default, both target 50% of a
-    $2000 account_balance -> UW1's gap = 1000-700 = $300. current_cash=$1000, no tax/settlement
-    drag -> base_deployable_cash=$1000, alpha_cash_allocation_percentage=40% ->
+    $2000 account_balance -> UW1's gap = 1000-700 = $300. current_cash=$1000, no tax drag ->
+    base_deployable_cash=$1000, alpha_cash_allocation_percentage=40% ->
     raw_alpha_target=$400, remaining_for_underweight=$600. Since total_gap($300) <=
     remaining_for_underweight($600) at the default mv, cash is abundant enough to close UW1's
     gap and then some -> existing pro-rata behavior: UW1 gets the FULL remaining_for_underweight

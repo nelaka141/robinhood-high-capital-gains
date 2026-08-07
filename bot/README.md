@@ -67,8 +67,8 @@ only needs a 1-day incremental fetch per symbol.
 ### `plan`
 
 Reads `--snapshot` (schema below) plus the repo's state files (`peak/prices.json`,
-`settlement/reserve.json`, `tax/realized_gains_by_year.json`, `transferred_basis.json`). Runs
-Steps 1–5 and Step 6's sell-side planning. Writes `--out` as one of:
+`tax/realized_gains_by_year.json`, `transferred_basis.json`). Runs Steps 1–5 and Step 6's
+sell-side planning. Writes `--out` as one of:
 
 - `{"no_trades": true, ...}` — Step 1's early exit (no drift breach, no drawdown). Already wrote
   the NO TRADES journal entry and updated peak prices / the tax file — nothing left to do except
@@ -90,11 +90,12 @@ Steps 1–5 and Step 6's sell-side planning. Writes `--out` as one of:
 
 After the sells from `plan` are confirmed filled, re-fetch exactly two live figures and pass
 them in: `net_realized_gains_ytd` (same Jan-1-to-today window, via your realized-P&L endpoint)
-and `buying_power` (settled, spendable cash). `finalize` uses these — not the snapshot's
-pre-trade estimates — to finalize `tax_reserve`, apply the settlement-bridge/hard-cap scaling,
-and size the final buys. It also writes `peak/prices.json`, `settlement/reserve.json`,
-`tax/realized_gains_by_year.json`, and prepends the rendered entry to `logs/trade_journal.md` —
-all direct file writes, no MCP/broker needed for any of that.
+and `buying_power` (fresh, post-sell). `finalize` uses these — not the snapshot's pre-trade
+estimates — to finalize `tax_reserve`, apply the hard-cap scaling, and size the final buys. With
+limited margin enabled on the account, `buying_power` already reflects this cycle's own sale
+proceeds immediately, so no settlement-reserve bridging is needed. It also writes
+`peak/prices.json`, `tax/realized_gains_by_year.json`, and prepends the rendered entry to
+`logs/trade_journal.md` — all direct file writes, no MCP/broker needed for any of that.
 
 Output: `{"buys_to_place": [...], "journal_entry_markdown": "...", "email_summary": "...",
 "files_changed": [...]}`. Execute `buys_to_place` exactly as given (each entry is
@@ -107,7 +108,7 @@ the summary email using `email_summary` + `journal_entry_markdown`.
 {
   "current_date": "2026-07-31",                 // US/Eastern calendar date
   "account_number": "795732718",
-  "account_cash": 17178.18,                      // buying_power (settled, spendable) — the CLAUDE.md account_cash/current_cash source
+  "account_cash": 17178.18,                      // buying_power straight from Robinhood (limited margin enabled — reflects unsettled proceeds immediately) — the CLAUDE.md account_cash/current_cash source
   "account_cash_ledger": 32167.10,               // raw cash ledger (informational; can include unsettled proceeds)
   "quotes": { "TQQQ": 63.68, "...": 0.0 },       // every target symbol, live last-trade price
   "positions": {                                 // OMIT a symbol entirely if not currently held
@@ -148,7 +149,7 @@ uses; kept for fully-standalone use outside of any MCP/agent setup.
 | File | CLAUDE.md section | What it does |
 |---|---|---|
 | `config.py` | "Core Parameters & Risk Triggers", `targets`/`forceSell` | Loads `portfolio_targets.json` into typed dataclasses |
-| `state.py` | `peak/prices.json`, `settlement/reserve.json`, `tax/realized_gains_by_year.json`, `alpha_reserve.json`, `transferred_basis.json` | Load/save the five persistent state files |
+| `state.py` | `peak/prices.json`, `tax/realized_gains_by_year.json`, `alpha_reserve.json`, `transferred_basis.json` | Load/save the persistent state files |
 | `models.py` | — | Shared value objects (`Position`, `DriftResult`, `MomentumScore`, `TradeIntent`, `RunContext`, ...) |
 | `broker.py` | "You execute actions via the connected Robinhood MCP Server" | `BrokerClient` Protocol + a `robin_stocks` reference implementation (standalone mode only) |
 | `snapshot_broker.py` | — | `SnapshotBroker` — reads the same `BrokerClient` interface from a JSON snapshot instead of a live connection (snapshot-driven mode) |
@@ -179,11 +180,7 @@ the snapshot / `finalize` arguments, sourced from whatever real connection it ha
 Robinhood MCP server's `get_equity_tax_lots` / `get_realized_pnl`).
 
 Also standalone-only and stubbed: `notify.py` (needs a Gmail OAuth `token.json`), `gitops.py`
-(needs `GITHUB_TOKEN` + a repo clone). The settlement-reserve bridge
-(`steps._apply_settlement_bridge`) only bridges *pre-existing* `pending_draws` entries in both
-modes; creating a *fresh* entry for a same-cycle sell whose proceeds haven't settled requires
-checking that specific order's settlement status, which the agent/broker must do itself
-(CLAUDE.md's own workflow uses `review_equity_order` / a rejected buy for this).
+(needs `GITHUB_TOKEN` + a repo clone).
 
 ## Design notes / simplifications vs. the markdown spec
 

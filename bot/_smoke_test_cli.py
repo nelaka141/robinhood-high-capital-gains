@@ -84,11 +84,9 @@ def main() -> None:
         tmp = Path(tmp)
         (tmp / "logs").mkdir()
         (tmp / "peak").mkdir()
-        (tmp / "settlement").mkdir()
         (tmp / "tax").mkdir()
         shutil.copy(REPO / "portfolio_targets.json", tmp / "portfolio_targets.json")
         (tmp / "peak" / "prices.json").write_text("{}")
-        (tmp / "settlement" / "reserve.json").write_text('{"pending_draws": []}')
         (tmp / "tax" / "realized_gains_by_year.json").write_text('{"2025": 4000.0}')
         (tmp / "transferred_basis.json").write_text("{}")
 

@@ -12,7 +12,6 @@ from datetime import date
 
 from bot.config import AssetTarget, ForceSellEntry, PortfolioConfig, PortfolioMetadata
 from bot.models import DriftResult, Position, Quote, RunContext, TaxLot
-from bot.state import SettlementReserve
 from bot.steps import (
     has_any_breach, in_play_symbols, step1_fetch_state, step2_guardrails,
     step4_profit_taking, step6a_prepare_sells,
@@ -44,8 +43,8 @@ def _cfg(blocked, force_sell) -> PortfolioConfig:
         lock_in_period=2, overweight_sell_minimum_profit_margin_percent=1.0,
         momentum_reversal_minimum_profit_margin_percent=1.0,
         momentum_reversal_minimum_profit_dollars=12.5, profit_resell_cooldown_days=15,
-        sell_or_buy_value_limit=10, min_value_of_trade=100, settlement_reserve_target=9000,
-        settlement_lag_days=1, materialize_profit_percentage=4.0, profit_sell_percentage=50.0,
+        sell_or_buy_value_limit=10, min_value_of_trade=100,
+        materialize_profit_percentage=4.0, profit_sell_percentage=50.0,
         materialize_profit_in_dollars=12.5, keep_aside_profits_for_tax_percent=30.0,
         momentum_lookback_days=5, momentum_reversal_threshold=-10.0,
         minimum_alpha_leader_sell_profit=5.0,
@@ -92,7 +91,6 @@ class _FakeBroker:
 
 def _base_ctx(cfg) -> RunContext:
     ctx = RunContext(current_date=date(2026, 8, 4), config=cfg, account_number="TEST")
-    ctx.reserve = SettlementReserve(pending_draws=[])
     ctx.price_state = {}
     return ctx
 
