@@ -224,13 +224,15 @@ def in_play_symbols(ctx: RunContext) -> List[str]:
 def step3_alpha_leader(ctx: RunContext, broker: BrokerClient) -> Dict[str, float]:
     """Computes Momentum_Score for every in-play symbol, selects the Alpha Leader, and returns
     the PLANNED buy-dollar allocation {symbol: dollars} — Step 6 does the actual placing.
-    `multiplier_cash` only materializes if Step 4 harvests real capital via a legal Overweight
-    trim; that reconciliation happens in step6_execute, not here (this is a pre-trade estimate,
-    same as CLAUDE.md's own "treat as a placeholder" note in Step 1/3).
 
     Sets `ctx.alpha_target_dollars` — this cycle's full desired Alpha Leader allocation, used by
     `resolve_alpha_reserve` (called after Step 6b) to refresh `alpha_reserve.json` if the leader
-    doesn't end up with an actual buy this cycle, for any reason."""
+    doesn't end up with an actual buy this cycle, for any reason.
+
+    Sets `ctx.harvest_needed_dollars` — the cash shortfall between this cycle's FULL asks (the
+    Alpha Leader's multiplier injection, plus fully closing every Underweight target's drift gap)
+    and what `base_deployable_cash` alone can fund. `step4_profit_taking`'s Overweight-trim tail
+    sizes real sells to cover exactly this shortfall (CLAUDE.md Step 3/4)."""
     cfg = ctx.config
 
     lookback_days = max(30, cfg.meta.momentum_lookback_days + 25)
@@ -266,6 +268,7 @@ def step3_alpha_leader(ctx: RunContext, broker: BrokerClient) -> Dict[str, float
     )
     if base_deployable_cash <= 0:
         ctx.alpha_target_dollars = 0.0
+        ctx.harvest_needed_dollars = 0.0
         return {}
 
     raw_alpha_target = base_deployable_cash * cfg.meta.alpha_cash_allocation_percentage / 100
@@ -290,34 +293,59 @@ def step3_alpha_leader(ctx: RunContext, broker: BrokerClient) -> Dict[str, float
     current_mv = ctx.drift_results[ctx.alpha_leader].market_value
     headroom = max(0.0, cap_dollars - current_mv)
 
+    alpha_harvest_needed = 0.0
     if ctx.alpha_leader in ctx.buy_guarded_symbols:
         # Alpha Leader itself buy-guarded (Step 2's profit-sell guard) -> hold this cycle's
         # would-be allocation aside in the Alpha Reserve instead of giving it to the Alpha
         # Leader OR redirecting it to Underweight targets. steps.resolve_alpha_reserve (called
         # from finalize, once the cycle's final buy list is known) persists this to
         # alpha_reserve.json — always a fresh snapshot of TODAY's target, never cumulative, so
-        # it can never exceed what would ever actually be deployable.
+        # it can never exceed what would ever actually be deployable. No multiplier injection is
+        # requested here either — there's no immediate deployment target to harvest cash for.
         ctx.alpha_target_dollars = min(raw_alpha_target, headroom)
     else:
-        # Eligible to buy: this cycle's raw target PLUS whatever was reserved for THIS symbol
-        # from a prior cycle it couldn't buy in (CLAUDE.md: "if this asset is Alpha Leader in
-        # next day or few it can fill the buys with that cash reserve"). A reserve for a
-        # DIFFERENT symbol (stale — the Alpha Leader changed) is simply not applied here; it's
-        # released/overwritten by resolve_alpha_reserve once this cycle's outcome is known.
+        # Eligible to buy: raw_alpha_target PLUS the multiplier injection (extra capital the
+        # re-investment multiplier promises — harvested from Overweight positions, NOT drawn
+        # from base_deployable_cash) PLUS whatever was reserved for THIS symbol from a prior
+        # cycle it couldn't buy in (CLAUDE.md: "if this asset is Alpha Leader in next day or few
+        # it can fill the buys with that cash reserve"). A reserve for a DIFFERENT symbol (stale
+        # — the Alpha Leader changed) is simply not applied here; it's released/overwritten by
+        # resolve_alpha_reserve once this cycle's outcome is known.
+        multiplier_cash = base_deployable_cash * (cfg.meta.reinvestment_multiplier_factor - 1.0)
         reserve_bonus = (
             ctx.alpha_reserve.amount
             if ctx.alpha_reserve is not None and ctx.alpha_reserve.symbol == ctx.alpha_leader
             else 0.0
         )
-        desired = raw_alpha_target + reserve_bonus
+        desired = raw_alpha_target + multiplier_cash + reserve_bonus
         allocations[ctx.alpha_leader] = max(0.0, min(desired, headroom))
         ctx.alpha_target_dollars = allocations[ctx.alpha_leader]
+        # raw_alpha_target and reserve_bonus are both real, already-available cash (the reserve
+        # was never actually spent, so it's still sitting in current_cash); only the multiplier
+        # portion — capped along with everything else by headroom — must be harvested.
+        cash_fundable = min(allocations[ctx.alpha_leader], raw_alpha_target + reserve_bonus)
+        alpha_harvest_needed = max(0.0, allocations[ctx.alpha_leader] - cash_fundable)
 
     total_gap = sum(_gap(s) for s in underweight)
-    if total_gap > 0 and remaining_for_underweight > 0:
+    underweight_harvest_needed = 0.0
+    if total_gap > remaining_for_underweight:
+        # Cash alone can't close every Underweight gap -> ask for each symbol's FULL gap (not a
+        # scaled-down pro-rata share) and harvest the shortfall via Overweight trims below.
+        # step6b's hard-cap safety net still scales everything down proportionally if the actual
+        # post-sell buying power falls short of this ideal ask for any reason (e.g. a sized trim
+        # gets dropped by a later price-limit halt) — same graceful-degradation behavior as any
+        # other planned buy.
+        for sym in underweight:
+            allocations[sym] = allocations.get(sym, 0.0) + _gap(sym)
+        underweight_harvest_needed = total_gap - remaining_for_underweight
+    elif total_gap > 0 and remaining_for_underweight > 0:
+        # Cash is abundant enough to close every gap (and then some) -> existing behavior:
+        # deploy the full remaining_for_underweight pool, weighted by gap share, to maximize
+        # capital deployment (CLAUDE.md Step 7: keep cash lean, close to min_cash_target).
         for sym in underweight:
             allocations[sym] = allocations.get(sym, 0.0) + remaining_for_underweight * (_gap(sym) / total_gap)
 
+    ctx.harvest_needed_dollars = alpha_harvest_needed + underweight_harvest_needed
     return allocations
 
 
@@ -509,8 +537,6 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
                         "partial profit-take sale",
                     ))
 
-    ctx.total_high_beta_gains_realized = sum(t.realized_profit_dollars or 0.0 for t in ctx.profit_taking_sells)
-
     # --- Overweight High-Beta ranking (routine, non-mandatory trim source) ---
     already_sold = {t.symbol for t in ctx.profit_taking_sells}
     candidates = [
@@ -586,7 +612,83 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
         ))
 
     ranked.sort(key=lambda t: (t.raw_gain_pct or 0.0) * (t.beta or 0.0), reverse=True)
-    ctx.overweight_trims = ranked
+    ctx.overweight_trims = _size_overweight_trims(ctx, broker, ranked)
+
+    ctx.total_high_beta_gains_realized = sum(
+        t.realized_profit_dollars or 0.0 for t in ctx.profit_taking_sells + ctx.overweight_trims
+    )
+
+
+def _size_overweight_trims(
+    ctx: RunContext, broker: BrokerClient, ranked: List[TradeIntent]
+) -> List[TradeIntent]:
+    """Sizes the already-ranked, already-gate-filtered Overweight High-Beta candidates to harvest
+    exactly `ctx.harvest_needed_dollars` (CLAUDE.md Step 3: the cash shortfall between the Alpha
+    Leader's multiplier injection + fully-closed Underweight targets, and what
+    `base_deployable_cash` alone can fund). Walks the ranking top-down — highest High-Beta score
+    first — trimming each candidate toward its own target weight (its "overweight excess") until
+    the shortfall is covered or candidates run out. Every sell guard (`lock_in_period`,
+    `overweight_sell_minimum_profit_margin_percent`/`forceSell`, `minimum_alpha_leader_sell_profit`)
+    was already applied by the caller's ranking loop before a candidate ever reaches `ranked` —
+    harvesting only decides HOW MUCH of an already-qualified candidate to sell, never bypasses
+    those guards. Mirrors GET THE PROFITS/Momentum Reversal Trim's whole-share rounding,
+    sub-whole-share ordinary-order fallback, and FIFO fail-closed handling."""
+    remaining_harvest = max(0.0, ctx.harvest_needed_dollars)
+    sized: List[TradeIntent] = []
+
+    for intent in ranked:
+        sym = intent.symbol
+        if remaining_harvest <= 1e-9:
+            ctx.skipped.append(SkippedTrade(
+                sym, "ranked as Overweight trim candidate but no harvest shortfall remains this cycle",
+                "Overweight trim",
+            ))
+            continue
+
+        pos = ctx.positions[sym]
+        price = ctx.quotes[sym].last_trade_price
+        dr = ctx.drift_results[sym]
+        target_mv = dr.target_percentage / 100 * ctx.account_balance
+        max_trim_dollars = max(0.0, dr.market_value - target_mv)
+        if max_trim_dollars <= 0:
+            ctx.skipped.append(SkippedTrade(sym, "already at or below target weight", "Overweight trim"))
+            continue
+
+        trim_dollars = min(remaining_harvest, max_trim_dollars)
+        whole_shares_held = math.floor(pos.quantity + 1e-9)
+        fractional_position = whole_shares_held == 0
+        raw_qty = trim_dollars / price
+        sell_qty = (
+            min(pos.quantity, raw_qty) if fractional_position
+            else round_sell_quantity(raw_qty, pos.quantity)
+        )
+        if sell_qty <= 0:
+            ctx.skipped.append(SkippedTrade(sym, "harvest slice rounds to 0 whole shares", "Overweight trim"))
+            continue
+
+        fifo = fifo_realized_profit(broker.get_tax_lots(ctx.account_number, sym), sell_qty, price)
+        if not fifo.fully_covered:
+            ctx.skipped.append(SkippedTrade(
+                sym, "cost basis pending transfer on required lots (fail-closed)", "Overweight trim",
+            ))
+            continue
+
+        actual_dollars = sell_qty * price
+        score = (intent.raw_gain_pct or 0.0) * (intent.beta or 0.0)
+        reason = f"Overweight High-Beta trim (score {score:.2f}), harvesting ${actual_dollars:.2f}"
+        if fractional_position:
+            reason += (" (ordinary order — sub-whole-share position, Robinhood "
+                        "default lot matching; FIFO figure is an estimate)")
+        sized.append(TradeIntent(
+            symbol=sym, side="sell", quantity=sell_qty, reason=reason,
+            tax_lots=None if fractional_position else
+                [{"open_lot_id": l["open_lot_id"], "quantity": l["quantity"]} for l in fifo.lots_consumed],
+            realized_profit_dollars=fifo.realized_profit_dollars,
+            beta=intent.beta, raw_gain_pct=intent.raw_gain_pct,
+        ))
+        remaining_harvest -= actual_dollars
+
+    return sized
 
 
 # ============================================================================================

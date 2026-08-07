@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import date
 
 from bot.config import AssetTarget, ForceSellEntry, PortfolioConfig, PortfolioMetadata
-from bot.models import DriftResult, Position, Quote, RunContext
+from bot.models import DriftResult, Position, Quote, RunContext, TaxLot
 from bot.state import SettlementReserve
 from bot.steps import (
     has_any_breach, in_play_symbols, step1_fetch_state, step2_guardrails,
@@ -71,7 +71,11 @@ class _FakeBroker:
         return {s: Quote(symbol=s, last_trade_price=self._price[s]) for s in symbols}
 
     def get_tax_lots(self, account_number, symbol):
-        return []
+        pos = self._positions.get(symbol)
+        if not pos:
+            return []
+        return [TaxLot(open_lot_id=f"{symbol}-lot1", quantity=pos.quantity,
+                        cost_per_share=pos.avg_cost_basis, open_date=date(2026, 1, 1), is_selectable=True)]
 
     def get_daily_closes(self, symbol, start, end):
         return []
@@ -223,6 +227,9 @@ def test_overweight_trim_forcesell_trigger_price_gate() -> None:
                 target_percentage=10.0, drift=3.9, asset_drift_tolerance=0.5, market_value=price * 10,
             ),
         }
+        # A real harvest shortfall so a qualifying candidate actually gets SIZED, not just
+        # ranked-then-skipped-for-no-need (step3_alpha_leader isn't run in this focused test).
+        ctx.harvest_needed_dollars = 500.0
         step4_profit_taking(ctx, broker)
         return ctx
 

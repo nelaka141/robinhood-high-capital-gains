@@ -139,6 +139,9 @@ class RunContext:
                                         # target, or reserve-boosted+capped if eligible) — used to
                                         # refresh alpha_reserve.json if the leader doesn't end up
                                         # buying (see steps.resolve_alpha_reserve)
+    harvest_needed_dollars: float = 0.0  # cash shortfall (multiplier injection + fully-closing
+                                          # Underweight gaps) that step4's Overweight-trim sizing
+                                          # must harvest via real sells (see step3_alpha_leader)
 
     blocked_liquidations: List[str] = field(default_factory=list)  # blocked AND forceSell AND held -> liquidate 100%
     drawdown_liquidations: List[str] = field(default_factory=list)

@@ -47,11 +47,16 @@ def _meta(**overrides) -> PortfolioMetadata:
     return PortfolioMetadata(**base)
 
 
-def _ctx_for_step3(**meta_overrides) -> RunContext:
-    """ALPHA (alpha leader) mv=$1000, UW1 (underweight) mv=$100, both target 50% of a $2000
-    account_balance. current_cash=$1000, no tax/settlement drag -> base_deployable_cash=$1000,
-    alpha_cash_allocation_percentage=40% -> raw_alpha_target=$400, remaining_for_underweight=$600
-    (UW1's entire gap, so allocations["UW1"] should always land on exactly $600)."""
+def _ctx_for_step3(uw1_market_value: float = 700.0, **meta_overrides) -> RunContext:
+    """ALPHA (alpha leader) mv=$1000, UW1 (underweight) mv=$700 by default, both target 50% of a
+    $2000 account_balance -> UW1's gap = 1000-700 = $300. current_cash=$1000, no tax/settlement
+    drag -> base_deployable_cash=$1000, alpha_cash_allocation_percentage=40% ->
+    raw_alpha_target=$400, remaining_for_underweight=$600. Since total_gap($300) <=
+    remaining_for_underweight($600) at the default mv, cash is abundant enough to close UW1's
+    gap and then some -> existing pro-rata behavior: UW1 gets the FULL remaining_for_underweight
+    pool ($600), not just its own $300 gap (CLAUDE.md Step 7: keep cash deployed) -> no harvest
+    needed. Pass a smaller uw1_market_value to widen the gap past remaining_for_underweight and
+    exercise the harvest-triggering path instead (see test_underweight_shortfall_* below)."""
     cfg = PortfolioConfig(
         meta=_meta(**meta_overrides),
         targets={"ALPHA": AssetTarget("ALPHA", weight=1.0), "UW1": AssetTarget("UW1", weight=1.0)},
@@ -69,7 +74,7 @@ def _ctx_for_step3(**meta_overrides) -> RunContext:
     ctx.momentum_scores = {"ALPHA": MomentumScore("ALPHA", 70, 100, 90, 5, 5), "UW1": MomentumScore("UW1", 50, 100, 100, 0, 0)}
     ctx.drift_results = {
         "ALPHA": DriftResult("ALPHA", 50, 50, 50, 50, 0, 1, market_value=1000.0),
-        "UW1": DriftResult("UW1", 5, 5, 50, 50, 45, 1, market_value=100.0),
+        "UW1": DriftResult("UW1", 35, 35, 50, 50, 15, 1, market_value=uw1_market_value),
     }
     ctx.alpha_reserve = AlphaReserve()
     return ctx
@@ -92,36 +97,64 @@ def test_guarded_leader_holds_cash_aside_not_redirected() -> None:
     allocations = step3_alpha_leader(ctx, _Step3Broker())
     assert "ALPHA" not in allocations, "guarded Alpha Leader must get nothing this cycle"
     assert allocations.get("UW1") == 600.0, f"UW1 should get exactly remaining_for_underweight ($600), got {allocations.get('UW1')}"
-    assert ctx.alpha_target_dollars == 400.0, f"expected raw_alpha_target $400 held aside, got {ctx.alpha_target_dollars}"
+    assert ctx.alpha_target_dollars == 400.0, f"expected raw_alpha_target $400 held aside (no multiplier while guarded), got {ctx.alpha_target_dollars}"
+    assert ctx.harvest_needed_dollars == 0.0, f"guarded leader requests no multiplier, UW1 gap is cash-covered -> no harvest, got {ctx.harvest_needed_dollars}"
     print(f"[guarded-holds-aside] ALPHA excluded, UW1=${allocations['UW1']:.2f}, "
-          f"alpha_target_dollars=${ctx.alpha_target_dollars:.2f} (NOT redirected to UW1) — OK")
+          f"alpha_target_dollars=${ctx.alpha_target_dollars:.2f} (NOT redirected to UW1), harvest=$0 — OK")
 
 
 def test_eligible_leader_merges_matching_reserve() -> None:
+    # base_deployable_cash=$1000, raw_alpha_target=$400, multiplier_cash=$1000*(1.25-1)=$250,
+    # reserve_bonus=$250 -> desired=$900, headroom=0.9*2000-1000=$800 -> capped to $800.
+    # cash_fundable=min($800, raw $400 + reserve $250=$650)=$650 -> harvest=$800-$650=$150
+    # (exactly the portion of multiplier_cash that actually fit under the cap).
     ctx = _ctx_for_step3()
     ctx.alpha_reserve = AlphaReserve(symbol="ALPHA", amount=250.0, lastUpdatedDate="2026-08-06")
     allocations = step3_alpha_leader(ctx, _Step3Broker())
-    assert allocations.get("ALPHA") == 650.0, f"expected raw $400 + reserve $250 = $650, got {allocations.get('ALPHA')}"
-    assert allocations.get("UW1") == 600.0, "UW1's share must be unaffected by the reserve bonus"
-    assert ctx.alpha_target_dollars == 650.0
-    print(f"[eligible-merges-reserve] ALPHA=${allocations['ALPHA']:.2f} (raw $400 + reserve $250) — OK")
+    assert allocations.get("ALPHA") == 800.0, f"expected raw $400 + multiplier $250 + reserve $250, capped to $800 headroom, got {allocations.get('ALPHA')}"
+    assert allocations.get("UW1") == 600.0, "UW1's share must be unaffected by the alpha side"
+    assert ctx.alpha_target_dollars == 800.0
+    assert ctx.harvest_needed_dollars == 150.0, f"expected $150 to harvest (the capped multiplier slice), got {ctx.harvest_needed_dollars}"
+    print(f"[eligible-merges-reserve] ALPHA=${allocations['ALPHA']:.2f} (raw $400 + multiplier $250 + reserve $250, capped), harvest=$150 — OK")
 
 
 def test_eligible_leader_ignores_stale_reserve_for_other_symbol() -> None:
+    # desired = raw $400 + multiplier $250 + reserve $0 (stale, different symbol) = $650,
+    # under the $800 headroom -> uncapped. cash_fundable=min($650, $400)=$400 -> harvest=$250
+    # (exactly multiplier_cash, since no reserve bonus this time).
     ctx = _ctx_for_step3()
     ctx.alpha_reserve = AlphaReserve(symbol="SOME_OLD_LEADER", amount=999.0, lastUpdatedDate="2026-08-01")
     allocations = step3_alpha_leader(ctx, _Step3Broker())
-    assert allocations.get("ALPHA") == 400.0, f"stale reserve for a different symbol must not be applied, got {allocations.get('ALPHA')}"
-    print("[stale-reserve-ignored] reserve tagged to a different (old) leader is not merged — OK")
+    assert allocations.get("ALPHA") == 650.0, f"stale reserve for a different symbol must not be applied, got {allocations.get('ALPHA')}"
+    assert ctx.harvest_needed_dollars == 250.0, f"expected $250 harvest (multiplier_cash only), got {ctx.harvest_needed_dollars}"
+    print("[stale-reserve-ignored] reserve tagged to a different (old) leader is not merged; harvest=$250 (multiplier only) — OK")
 
 
 def test_reserve_merge_respects_portfolio_cap() -> None:
-    ctx = _ctx_for_step3(max_portfolio_percentage=65.0)  # cap_dollars=$1300, current_mv=$1000 -> headroom=$300
+    # cap_dollars=0.65*2000=$1300, current_mv=$1000 -> headroom=$300. desired=$400+$250+$250=$900
+    # clamped to $300. cash_fundable=min($300, raw $400+reserve $250=$650)=$300 (the cap itself
+    # is tighter than what cash alone could already cover) -> harvest=$300-$300=$0: no point
+    # harvesting when the cap suppresses the allocation below what cash already funds.
+    ctx = _ctx_for_step3(max_portfolio_percentage=65.0)
     ctx.alpha_reserve = AlphaReserve(symbol="ALPHA", amount=250.0, lastUpdatedDate="2026-08-06")
     allocations = step3_alpha_leader(ctx, _Step3Broker())
-    assert allocations.get("ALPHA") == 300.0, f"combined $650 must be clamped to the $300 headroom, got {allocations.get('ALPHA')}"
+    assert allocations.get("ALPHA") == 300.0, f"combined $900 must be clamped to the $300 headroom, got {allocations.get('ALPHA')}"
     assert ctx.alpha_target_dollars == 300.0
-    print("[reserve-respects-cap] $650 desired clamped to $300 max_portfolio_percentage headroom — OK")
+    assert ctx.harvest_needed_dollars == 0.0, f"cap already suppresses below cash-fundable amount -> no harvest needed, got {ctx.harvest_needed_dollars}"
+    print("[reserve-respects-cap] $900 desired clamped to $300 max_portfolio_percentage headroom; harvest=$0 — OK")
+
+
+def test_underweight_shortfall_requests_full_gap_and_harvests() -> None:
+    """UW1 mv=$100 (instead of the default $700) -> gap = 1000-100 = $900, exceeding
+    remaining_for_underweight ($600) -> UW1 should get its FULL $900 gap request (not a
+    proportionally-reduced pro-rata share), and the $300 shortfall should show up in
+    harvest_needed_dollars."""
+    ctx = _ctx_for_step3(uw1_market_value=100.0)
+    ctx.buy_guarded_symbols = {"ALPHA": "profit-sold recently"}  # isolate the underweight-only harvest component
+    allocations = step3_alpha_leader(ctx, _Step3Broker())
+    assert allocations.get("UW1") == 900.0, f"expected UW1's full $900 gap (not capped to $600), got {allocations.get('UW1')}"
+    assert ctx.harvest_needed_dollars == 300.0, f"expected $300 shortfall ($900 gap - $600 available), got {ctx.harvest_needed_dollars}"
+    print("[underweight-shortfall] UW1 requests full $900 gap, $300 harvest shortfall flagged — OK")
 
 
 def test_resolve_alpha_reserve_clears_when_bought() -> None:
@@ -182,9 +215,9 @@ class _Step4Broker:
         return self._series
 
 
-def _ctx_for_step4(alpha_leader: str = "ALPHA") -> RunContext:
+def _ctx_for_step4(alpha_leader: str = "ALPHA", symbols=("ALPHA", "OTHER"), **meta_overrides) -> RunContext:
     cfg = PortfolioConfig(
-        meta=_meta(), targets={"ALPHA": AssetTarget("ALPHA", weight=1.0), "OTHER": AssetTarget("OTHER", weight=1.0)},
+        meta=_meta(**meta_overrides), targets={s: AssetTarget(s, weight=1.0) for s in symbols},
         force_sell={}, blocked=[],
     )
     ctx = RunContext(current_date=date(2026, 8, 7), config=cfg, account_number="TEST")
@@ -242,10 +275,14 @@ def test_alpha_leader_overweight_trim_blocked_below_threshold() -> None:
     # the $600 guard (the Overweight-trim path estimates off the full position, not a FIFO slice).
     ctx.quotes = {"ALPHA": Quote("ALPHA", last_trade_price=102.0), "OTHER": Quote("OTHER", last_trade_price=102.0)}
     ctx.momentum_scores = {}  # keep MRT out of the picture entirely
+    ctx.account_balance = 2000.0
+    # target_percentage=10 (well below current weight) -> plenty of "overweight excess" room for
+    # sizing to actually harvest from OTHER once it clears the ranking gates.
     ctx.drift_results = {
-        "ALPHA": DriftResult("ALPHA", 60, 60, 50, 50, 10, 1, market_value=1020.0),
-        "OTHER": DriftResult("OTHER", 60, 60, 50, 50, 10, 1, market_value=1020.0),
+        "ALPHA": DriftResult("ALPHA", 60, 60, 50, 10, 10, 1, market_value=1020.0),
+        "OTHER": DriftResult("OTHER", 60, 60, 50, 10, 10, 1, market_value=1020.0),
     }
+    ctx.harvest_needed_dollars = 500.0  # a real shortfall so a qualifying candidate gets SIZED
     step4_profit_taking(ctx, _Step4Broker())
     trimmed = {t.symbol for t in ctx.overweight_trims}
     assert "ALPHA" not in trimmed, "Overweight trim should be blocked for the Alpha Leader below the guard"
@@ -253,11 +290,76 @@ def test_alpha_leader_overweight_trim_blocked_below_threshold() -> None:
     print(f"[alpha-overweight-blocked] est. unrealized $20 (< $600 guard) -> ranked candidates={trimmed} — ALPHA excluded, OTHER included — OK")
 
 
+def test_size_overweight_trims_harvests_top_ranked_first() -> None:
+    """Two Overweight candidates, LOW-beta HIGH-margin (worse score) and HIGH-beta HIGH-margin
+    (better score). harvest_needed_dollars is small enough that only the top-ranked candidate
+    should get sized; the other should be skipped as "no harvest shortfall remains"."""
+    ctx = _ctx_for_step4(alpha_leader=None, symbols=("LOWSCORE", "HISCORE"), materialize_profit_percentage=1000.0)
+    ctx.positions = {
+        "LOWSCORE": Position("LOWSCORE", quantity=100.0, avg_cost_basis=50.0),
+        "HISCORE": Position("HISCORE", quantity=100.0, avg_cost_basis=50.0),
+    }
+    ctx.quotes = {"LOWSCORE": Quote("LOWSCORE", last_trade_price=60.0), "HISCORE": Quote("HISCORE", last_trade_price=60.0)}
+    ctx.momentum_scores = {}
+    ctx.account_balance = 20000.0
+    ctx.drift_results = {
+        "LOWSCORE": DriftResult("LOWSCORE", 30, 30, 20, 10, 10, 1, market_value=6000.0),
+        "HISCORE": DriftResult("HISCORE", 30, 30, 20, 10, 10, 1, market_value=6000.0),
+    }
+    ctx.harvest_needed_dollars = 300.0  # small -> should be fully covered by ONE candidate
+
+    class _BetaAwareBroker(_Step4Broker):
+        def get_daily_closes(self, symbol, start, end):
+            # HISCORE tracks the benchmark's own oscillation pattern at 2x amplitude -> beta≈2.0
+            # (LOWSCORE, unmodified, IS the benchmark series -> beta≈1.0) -> higher High-Beta
+            # score -> ranked first. (Verified numerically — an unrelated/uncorrelated series,
+            # e.g. a smooth linear ramp, actually yields beta≈0 against an oscillating
+            # benchmark, the opposite of "high beta": beta measures correlated co-movement, not
+            # magnitude of movement.)
+            if symbol == "HISCORE":
+                return [100.0 + (i % 5) * 0.6 for i in range(60)]
+            return super().get_daily_closes(symbol, start, end)
+
+    step4_profit_taking(ctx, _BetaAwareBroker())
+    trimmed = {t.symbol: t for t in ctx.overweight_trims}
+    assert "HISCORE" in trimmed, f"the higher-scored candidate should be trimmed first, got {trimmed.keys()}"
+    assert "LOWSCORE" not in trimmed, "the shortfall should already be covered by the top-ranked candidate alone"
+    harvested = trimmed["HISCORE"].quantity * 60.0
+    assert harvested >= 300.0, f"expected at least the $300 shortfall harvested, got ${harvested:.2f}"
+    print(f"[size-overweight-top-ranked] HISCORE harvested ${harvested:.2f} (>= $300 shortfall), LOWSCORE untouched — OK")
+
+
+def test_size_overweight_trims_walks_down_ranking_for_large_shortfall() -> None:
+    """A shortfall larger than the top-ranked candidate's own overweight excess should spill
+    over into the next-ranked candidate too."""
+    ctx = _ctx_for_step4(alpha_leader=None, symbols=("A", "B"), materialize_profit_percentage=1000.0)
+    ctx.positions = {
+        "A": Position("A", quantity=100.0, avg_cost_basis=50.0),
+        "B": Position("B", quantity=100.0, avg_cost_basis=50.0),
+    }
+    ctx.quotes = {"A": Quote("A", last_trade_price=60.0), "B": Quote("B", last_trade_price=60.0)}
+    ctx.momentum_scores = {}
+    ctx.account_balance = 20000.0
+    # Both capped at a modest $500 overweight excess each (target_mv=5500, market_value=6000).
+    ctx.drift_results = {
+        "A": DriftResult("A", 30, 30, 27.5, 27.5, 2.5, 1, market_value=6000.0),
+        "B": DriftResult("B", 30, 30, 27.5, 27.5, 2.5, 1, market_value=6000.0),
+    }
+    ctx.harvest_needed_dollars = 900.0  # exceeds any single candidate's $500 excess
+    step4_profit_taking(ctx, _Step4Broker())  # identical closes -> same beta/score -> both rank, order stable
+    trimmed = {t.symbol: t for t in ctx.overweight_trims}
+    assert len(trimmed) == 2, f"expected both candidates to contribute to the shortfall, got {trimmed.keys()}"
+    total_harvested = sum(t.quantity * 60.0 for t in trimmed.values())
+    assert total_harvested >= 900.0, f"expected at least $900 harvested across both, got ${total_harvested:.2f}"
+    print(f"[size-overweight-walks-down] both A and B trimmed, ${total_harvested:.2f} total harvested (>= $900) — OK")
+
+
 def main() -> None:
     test_guarded_leader_holds_cash_aside_not_redirected()
     test_eligible_leader_merges_matching_reserve()
     test_eligible_leader_ignores_stale_reserve_for_other_symbol()
     test_reserve_merge_respects_portfolio_cap()
+    test_underweight_shortfall_requests_full_gap_and_harvests()
     test_resolve_alpha_reserve_clears_when_bought()
     test_resolve_alpha_reserve_refreshes_when_not_bought()
     test_resolve_alpha_reserve_leader_change_overwrites_not_accumulates()
@@ -266,6 +368,8 @@ def main() -> None:
     test_non_leader_gtp_unaffected_by_alpha_guard()
     test_alpha_leader_mrt_blocked_below_threshold()
     test_alpha_leader_overweight_trim_blocked_below_threshold()
+    test_size_overweight_trims_harvests_top_ranked_first()
+    test_size_overweight_trims_walks_down_ranking_for_large_shortfall()
     print("\nSMOKE TEST (Alpha Reserve + minimum_alpha_leader_sell_profit) PASSED")
 
 
