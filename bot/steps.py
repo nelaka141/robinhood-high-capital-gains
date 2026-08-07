@@ -17,7 +17,7 @@ from .cost_basis import resolve_avg_cost_basis
 from .fifo import fifo_realized_profit, round_sell_quantity
 from .indicators import beta, daily_returns, ema_series, rsi_series
 from .models import DriftResult, MomentumScore, RunContext, SkippedTrade, TradeIntent
-from .state import AssetPriceState, load_transferred_basis
+from .state import AlphaReserve, AssetPriceState, load_transferred_basis
 
 
 def _parse_date(s: Optional[str]) -> Optional[date]:
@@ -226,7 +226,11 @@ def step3_alpha_leader(ctx: RunContext, broker: BrokerClient) -> Dict[str, float
     the PLANNED buy-dollar allocation {symbol: dollars} — Step 6 does the actual placing.
     `multiplier_cash` only materializes if Step 4 harvests real capital via a legal Overweight
     trim; that reconciliation happens in step6_execute, not here (this is a pre-trade estimate,
-    same as CLAUDE.md's own "treat as a placeholder" note in Step 1/3)."""
+    same as CLAUDE.md's own "treat as a placeholder" note in Step 1/3).
+
+    Sets `ctx.alpha_target_dollars` — this cycle's full desired Alpha Leader allocation, used by
+    `resolve_alpha_reserve` (called after Step 6b) to refresh `alpha_reserve.json` if the leader
+    doesn't end up with an actual buy this cycle, for any reason."""
     cfg = ctx.config
 
     lookback_days = max(30, cfg.meta.momentum_lookback_days + 25)
@@ -261,10 +265,14 @@ def step3_alpha_leader(ctx: RunContext, broker: BrokerClient) -> Dict[str, float
         ctx.current_cash - cfg.meta.min_cash_absolute - cfg.meta.settlement_reserve_target - ctx.tax_reserve,
     )
     if base_deployable_cash <= 0:
+        ctx.alpha_target_dollars = 0.0
         return {}
 
-    alpha_allocation = base_deployable_cash * cfg.meta.alpha_cash_allocation_percentage / 100
-    remaining_for_underweight = base_deployable_cash - alpha_allocation
+    raw_alpha_target = base_deployable_cash * cfg.meta.alpha_cash_allocation_percentage / 100
+    # This portion of base_deployable_cash is always carved out for the Alpha Leader's benefit —
+    # either given to it directly this cycle, or held in the Alpha Reserve for it below — never
+    # redirected to Underweight targets (CLAUDE.md Step 3, "Alpha Reserve").
+    remaining_for_underweight = base_deployable_cash - raw_alpha_target
 
     underweight = [
         sym for sym in in_play_symbols(ctx)
@@ -277,17 +285,33 @@ def step3_alpha_leader(ctx: RunContext, broker: BrokerClient) -> Dict[str, float
         dr = ctx.drift_results[sym]
         return max(0.0, dr.target_percentage / 100 * ctx.account_balance - dr.market_value)
 
-    # Alpha Leader itself buy-guarded (e.g. it fires GET THE PROFITS this cycle, per Step 4) ->
-    # redirect its allocation pro-rata to the remaining Underweight targets instead.
-    if ctx.alpha_leader in ctx.buy_guarded_symbols:
-        remaining_for_underweight += alpha_allocation
-        alpha_allocation = 0.0
-
     allocations: Dict[str, float] = {}
-    if alpha_allocation > 0:
-        cap_dollars = cfg.meta.max_portfolio_percentage / 100 * ctx.account_balance
-        current_mv = ctx.drift_results[ctx.alpha_leader].market_value
-        allocations[ctx.alpha_leader] = max(0.0, min(alpha_allocation, cap_dollars - current_mv))
+    cap_dollars = cfg.meta.max_portfolio_percentage / 100 * ctx.account_balance
+    current_mv = ctx.drift_results[ctx.alpha_leader].market_value
+    headroom = max(0.0, cap_dollars - current_mv)
+
+    if ctx.alpha_leader in ctx.buy_guarded_symbols:
+        # Alpha Leader itself buy-guarded (Step 2's profit-sell guard) -> hold this cycle's
+        # would-be allocation aside in the Alpha Reserve instead of giving it to the Alpha
+        # Leader OR redirecting it to Underweight targets. steps.resolve_alpha_reserve (called
+        # from finalize, once the cycle's final buy list is known) persists this to
+        # alpha_reserve.json — always a fresh snapshot of TODAY's target, never cumulative, so
+        # it can never exceed what would ever actually be deployable.
+        ctx.alpha_target_dollars = min(raw_alpha_target, headroom)
+    else:
+        # Eligible to buy: this cycle's raw target PLUS whatever was reserved for THIS symbol
+        # from a prior cycle it couldn't buy in (CLAUDE.md: "if this asset is Alpha Leader in
+        # next day or few it can fill the buys with that cash reserve"). A reserve for a
+        # DIFFERENT symbol (stale — the Alpha Leader changed) is simply not applied here; it's
+        # released/overwritten by resolve_alpha_reserve once this cycle's outcome is known.
+        reserve_bonus = (
+            ctx.alpha_reserve.amount
+            if ctx.alpha_reserve is not None and ctx.alpha_reserve.symbol == ctx.alpha_leader
+            else 0.0
+        )
+        desired = raw_alpha_target + reserve_bonus
+        allocations[ctx.alpha_leader] = max(0.0, min(desired, headroom))
+        ctx.alpha_target_dollars = allocations[ctx.alpha_leader]
 
     total_gap = sum(_gap(s) for s in underweight)
     if total_gap > 0 and remaining_for_underweight > 0:
@@ -392,9 +416,22 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
             and price < (st.profitSellPrice if st.profitSellPrice is not None else float("inf"))
         )
 
+        # Extra profit-margin floor when the candidate is the CURRENT Alpha Leader — protects it
+        # from being sold too cheaply just because a routine sell gate cleared. Independent of,
+        # and typically stricter than, each mechanism's own gate.
+        alpha_leader_guard_blocks = (
+            sym == ctx.alpha_leader and raw_gain_pct < cfg.meta.minimum_alpha_leader_sell_profit
+        )
+
         # --- GET THE PROFITS ---
         if not already_today and raw_gain_pct > cfg.meta.materialize_profit_percentage:
-            if cooldown_blocks:
+            if alpha_leader_guard_blocks:
+                ctx.skipped.append(SkippedTrade(
+                    sym, f"GTP % gate clears (+{raw_gain_pct:.2f}%) but Alpha Leader sell guard blocks "
+                         f"(needs >= {cfg.meta.minimum_alpha_leader_sell_profit}% margin)",
+                    "partial profit-take sale",
+                ))
+            elif cooldown_blocks:
                 ctx.skipped.append(SkippedTrade(
                     sym, f"GTP % gate clears (+{raw_gain_pct:.2f}%) but profit_resell_cooldown_days active",
                     "partial profit-take sale",
@@ -430,7 +467,13 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
             and mscore.score <= cfg.meta.momentum_reversal_threshold
             and raw_gain_pct >= cfg.meta.momentum_reversal_minimum_profit_margin_percent
         ):
-            if cooldown_blocks:
+            if alpha_leader_guard_blocks:
+                ctx.skipped.append(SkippedTrade(
+                    sym, f"MRT gates clear (score {mscore.score:.2f}) but Alpha Leader sell guard blocks "
+                         f"(needs >= {cfg.meta.minimum_alpha_leader_sell_profit}% margin)",
+                    "partial profit-take sale",
+                ))
+            elif cooldown_blocks:
                 ctx.skipped.append(SkippedTrade(
                     sym, f"MRT gates clear (score {mscore.score:.2f}) but profit_resell_cooldown_days active",
                     "partial profit-take sale",
@@ -504,6 +547,19 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
             else:
                 reason = f"underwater ({margin_pct:.2f}% margin) and not in forceSell"
             ctx.skipped.append(SkippedTrade(sym, reason, "Overweight trim to fund Underweight/Multiplier"))
+            continue
+
+        if (
+            sym == ctx.alpha_leader
+            and margin_pct < cfg.meta.minimum_alpha_leader_sell_profit
+            and not cfg.force_sell_active(sym, price)
+        ):
+            ctx.skipped.append(SkippedTrade(
+                sym,
+                f"Alpha Leader sell guard blocks Overweight trim (margin +{margin_pct:.2f}% < "
+                f"minimum_alpha_leader_sell_profit {cfg.meta.minimum_alpha_leader_sell_profit}%)",
+                "Overweight trim to fund Underweight/Multiplier",
+            ))
             continue
 
         asset_closes = broker.get_daily_closes(sym, start, end)
@@ -729,6 +785,28 @@ def step6b_finalize_buys(
         ctx.buys.append(intent)
 
     return buys
+
+
+def resolve_alpha_reserve(ctx: RunContext) -> AlphaReserve:
+    """CLAUDE.md's Alpha Reserve (Step 3): call once `ctx.buys` is final (i.e. after
+    step6b_finalize_buys has run) to compute what `alpha_reserve.json` should hold for next
+    cycle. If the Alpha Leader ended up with an actual buy this cycle, the reserve is spent —
+    clear it. Otherwise — for ANY reason it didn't buy (Step 2's buy-guard, a same-cycle sell of
+    the same symbol via GET THE PROFITS/Momentum Reversal Trim/Overweight trim, a price-limit
+    halt, falling under a dollar floor, hard-cap scaling to zero, ...) — refresh the reserve to
+    `ctx.alpha_target_dollars`, tagged to the current Alpha Leader. This is always an overwrite,
+    never a sum: a change in Alpha Leader or in the target dollar amount simply replaces
+    whatever was stored, exactly matching CLAUDE.md's "if Alpha leader changes or the cash
+    amount changes the Alpha reserve also change." Returns the state to persist; the caller
+    (bot/cli.py) writes it to alpha_reserve.json."""
+    if ctx.alpha_leader is None:
+        return ctx.alpha_reserve if ctx.alpha_reserve is not None else AlphaReserve()
+
+    today = ctx.current_date.isoformat()
+    bought = any(t.symbol == ctx.alpha_leader for t in ctx.buys)
+    if bought:
+        return AlphaReserve(symbol=None, amount=0.0, lastUpdatedDate=today)
+    return AlphaReserve(symbol=ctx.alpha_leader, amount=ctx.alpha_target_dollars, lastUpdatedDate=today)
 
 
 def _enforce_min_trade_value_buys(

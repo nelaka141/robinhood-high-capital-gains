@@ -56,6 +56,7 @@ class PortfolioMetadata:
     keep_aside_profits_for_tax_percent: float
     momentum_lookback_days: int
     momentum_reversal_threshold: float
+    minimum_alpha_leader_sell_profit: float
 
 
 @dataclass(frozen=True)

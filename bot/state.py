@@ -79,3 +79,26 @@ def load_transferred_basis(path: str | Path = "transferred_basis.json") -> Dict[
     if not p.exists():
         return {}
     return json.loads(p.read_text())
+
+
+@dataclass
+class AlphaReserve:
+    """alpha_reserve.json — cash set aside for the Alpha Leader when its Step 3 multiplier
+    allocation couldn't be deployed this cycle (buy-guarded, a same-cycle sell of the same
+    symbol, a price-limit halt, etc.), instead of being redirected to Underweight targets. A
+    fresh snapshot every cycle (never cumulative) tied to whichever symbol is Alpha Leader
+    today — see CLAUDE.md Step 3, "Alpha Reserve"."""
+    symbol: Optional[str] = None
+    amount: float = 0.0
+    lastUpdatedDate: Optional[str] = None
+
+
+def load_alpha_reserve(path: str | Path = "alpha_reserve.json") -> AlphaReserve:
+    p = Path(path)
+    if not p.exists():
+        return AlphaReserve()
+    return AlphaReserve(**json.loads(p.read_text()))
+
+
+def save_alpha_reserve(reserve: AlphaReserve, path: str | Path = "alpha_reserve.json") -> None:
+    Path(path).write_text(json.dumps(asdict(reserve), indent=2) + "\n")
