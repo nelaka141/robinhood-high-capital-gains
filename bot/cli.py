@@ -79,13 +79,15 @@ def cmd_plan(args: argparse.Namespace) -> None:
     planned_buys = steps.step3_alpha_leader(ctx, broker)
     steps.step4_profit_taking(ctx, broker)
     planned_buys = steps.step5_price_limits(ctx, broker, planned_buys)
-    sells_to_place, halted, halt_reason = steps.step6a_prepare_sells(ctx)
+    sells_to_place, halted, halt_reason = steps.step6a_prepare_sells(ctx, planned_buys)
 
     result = {
         "no_trades": False,
         "halted_for_approval": halted,
         "halt_reason": halt_reason,
         "sells_to_place": [_intent_to_dict(t) for t in sells_to_place],
+        # Informational total only — the seek_approval_value halt is checked per individual
+        # trade (steps.step6a_prepare_sells), not against this summed figure.
         "gross_sell_value": sum((t.quantity or 0.0) * ctx.quotes[t.symbol].last_trade_price for t in sells_to_place),
         # planned_buys is pre-tax-reserve-finalization — carried in resume_state for `finalize`.
         "resume_state": {

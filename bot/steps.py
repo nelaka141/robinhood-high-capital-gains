@@ -585,13 +585,46 @@ def step5_price_limits(ctx: RunContext, broker: BrokerClient, buy_candidates: Di
 #     credentials (see broker.RobinStocksBroker).
 # ============================================================================================
 
-def step6a_prepare_sells(ctx: RunContext) -> tuple[List[TradeIntent], bool, Optional[str]]:
+def _selling_symbols(ctx: RunContext) -> set:
+    """Every symbol with a sell/liquidation firing this cycle — used both to enforce the
+    standing same-cycle buy/sell exclusivity rule (CLAUDE.md Step 6) and, in
+    step6a_prepare_sells, to filter which planned buys are actually eligible before the
+    per-trade seek_approval_value check."""
+    return (
+        {t.symbol for t in ctx.profit_taking_sells}
+        | {t.symbol for t in ctx.overweight_trims}
+        | set(ctx.drawdown_liquidations)
+        | set(ctx.blocked_liquidations)
+    )
+
+
+def step6a_prepare_sells(
+    ctx: RunContext, planned_buys: Optional[Dict[str, float]] = None
+) -> tuple[List[TradeIntent], bool, Optional[str]]:
     """Builds the final sell order list (drawdown liquidations + blocked+forceSell liquidations +
     GET THE PROFITS/Momentum Reversal Trim + Overweight High-Beta trims), applies
-    sell_or_buy_value_limit, and checks the seek_approval_value halt. Returns (sells_to_place,
-    halted, halt_reason). Places nothing.
+    sell_or_buy_value_limit, and checks the seek_approval_value halt — evaluated PER INDIVIDUAL
+    TRADE (each planned sell, and each planned buy in `planned_buys`), not the old aggregate
+    "sum of all sells this cycle" total: a single oversized trade now halts the cycle even if
+    the total is small, and a cycle full of many small trades no longer halts just because their
+    sum is large.
+
+    `planned_buys` is the provisional buy sizing from step3/step5 (pre-tax-reserve-finalization,
+    pre-hard-cap-scaling) — the exact final buy amounts aren't known until step6b runs, which
+    only happens after this cycle's sells are confirmed filled, so checking post-finalization
+    amounts would mean the sells already executed before an oversized buy could ever halt
+    anything. Using the provisional figure here keeps the original "nothing is placed until
+    approved" guarantee intact. It's a safe upper bound in practice: step6b only ever scales
+    planned buys DOWN (the hard-cap proportional scale) or nudges an under-floor buy UP to
+    min_value_of_trade (a few dollars at most, never enough to newly cross seek_approval_value).
+    Symbols excluded from buying this cycle (selling the same symbol, or on the `blocked` list)
+    are filtered out here too, mirroring step6b's own exclusion, so a buy that will never
+    actually be placed can't trigger a halt.
+
+    Returns (sells_to_place, halted, halt_reason). Places nothing.
     """
     cfg = ctx.config
+    planned_buys = planned_buys or {}
 
     liquidations = [
         TradeIntent(symbol=sym, side="sell", quantity=ctx.positions[sym].quantity,
@@ -605,13 +638,29 @@ def step6a_prepare_sells(ctx: RunContext) -> tuple[List[TradeIntent], bool, Opti
     ]
     all_sells = liquidations + blocked_liquidations + ctx.profit_taking_sells + ctx.overweight_trims
 
-    gross_sell_value = sum((t.quantity or 0.0) * ctx.quotes[t.symbol].last_trade_price for t in all_sells)
-    if gross_sell_value > cfg.meta.seek_approval_value:
+    selling_syms = _selling_symbols(ctx)
+    eligible_buys = {
+        sym: dollars for sym, dollars in planned_buys.items()
+        if sym not in selling_syms and sym not in ctx.blocked_symbols
+    }
+    oversized = [
+        (t.symbol, "sell", (t.quantity or 0.0) * ctx.quotes[t.symbol].last_trade_price)
+        for t in all_sells
+        if (t.quantity or 0.0) * ctx.quotes[t.symbol].last_trade_price > cfg.meta.seek_approval_value
+    ] + [
+        (sym, "buy", dollars)
+        for sym, dollars in eligible_buys.items()
+        if dollars > cfg.meta.seek_approval_value
+    ]
+
+    if oversized:
+        biggest = max(oversized, key=lambda o: o[2])
         reason = (
-            f"gross sell value ${gross_sell_value:,.2f} exceeds seek_approval_value "
-            f"(${cfg.meta.seek_approval_value:,.2f}) — halting for user approval"
+            f"{biggest[1]} {biggest[0]} at ${biggest[2]:,.2f} exceeds seek_approval_value "
+            f"(${cfg.meta.seek_approval_value:,.2f}) — halting for user approval "
+            f"({len(oversized)} individual trade(s) over threshold this cycle)"
         )
-        ctx.skipped.append(SkippedTrade("ALL SELLS", reason, "sell batch"))
+        ctx.skipped.append(SkippedTrade("ALL TRADES", reason, "sell+buy batch"))
         return [], True, reason
 
     sells_to_place = []
@@ -651,8 +700,7 @@ def step6b_finalize_buys(
     """
     cfg = ctx.config
 
-    selling_syms = {t.symbol for t in ctx.profit_taking_sells} | {t.symbol for t in ctx.overweight_trims} \
-        | set(ctx.drawdown_liquidations) | set(ctx.blocked_liquidations)
+    selling_syms = _selling_symbols(ctx)
     planned_buys = {s: d for s, d in planned_buys.items() if s not in selling_syms and s not in ctx.blocked_symbols}
 
     ctx.net_realized_gains_ytd_effective = net_realized_gains_ytd_effective
@@ -747,7 +795,7 @@ def step6_execute_live(ctx: RunContext, broker: BrokerClient, planned_buys: Dict
     direct broker credentials (broker.RobinStocksBroker or your own BrokerClient) — for the
     snapshot-driven / MCP-orchestrated mode use step6a_prepare_sells + step6b_finalize_buys via
     bot/cli.py instead, which never call broker.place_market_order."""
-    sells, halted, _ = step6a_prepare_sells(ctx)
+    sells, halted, _ = step6a_prepare_sells(ctx, planned_buys)
     if halted:
         return
 
