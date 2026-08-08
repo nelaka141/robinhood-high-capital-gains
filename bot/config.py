@@ -57,6 +57,7 @@ class PortfolioMetadata:
     momentum_reversal_threshold: float
     minimum_alpha_leader_sell_profit: float
     alpha_leader_least_momentum_score: float
+    alpha_rank_reduction_percent: float
 
 
 @dataclass(frozen=True)

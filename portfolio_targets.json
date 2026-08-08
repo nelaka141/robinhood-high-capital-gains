@@ -1,7 +1,7 @@
 {
   "portfolio_metadata": {
-    "version": "2.41.0",
-    "last_updated": "2026-08-07",
+    "version": "2.42.0",
+    "last_updated": "2026-08-08",
     "global_drift_tolerance": 1.0,
     "max_trailing_drawdown_percentage": 35,
     "min_recovery_price_percentage": 5.0,
@@ -35,7 +35,8 @@
     "momentum_lookback_days": 5,
     "momentum_reversal_threshold": -10.0,
     "minimum_alpha_leader_sell_profit": 250,
-    "alpha_leader_least_momentum_score": 20
+    "alpha_leader_least_momentum_score": 20,
+    "alpha_rank_reduction_percent": 10
   },
   "targets": {
     "TQQQ": { "weight": 1.7, "drift": 0.8 },
