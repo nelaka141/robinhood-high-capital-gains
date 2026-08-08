@@ -240,6 +240,11 @@ def step3_alpha_leader(ctx: RunContext, broker: BrokerClient) -> Dict[str, float
     buy-guarded (Step 2's z_score_points check) becomes the (acting) `alpha_leader`. Returns the
     PLANNED buy-dollar allocation {symbol: dollars} — Step 6 does the actual placing.
 
+    If `alpha_leader` is a fallback (not `top_momentum_symbol`), its fully-capped allocation is
+    further scaled by `Rank_Multiplier = max(0, 1 - (rank - 1) * alpha_rank_reduction_percent /
+    100)`, where `rank` is its 1-indexed position in the full momentum ranking (rank 1 = the Top
+    Momentum Symbol, never reduced). See CLAUDE.md's `alpha_rank_reduction_percent`.
+
     Sets `ctx.alpha_leader_reserve_target` — what `top_momentum_symbol` would have received this
     cycle (its own raw target + multiplier, capped by its own headroom), computed fresh every
     cycle regardless of whether it actually ends up buying. `resolve_alpha_leader_reserve`
@@ -339,9 +344,17 @@ def step3_alpha_leader(ctx: RunContext, broker: BrokerClient) -> Dict[str, float
             # spends out of that same pot, which is why the reserve SHRINKS (see
             # resolve_alpha_leader_reserve) rather than staying untouched.
             desired = raw_alpha_target + multiplier_cash
-            allocations[ctx.alpha_leader] = max(
+            capped = max(
                 0.0, min(desired, _headroom(ctx.alpha_leader), ctx.alpha_leader_reserve_target)
             )
+            # Rank haircut (alpha_rank_reduction_percent): Rank 1 is the Top Momentum Symbol
+            # itself, so a fallback landed on by the cascade is always Rank 2 or lower and
+            # always takes at least some reduction — applied last, after every other cap.
+            rank = ranked.index(ctx.alpha_leader) + 1
+            rank_multiplier = max(
+                0.0, 1 - (rank - 1) * cfg.meta.alpha_rank_reduction_percent / 100
+            )
+            allocations[ctx.alpha_leader] = capped * rank_multiplier
         # raw_alpha_target is real, already-available cash (base_deployable_cash's own
         # carve-out); only the multiplier portion — capped along with everything else — must
         # be harvested via Overweight trims.

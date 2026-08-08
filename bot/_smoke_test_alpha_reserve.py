@@ -45,6 +45,7 @@ def _meta(**overrides) -> PortfolioMetadata:
         momentum_lookback_days=5, momentum_reversal_threshold=-10.0,
         minimum_alpha_leader_sell_profit=600.0,  # a DOLLAR floor, not a percentage
         alpha_leader_least_momentum_score=10.0,
+        alpha_rank_reduction_percent=0.0,  # no rank haircut by default; overridden in rank tests
     )
     base.update(overrides)
     return PortfolioMetadata(**base)
@@ -136,6 +137,43 @@ def test_guarded_top_falls_back_to_next_candidate() -> None:
     assert allocations.get("MID") == 650.0, f"MID's own headroom ($1300) doesn't bind either -> full $650, got {allocations.get('MID')}"
     print(f"[guarded-falls-back] TOP guarded -> MID acts as leader, allocation=${allocations['MID']:.2f} "
           f"(reserve target ${ctx.alpha_leader_reserve_target:.2f}) — OK")
+
+
+def test_fallback_rank_reduction_applies_haircut() -> None:
+    """MID is rank 2 in the momentum ranking (TOP=1, MID=2, UW1=3). With
+    alpha_rank_reduction_percent=10, MID's fully-capped $650 allocation should be scaled by
+    Rank_Multiplier = 1 - (2-1)*0.10 = 0.9 -> $585. The reserve TARGET itself (TOP's own
+    would-be allocation) stays unreduced -> more of the $650 reserve survives than before."""
+    ctx = _ctx_for_step3(alpha_rank_reduction_percent=10.0)
+    ctx.buy_guarded_symbols = {"TOP": "profit-sold recently"}
+    allocations = step3_alpha_leader(ctx, _Step3Broker())
+    assert ctx.alpha_leader == "MID"
+    assert ctx.alpha_leader_reserve_target == 650.0, "reserve target itself (TOP's own would-be allocation) is unreduced"
+    assert math.isclose(allocations.get("MID"), 585.0), f"expected $650 * 0.9 (rank 2 haircut) = $585, got {allocations.get('MID')}"
+    print(f"[fallback-rank-reduced] MID is rank 2 -> allocation ${allocations['MID']:.2f} == $650 * 0.9 — OK")
+
+
+def test_top_momentum_unaffected_by_rank_reduction() -> None:
+    """TOP itself (rank 1) must never be reduced, no matter how large alpha_rank_reduction_percent is."""
+    ctx = _ctx_for_step3(alpha_rank_reduction_percent=50.0)
+    allocations = step3_alpha_leader(ctx, _Step3Broker())
+    assert ctx.alpha_leader == "TOP"
+    assert allocations.get("TOP") == ctx.alpha_leader_reserve_target == 650.0, (
+        f"rank 1 must be unreduced regardless of alpha_rank_reduction_percent, got {allocations.get('TOP')}"
+    )
+    print(f"[rank1-unreduced] TOP (rank 1) allocation ${allocations['TOP']:.2f} == full reserve target, "
+          f"unaffected by 50% alpha_rank_reduction_percent — OK")
+
+
+def test_fallback_rank_reduction_floors_at_zero() -> None:
+    """alpha_rank_reduction_percent > 100 can drive Rank_Multiplier negative for a rank-2
+    fallback -> the allocation must floor at $0.00, never go negative."""
+    ctx = _ctx_for_step3(alpha_rank_reduction_percent=150.0)  # rank 2 -> 1-(2-1)*1.5 = -0.5 -> floored to 0
+    ctx.buy_guarded_symbols = {"TOP": "profit-sold recently"}
+    allocations = step3_alpha_leader(ctx, _Step3Broker())
+    assert ctx.alpha_leader == "MID"
+    assert allocations.get("MID") == 0.0, f"expected $0 (floored), got {allocations.get('MID')}"
+    print("[fallback-rank-reduction-floor] 150%/rank reduction at rank 2 -> allocation floors at $0.00 — OK")
 
 
 def test_fallback_capped_by_own_headroom_leaves_reserve_partially_spent() -> None:
@@ -382,6 +420,9 @@ def test_size_overweight_trims_walks_down_ranking_for_large_shortfall() -> None:
 def main() -> None:
     test_top_momentum_not_guarded_becomes_leader()
     test_guarded_top_falls_back_to_next_candidate()
+    test_fallback_rank_reduction_applies_haircut()
+    test_top_momentum_unaffected_by_rank_reduction()
+    test_fallback_rank_reduction_floors_at_zero()
     test_fallback_capped_by_own_headroom_leaves_reserve_partially_spent()
     test_cascade_stops_at_least_momentum_score_floor()
     test_underweight_shortfall_requests_full_gap_and_harvests()

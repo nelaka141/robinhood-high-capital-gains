@@ -33,6 +33,7 @@ def _minimal_ctx(seek_approval_value: float = 1000.0) -> RunContext:
         materialize_profit_in_dollars=12.5, keep_aside_profits_for_tax_percent=30.0,
         momentum_lookback_days=5, momentum_reversal_threshold=-10.0,
         minimum_alpha_leader_sell_profit=5.0, alpha_leader_least_momentum_score=-1000.0,
+        alpha_rank_reduction_percent=10.0,
     )
     cfg = PortfolioConfig(meta=meta, targets={}, force_sell={}, blocked=[])
     return RunContext(current_date=date(2026, 8, 7), config=cfg, account_number="TEST")
