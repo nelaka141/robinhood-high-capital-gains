@@ -52,23 +52,21 @@ def load_transferred_basis(path: str | Path = "transferred_basis.json") -> Dict[
 
 
 @dataclass
-class AlphaReserve:
-    """alpha_reserve.json — cash set aside for the Alpha Leader when its Step 3 multiplier
-    allocation couldn't be deployed this cycle (buy-guarded, a same-cycle sell of the same
-    symbol, a price-limit halt, etc.), instead of being redirected to Underweight targets. A
-    fresh snapshot every cycle (never cumulative) tied to whichever symbol is Alpha Leader
-    today — see CLAUDE.md Step 3, "Alpha Reserve"."""
-    symbol: Optional[str] = None
-    amount: float = 0.0
-    lastUpdatedDate: Optional[str] = None
+class AlphaLeaderReserve:
+    """alpha_reserve.json — a per-cycle AUDIT RECORD of Step 3's Alpha Leader buy-guard cascade
+    and the resulting reserve: how much of the Top Momentum Symbol's would-be allocation is
+    sitting aside (unspent, not redirected to Underweight targets) because it was buy-guarded
+    and either no fallback qualified, or a fallback qualified but didn't need the full amount.
+    Recalculated FROM SCRATCH every cycle (CLAUDE.md Step 3, "Alpha Leader Reserve") — unlike
+    the pre-cascade design, nothing here is ever read back in to influence a future cycle's
+    calculation; this file exists purely for the trade journal / audit trail."""
+    date: Optional[str] = None
+    top_momentum_symbol: Optional[str] = None
+    alpha_leader_symbol: Optional[str] = None  # the acting Alpha Leader this cycle, if any
+    reserve_cash: float = 0.0
 
 
-def load_alpha_reserve(path: str | Path = "alpha_reserve.json") -> AlphaReserve:
-    p = Path(path)
-    if not p.exists():
-        return AlphaReserve()
-    return AlphaReserve(**json.loads(p.read_text()))
-
-
-def save_alpha_reserve(reserve: AlphaReserve, path: str | Path = "alpha_reserve.json") -> None:
+def save_alpha_leader_reserve(
+    reserve: AlphaLeaderReserve, path: str | Path = "alpha_reserve.json"
+) -> None:
     Path(path).write_text(json.dumps(asdict(reserve), indent=2) + "\n")

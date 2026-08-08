@@ -29,10 +29,9 @@ from .config import load_portfolio_config
 from .models import RunContext
 from .state import (
     AssetPriceState,
-    load_alpha_reserve,
     load_price_state,
     load_tax_by_year,
-    save_alpha_reserve,
+    save_alpha_leader_reserve,
     save_price_state,
     save_tax_by_year,
 )
@@ -49,7 +48,6 @@ def run_cycle(account_number: str, repo_dir: str, broker: BrokerClient, dry_run:
     ctx = RunContext(current_date=now_et.date(), config=cfg, account_number=account_number)
     ctx.price_state = load_price_state(f"{repo_dir}/peak/prices.json")
     ctx.tax_by_year = load_tax_by_year(f"{repo_dir}/tax/realized_gains_by_year.json")
-    ctx.alpha_reserve = load_alpha_reserve(f"{repo_dir}/alpha_reserve.json")
 
     # ---- Step 1 ----
     steps.step1_fetch_state(ctx, broker, repo_dir)
@@ -60,7 +58,7 @@ def run_cycle(account_number: str, repo_dir: str, broker: BrokerClient, dry_run:
         return ctx
 
     # ---- Step 2 ----
-    steps.step2_guardrails(ctx)
+    steps.step2_guardrails(ctx, broker)
 
     # ---- Step 3 ----
     planned_buys = steps.step3_alpha_leader(ctx, broker)
@@ -118,7 +116,10 @@ def _update_price_state(ctx: RunContext) -> None:
 def _finalize_step7(ctx: RunContext, repo_dir: str, dry_run: bool) -> None:
     _update_price_state(ctx)
     save_price_state(ctx.price_state, f"{repo_dir}/peak/prices.json")
-    save_alpha_reserve(steps.resolve_alpha_reserve(ctx), f"{repo_dir}/alpha_reserve.json")
+    alpha_reserve = steps.resolve_alpha_leader_reserve(ctx)
+    ctx.alpha_leader_reserve_cash = alpha_reserve.reserve_cash if alpha_reserve is not None else 0.0
+    if alpha_reserve is not None:
+        save_alpha_leader_reserve(alpha_reserve, f"{repo_dir}/alpha_reserve.json")
 
     ctx.tax_by_year[str(ctx.current_date.year)] = max(
         0.0, ctx.net_realized_gains_ytd_effective if ctx.net_realized_gains_ytd_effective is not None else 0.0

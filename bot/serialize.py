@@ -49,8 +49,9 @@ def ctx_to_jsonable(ctx: RunContext) -> Dict[str, Any]:
         "buy_guarded_symbols": ctx.buy_guarded_symbols,
         "blocked_symbols": ctx.blocked_symbols,
         "momentum_scores": {sym: asdict(m) for sym, m in ctx.momentum_scores.items()},
+        "top_momentum_symbol": ctx.top_momentum_symbol,
         "alpha_leader": ctx.alpha_leader,
-        "alpha_target_dollars": ctx.alpha_target_dollars,
+        "alpha_leader_reserve_target": ctx.alpha_leader_reserve_target,
         "blocked_liquidations": ctx.blocked_liquidations,
         "drawdown_liquidations": ctx.drawdown_liquidations,
         "profit_taking_sells": [asdict(t) for t in ctx.profit_taking_sells],
@@ -81,8 +82,9 @@ def ctx_from_jsonable(data: Dict[str, Any], cfg: PortfolioConfig) -> RunContext:
     ctx.buy_guarded_symbols = data["buy_guarded_symbols"]
     ctx.blocked_symbols = data.get("blocked_symbols", {})
     ctx.momentum_scores = {sym: MomentumScore(**m) for sym, m in data["momentum_scores"].items()}
+    ctx.top_momentum_symbol = data.get("top_momentum_symbol")
     ctx.alpha_leader = data["alpha_leader"]
-    ctx.alpha_target_dollars = data.get("alpha_target_dollars", 0.0)
+    ctx.alpha_leader_reserve_target = data.get("alpha_leader_reserve_target", 0.0)
     ctx.blocked_liquidations = data.get("blocked_liquidations", [])
     ctx.drawdown_liquidations = data["drawdown_liquidations"]
     ctx.profit_taking_sells = [TradeIntent(**t) for t in data["profit_taking_sells"]]

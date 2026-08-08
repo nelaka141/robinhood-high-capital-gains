@@ -40,11 +40,12 @@ class PortfolioMetadata:
     beta_benchmark_symbol: str
     beta_calculation_lookback_days: int
     sold_asset_repurchase_days: int
-    sold_asset_price_change_percentage: float
+    z_score_points: float
     lock_in_period: int
     overweight_sell_minimum_profit_margin_percent: float
     momentum_reversal_minimum_profit_margin_percent: float
     momentum_reversal_minimum_profit_dollars: float
+    z_score_sell_points: float
     profit_resell_cooldown_days: int
     sell_or_buy_value_limit: float
     min_value_of_trade: float
@@ -55,6 +56,7 @@ class PortfolioMetadata:
     momentum_lookback_days: int
     momentum_reversal_threshold: float
     minimum_alpha_leader_sell_profit: float
+    alpha_leader_least_momentum_score: float
 
 
 @dataclass(frozen=True)

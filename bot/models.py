@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional
 
 if TYPE_CHECKING:
     from .config import PortfolioConfig
-    from .state import AlphaReserve, AssetPriceState
+    from .state import AssetPriceState
 
 
 @dataclass
@@ -131,12 +131,19 @@ class RunContext:
                                                                           # any symbol liquidated via blocked_liquidations
 
     momentum_scores: Dict[str, MomentumScore] = field(default_factory=dict)
-    alpha_leader: Optional[str] = None
-    alpha_reserve: Optional["AlphaReserve"] = None  # loaded alpha_reserve.json — Step 3 input
-    alpha_target_dollars: float = 0.0  # this cycle's full desired Alpha Leader allocation (raw
-                                        # target, or reserve-boosted+capped if eligible) — used to
-                                        # refresh alpha_reserve.json if the leader doesn't end up
-                                        # buying (see steps.resolve_alpha_reserve)
+    top_momentum_symbol: Optional[str] = None  # highest Momentum_Score in-play symbol, regardless
+                                                # of whether it's buy-guarded (see alpha_leader below)
+    alpha_leader: Optional[str] = None  # the ACTING Alpha Leader this cycle — the first candidate
+                                         # in the buy-guard cascade (starting at top_momentum_symbol)
+                                         # that isn't buy-guarded; None if nobody down to
+                                         # alpha_leader_least_momentum_score qualifies
+    alpha_leader_reserve_target: float = 0.0  # what top_momentum_symbol would receive if bought
+                                               # this cycle (raw target + multiplier, capped by its
+                                               # own headroom) — computed fresh every cycle
+    alpha_leader_reserve_cash: float = 0.0  # alpha_leader_reserve_target minus whatever actually
+                                             # got spent buying the Alpha Leader this cycle (see
+                                             # steps.resolve_alpha_leader_reserve, called after
+                                             # step6b once the real buy amount is known)
     harvest_needed_dollars: float = 0.0  # cash shortfall (multiplier injection + fully-closing
                                           # Underweight gaps) that step4's Overweight-trim sizing
                                           # must harvest via real sells (see step3_alpha_leader)

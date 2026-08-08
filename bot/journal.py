@@ -123,11 +123,33 @@ def render_entry(ctx: RunContext) -> str:
         "|---|---|---|---|---|---|---|",
     ]
     for sym, m in sorted(ctx.momentum_scores.items(), key=lambda kv: -kv[1].score):
-        leader_tag = " ← ALPHA LEADER" if sym == ctx.alpha_leader else ""
+        tag = ""
+        if sym == ctx.top_momentum_symbol:
+            tag += " ← TOP MOMENTUM"
+        if sym == ctx.alpha_leader:
+            tag += " ← ALPHA LEADER" if sym != ctx.top_momentum_symbol else " (ALPHA LEADER)"
         lines.append(
-            f"| {sym}{leader_tag} | {m.rsi14:.2f} | {m.ema9_now:.2f} | {m.ema9_prior:.2f} | "
+            f"| {sym}{tag} | {m.rsi14:.2f} | {m.ema9_now:.2f} | {m.ema9_prior:.2f} | "
             f"{m.price_vs_ema_pct:+.2f} | {m.ema_slope_pct:+.2f} | {m.score:+.2f} |"
         )
+
+    if ctx.top_momentum_symbol is not None and ctx.alpha_leader != ctx.top_momentum_symbol:
+        cascade_note = (
+            f"**Buy-guard cascade:** {ctx.top_momentum_symbol} (Top Momentum) is buy-guarded — "
+            + (
+                f"{ctx.alpha_leader} acted as Alpha Leader instead."
+                if ctx.alpha_leader is not None
+                else "no fallback candidate cleared the buy-guard down to "
+                     f"alpha_leader_least_momentum_score "
+                     f"({ctx.config.meta.alpha_leader_least_momentum_score:.1f}) — no Alpha Leader this cycle."
+            )
+        )
+        lines += ["", cascade_note]
+    lines += [
+        "",
+        f"`Alpha_leader_reserve_cash`: **${ctx.alpha_leader_reserve_cash:,.2f}**"
+        + (f" (reserved for {ctx.top_momentum_symbol})" if ctx.alpha_leader_reserve_cash > 0 else ""),
+    ]
 
     lines += [
         "",
