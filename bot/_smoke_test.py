@@ -114,7 +114,7 @@ def main() -> None:
         print(f"[Step 1] has_any_breach={breach}")
         assert breach, "synthetic random weights should produce at least one drift breach"
 
-        steps.step2_guardrails(ctx)
+        steps.step2_guardrails(ctx, broker)
         print(f"[Step 2] excluded={list(ctx.excluded_symbols)} buy_guarded={list(ctx.buy_guarded_symbols)}")
 
         planned_buys = steps.step3_alpha_leader(ctx, broker)

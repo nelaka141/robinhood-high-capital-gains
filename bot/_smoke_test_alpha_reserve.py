@@ -1,13 +1,14 @@
 """Focused unit-style coverage for two related Alpha Leader controls:
 
-1. The Alpha Reserve (steps.step3_alpha_leader's hold-aside/merge logic +
-   steps.resolve_alpha_reserve) — CLAUDE.md Step 3: when the Alpha Leader's multiplier
-   allocation can't be deployed this cycle, hold that cash aside instead of redirecting it to
-   Underweight targets, and give it back to the Alpha Leader (as a bonus on top of that day's
-   normal target) once it's eligible to buy again.
+1. The Alpha Leader buy-guard cascade + Alpha Leader Reserve (steps.step3_alpha_leader's
+   ranking/cascade logic + steps.resolve_alpha_leader_reserve) — CLAUDE.md Step 3: when the Top
+   Momentum Symbol is buy-guarded, walk down the ranking (while score >=
+   alpha_leader_least_momentum_score) for the first non-buy-guarded fallback; that fallback's
+   buy draws from (and shrinks) the reserve that was sized for the Top Momentum Symbol. If
+   nobody qualifies, the full reserve stays aside, recalculated fresh every cycle.
 2. `minimum_alpha_leader_sell_profit` — an extra profit-margin floor that applies ONLY when the
-   sell candidate is the current Alpha Leader, on top of each mechanism's own gate (GET THE
-   PROFITS, Momentum Reversal Trim, Overweight trim).
+   sell candidate is the current (acting) Alpha Leader, on top of each mechanism's own gate (GET
+   THE PROFITS, Momentum Reversal Trim, Overweight trim).
 
 Pure logic tests against RunContext/steps functions directly, no snapshot/CLI plumbing needed
 (same style as bot/_smoke_test_min_trade_value.py).
@@ -16,12 +17,12 @@ Run: PYTHONPATH=. python3 bot/_smoke_test_alpha_reserve.py
 """
 from __future__ import annotations
 
-from datetime import date, timedelta
+import math
+from datetime import date
 
 from bot.config import AssetTarget, PortfolioConfig, PortfolioMetadata
 from bot.models import DriftResult, MomentumScore, Position, Quote, RunContext, TaxLot, TradeIntent
-from bot.state import AlphaReserve
-from bot.steps import resolve_alpha_reserve, step3_alpha_leader, step4_profit_taking
+from bot.steps import resolve_alpha_leader_reserve, step3_alpha_leader, step4_profit_taking
 
 
 def _meta(**overrides) -> PortfolioMetadata:
@@ -33,171 +34,195 @@ def _meta(**overrides) -> PortfolioMetadata:
         sell_price_diff_limit=5, buy_price_diff_limit=5, no_of_days_for_price_compare=3,
         cap_on_total_cash_balance_to_use=30000, cool_down_period_after_lquidation=6,
         beta_benchmark_symbol="SPY", beta_calculation_lookback_days=30,
-        sold_asset_repurchase_days=2, sold_asset_price_change_percentage=1.5,
+        sold_asset_repurchase_days=2, z_score_points=0.5,
         lock_in_period=2, overweight_sell_minimum_profit_margin_percent=1.0,
         momentum_reversal_minimum_profit_margin_percent=1.0,
-        momentum_reversal_minimum_profit_dollars=0.0, profit_resell_cooldown_days=15,
+        momentum_reversal_minimum_profit_dollars=0.0, z_score_sell_points=0.2,
+        profit_resell_cooldown_days=15,
         sell_or_buy_value_limit=10, min_value_of_trade=0,
         materialize_profit_percentage=2.0, profit_sell_percentage=50.0,
         materialize_profit_in_dollars=0.0, keep_aside_profits_for_tax_percent=30.0,
         momentum_lookback_days=5, momentum_reversal_threshold=-10.0,
         minimum_alpha_leader_sell_profit=600.0,  # a DOLLAR floor, not a percentage
+        alpha_leader_least_momentum_score=10.0,
     )
     base.update(overrides)
     return PortfolioMetadata(**base)
 
 
-def _ctx_for_step3(uw1_market_value: float = 700.0, **meta_overrides) -> RunContext:
-    """ALPHA (alpha leader) mv=$1000, UW1 (underweight) mv=$700 by default, both target 50% of a
-    $2000 account_balance -> UW1's gap = 1000-700 = $300. current_cash=$1000, no tax drag ->
-    base_deployable_cash=$1000, alpha_cash_allocation_percentage=40% ->
-    raw_alpha_target=$400, remaining_for_underweight=$600. Since total_gap($300) <=
-    remaining_for_underweight($600) at the default mv, cash is abundant enough to close UW1's
-    gap and then some -> existing pro-rata behavior: UW1 gets the FULL remaining_for_underweight
-    pool ($600), not just its own $300 gap (CLAUDE.md Step 7: keep cash deployed) -> no harvest
-    needed. Pass a smaller uw1_market_value to widen the gap past remaining_for_underweight and
-    exercise the harvest-triggering path instead (see test_underweight_shortfall_* below)."""
+def _ctx_for_step3(mv=None, **meta_overrides) -> RunContext:
+    """TOP (highest momentum) mv=$1000, MID (fallback candidate) mv=$500, UW1 (underweight)
+    mv=$700 by default, all against a $2000 account_balance. current_cash=$1000, no tax drag ->
+    base_deployable_cash=$1000, alpha_cash_allocation_percentage=40% -> raw_alpha_target=$400,
+    multiplier_cash=$1000*(1.25-1)=$250 -> alpha_leader_reserve_target=min($650, headroom(TOP)).
+    UW1's gap = 1000-700 = $300 <= remaining_for_underweight ($600) by default -> UW1 gets the
+    full $600 pool (pro-rata, single underweight symbol -> 100% of it), no harvest needed from
+    that side. Pass `mv` to override any symbol's market_value (e.g. to squeeze headroom)."""
+    mv = dict(mv or {})
+    mv.setdefault("TOP", 1000.0)
+    mv.setdefault("MID", 500.0)
+    mv.setdefault("UW1", 700.0)
+
     cfg = PortfolioConfig(
         meta=_meta(**meta_overrides),
-        targets={"ALPHA": AssetTarget("ALPHA", weight=1.0), "UW1": AssetTarget("UW1", weight=1.0)},
+        targets={s: AssetTarget(s, weight=1.0) for s in mv},
         force_sell={}, blocked=[],
     )
     ctx = RunContext(current_date=date(2026, 8, 7), config=cfg, account_number="TEST")
-    ctx.alpha_leader = "ALPHA"
     ctx.current_cash = 1000.0
     ctx.tax_reserve = 0.0
     ctx.account_balance = 2000.0
-    # Quotes must match _Step3Broker's closes ([-1] = 100 + 59*0.5 = 129.5 for ALPHA, flat 100
-    # for UW1) so the Momentum_Score's Price_vs_EMA term reflects the same rising trend the
-    # closes encode — a stale/mismatched quote would flip which symbol actually wins.
-    ctx.quotes = {"ALPHA": Quote("ALPHA", last_trade_price=129.5), "UW1": Quote("UW1", last_trade_price=100.0)}
-    ctx.momentum_scores = {"ALPHA": MomentumScore("ALPHA", 70, 100, 90, 5, 5), "UW1": MomentumScore("UW1", 50, 100, 100, 0, 0)}
+    ctx.quotes = {s: Quote(s, last_trade_price=100.0) for s in mv}
+    # ctx.momentum_scores is NOT preset here — step3_alpha_leader always recomputes it fresh from
+    # broker.get_daily_closes (see _Step3Broker below), whose engineered closes are what actually
+    # determines the ranking (TOP score ~55 > MID score ~15 > UW1 score ~-32, empirically verified
+    # against bot/indicators.py's real RSI(14)/EMA(9) math — see _Step3Broker's docstring for why
+    # flat or purely-monotonic closes don't work here).
     ctx.drift_results = {
-        "ALPHA": DriftResult("ALPHA", 50, 50, 50, 50, 0, 1, market_value=1000.0),
-        "UW1": DriftResult("UW1", 35, 35, 50, 50, 15, 1, market_value=uw1_market_value),
+        "TOP": DriftResult("TOP", 50, 50, 50, 50, 0, 1, market_value=mv["TOP"]),
+        "MID": DriftResult("MID", 25, 25, 25, 25, 0, 1, market_value=mv["MID"]),
+        "UW1": DriftResult("UW1", 35, 35, 50, 50, 15, 1, market_value=mv["UW1"]),
     }
-    ctx.alpha_reserve = AlphaReserve()
     return ctx
 
 
+def _series(drift: float, amp: float = 1.0, n: int = 60) -> list:
+    """A gently oscillating (not flat, not purely monotonic) 60-day close series with the given
+    per-day drift. Flat or purely-monotonic-up closes both make Wilder's RSI degenerate to a
+    fixed 100 (avg_loss stays exactly 0, since there's never a down day) — real market data
+    always has some down days, so the drift alone doesn't cleanly separate scores without this.
+    Empirically calibrated: drift=0.6 -> Momentum_Score ~55, drift=0.0 -> ~15, drift=-0.2 -> ~-32."""
+    return [100.0 + drift * i + amp * math.sin(i / 3.0) for i in range(n)]
+
+
 class _Step3Broker:
-    """step3_alpha_leader recomputes Momentum_Score itself from get_daily_closes — ALPHA gets a
-    steadily rising series (real momentum winner), UW1 stays flat, so ctx.alpha_leader lands on
-    "ALPHA" from the actual RSI/EMA math, not just the pre-set value."""
+    """step3_alpha_leader recomputes Momentum_Score itself from get_daily_closes — TOP/MID/UW1
+    each get a distinctly-drifting series (see _series) so the real RSI(14)/EMA(9) math produces
+    a reliable TOP > MID > UW1 ranking, with MID's score (~15) deliberately sitting between the
+    default alpha_leader_least_momentum_score (10) and the stricter override used in
+    test_cascade_stops_at_least_momentum_score_floor (20) below."""
 
     def get_daily_closes(self, symbol, start, end):
-        if symbol == "ALPHA":
-            return [100.0 + i * 0.5 for i in range(60)]
-        return [100.0] * 60
+        if symbol == "TOP":
+            return _series(drift=0.6)
+        if symbol == "MID":
+            return _series(drift=0.0)
+        return _series(drift=-0.2)  # UW1
 
 
-def test_guarded_leader_holds_cash_aside_not_redirected() -> None:
+def test_top_momentum_not_guarded_becomes_leader() -> None:
+    """The common case: TOP isn't buy-guarded, so the cascade ends immediately on it."""
     ctx = _ctx_for_step3()
-    ctx.buy_guarded_symbols = {"ALPHA": "profit-sold recently"}
     allocations = step3_alpha_leader(ctx, _Step3Broker())
-    assert "ALPHA" not in allocations, "guarded Alpha Leader must get nothing this cycle"
-    assert allocations.get("UW1") == 600.0, f"UW1 should get exactly remaining_for_underweight ($600), got {allocations.get('UW1')}"
-    assert ctx.alpha_target_dollars == 400.0, f"expected raw_alpha_target $400 held aside (no multiplier while guarded), got {ctx.alpha_target_dollars}"
-    assert ctx.harvest_needed_dollars == 0.0, f"guarded leader requests no multiplier, UW1 gap is cash-covered -> no harvest, got {ctx.harvest_needed_dollars}"
-    print(f"[guarded-holds-aside] ALPHA excluded, UW1=${allocations['UW1']:.2f}, "
-          f"alpha_target_dollars=${ctx.alpha_target_dollars:.2f} (NOT redirected to UW1), harvest=$0 — OK")
+    assert ctx.top_momentum_symbol == "TOP"
+    assert ctx.alpha_leader == "TOP", f"expected TOP to win outright, got {ctx.alpha_leader}"
+    assert allocations.get("TOP") == ctx.alpha_leader_reserve_target
+    print(f"[top-not-guarded] TOP wins outright, allocation=${allocations['TOP']:.2f} "
+          f"== alpha_leader_reserve_target — OK")
 
 
-def test_eligible_leader_merges_matching_reserve() -> None:
-    # base_deployable_cash=$1000, raw_alpha_target=$400, multiplier_cash=$1000*(1.25-1)=$250,
-    # reserve_bonus=$250 -> desired=$900, headroom=0.9*2000-1000=$800 -> capped to $800.
-    # cash_fundable=min($800, raw $400 + reserve $250=$650)=$650 -> harvest=$800-$650=$150
-    # (exactly the portion of multiplier_cash that actually fit under the cap).
+def test_guarded_top_falls_back_to_next_candidate() -> None:
+    """TOP is buy-guarded -> MID (next in ranking, score 16 >= floor 10) becomes the acting
+    Alpha Leader instead, drawing from (not adding to) the reserve sized for TOP."""
     ctx = _ctx_for_step3()
-    ctx.alpha_reserve = AlphaReserve(symbol="ALPHA", amount=250.0, lastUpdatedDate="2026-08-06")
+    ctx.buy_guarded_symbols = {"TOP": "profit-sold recently"}
     allocations = step3_alpha_leader(ctx, _Step3Broker())
-    assert allocations.get("ALPHA") == 800.0, f"expected raw $400 + multiplier $250 + reserve $250, capped to $800 headroom, got {allocations.get('ALPHA')}"
-    assert allocations.get("UW1") == 600.0, "UW1's share must be unaffected by the alpha side"
-    assert ctx.alpha_target_dollars == 800.0
-    assert ctx.harvest_needed_dollars == 150.0, f"expected $150 to harvest (the capped multiplier slice), got {ctx.harvest_needed_dollars}"
-    print(f"[eligible-merges-reserve] ALPHA=${allocations['ALPHA']:.2f} (raw $400 + multiplier $250 + reserve $250, capped), harvest=$150 — OK")
+    assert ctx.top_momentum_symbol == "TOP"
+    assert ctx.alpha_leader == "MID", f"expected MID to act as fallback leader, got {ctx.alpha_leader}"
+    assert ctx.alpha_leader_reserve_target == 650.0, (
+        f"expected raw $400 + multiplier $250 = $650 (TOP's headroom of $800 doesn't bind), "
+        f"got {ctx.alpha_leader_reserve_target}"
+    )
+    assert allocations.get("MID") == 650.0, f"MID's own headroom ($1300) doesn't bind either -> full $650, got {allocations.get('MID')}"
+    print(f"[guarded-falls-back] TOP guarded -> MID acts as leader, allocation=${allocations['MID']:.2f} "
+          f"(reserve target ${ctx.alpha_leader_reserve_target:.2f}) — OK")
 
 
-def test_eligible_leader_ignores_stale_reserve_for_other_symbol() -> None:
-    # desired = raw $400 + multiplier $250 + reserve $0 (stale, different symbol) = $650,
-    # under the $800 headroom -> uncapped. cash_fundable=min($650, $400)=$400 -> harvest=$250
-    # (exactly multiplier_cash, since no reserve bonus this time).
-    ctx = _ctx_for_step3()
-    ctx.alpha_reserve = AlphaReserve(symbol="SOME_OLD_LEADER", amount=999.0, lastUpdatedDate="2026-08-01")
+def test_fallback_capped_by_own_headroom_leaves_reserve_partially_spent() -> None:
+    """MID is already near its own max_portfolio_percentage cap -> it can only draw PART of the
+    reserve sized for TOP; the rest stays reserved (checked via resolve_alpha_leader_reserve in
+    a separate test below, once ctx.buys reflects what actually got bought)."""
+    ctx = _ctx_for_step3(mv={"MID": 1700.0})  # headroom(MID) = 0.9*2000 - 1700 = $100
+    ctx.buy_guarded_symbols = {"TOP": "profit-sold recently"}
     allocations = step3_alpha_leader(ctx, _Step3Broker())
-    assert allocations.get("ALPHA") == 650.0, f"stale reserve for a different symbol must not be applied, got {allocations.get('ALPHA')}"
-    assert ctx.harvest_needed_dollars == 250.0, f"expected $250 harvest (multiplier_cash only), got {ctx.harvest_needed_dollars}"
-    print("[stale-reserve-ignored] reserve tagged to a different (old) leader is not merged; harvest=$250 (multiplier only) — OK")
+    assert ctx.alpha_leader == "MID"
+    assert ctx.alpha_leader_reserve_target == 650.0, "TOP's own headroom (unaffected by MID's mv) still $800, doesn't bind"
+    assert allocations.get("MID") == 100.0, f"MID's own $100 headroom caps it well below the $650 reserve, got {allocations.get('MID')}"
+    print(f"[fallback-headroom-capped] MID only draws ${allocations['MID']:.2f} of the "
+          f"${ctx.alpha_leader_reserve_target:.2f} reserve (own headroom binds) — OK")
 
 
-def test_reserve_merge_respects_portfolio_cap() -> None:
-    # cap_dollars=0.65*2000=$1300, current_mv=$1000 -> headroom=$300. desired=$400+$250+$250=$900
-    # clamped to $300. cash_fundable=min($300, raw $400+reserve $250=$650)=$300 (the cap itself
-    # is tighter than what cash alone could already cover) -> harvest=$300-$300=$0: no point
-    # harvesting when the cap suppresses the allocation below what cash already funds.
-    ctx = _ctx_for_step3(max_portfolio_percentage=65.0)
-    ctx.alpha_reserve = AlphaReserve(symbol="ALPHA", amount=250.0, lastUpdatedDate="2026-08-06")
+def test_cascade_stops_at_least_momentum_score_floor() -> None:
+    """TOP guarded, and MID's score is now BELOW alpha_leader_least_momentum_score -> the
+    cascade must NOT fall back to MID (or anyone else) -> no Alpha Leader this cycle."""
+    ctx = _ctx_for_step3(alpha_leader_least_momentum_score=20.0)  # MID's score (16) < 20
+    ctx.buy_guarded_symbols = {"TOP": "profit-sold recently"}
     allocations = step3_alpha_leader(ctx, _Step3Broker())
-    assert allocations.get("ALPHA") == 300.0, f"combined $900 must be clamped to the $300 headroom, got {allocations.get('ALPHA')}"
-    assert ctx.alpha_target_dollars == 300.0
-    assert ctx.harvest_needed_dollars == 0.0, f"cap already suppresses below cash-fundable amount -> no harvest needed, got {ctx.harvest_needed_dollars}"
-    print("[reserve-respects-cap] $900 desired clamped to $300 max_portfolio_percentage headroom; harvest=$0 — OK")
+    assert ctx.alpha_leader is None, f"MID's score is below the floor -> no fallback allowed, got {ctx.alpha_leader}"
+    assert "MID" not in allocations and "TOP" not in allocations
+    assert ctx.alpha_leader_reserve_target == 650.0, "reserve target is still computed fresh even with no acting leader"
+    print(f"[floor-stops-cascade] MID's score below alpha_leader_least_momentum_score -> "
+          f"no Alpha Leader, ${ctx.alpha_leader_reserve_target:.2f} stays fully reserved — OK")
 
 
 def test_underweight_shortfall_requests_full_gap_and_harvests() -> None:
     """UW1 mv=$100 (instead of the default $700) -> gap = 1000-100 = $900, exceeding
     remaining_for_underweight ($600) -> UW1 should get its FULL $900 gap request (not a
     proportionally-reduced pro-rata share), and the $300 shortfall should show up in
-    harvest_needed_dollars."""
-    ctx = _ctx_for_step3(uw1_market_value=100.0)
-    ctx.buy_guarded_symbols = {"ALPHA": "profit-sold recently"}  # isolate the underweight-only harvest component
+    harvest_needed_dollars. Isolate this from the alpha side by guarding TOP AND setting the
+    floor above MID's score, so no Alpha Leader buy competes for harvest budget."""
+    ctx = _ctx_for_step3(mv={"UW1": 100.0}, alpha_leader_least_momentum_score=20.0)
+    ctx.buy_guarded_symbols = {"TOP": "profit-sold recently"}
     allocations = step3_alpha_leader(ctx, _Step3Broker())
+    assert ctx.alpha_leader is None
     assert allocations.get("UW1") == 900.0, f"expected UW1's full $900 gap (not capped to $600), got {allocations.get('UW1')}"
     assert ctx.harvest_needed_dollars == 300.0, f"expected $300 shortfall ($900 gap - $600 available), got {ctx.harvest_needed_dollars}"
     print("[underweight-shortfall] UW1 requests full $900 gap, $300 harvest shortfall flagged — OK")
 
 
-def test_resolve_alpha_reserve_clears_when_bought() -> None:
+def test_resolve_reserve_shrinks_to_zero_when_fully_bought() -> None:
     ctx = RunContext(current_date=date(2026, 8, 7), config=None, account_number="TEST")
-    ctx.alpha_leader = "ALPHA"
-    ctx.alpha_target_dollars = 400.0
-    ctx.buys = [TradeIntent(symbol="ALPHA", side="buy", dollar_amount=650.0)]
-    result = resolve_alpha_reserve(ctx)
-    assert result.symbol is None and result.amount == 0.0
-    print("[resolve-clears-on-buy] Alpha Leader bought this cycle -> reserve cleared — OK")
+    ctx.top_momentum_symbol = "TOP"
+    ctx.alpha_leader = "MID"
+    ctx.alpha_leader_reserve_target = 650.0
+    ctx.buys = [TradeIntent(symbol="MID", side="buy", dollar_amount=650.0)]
+    result = resolve_alpha_leader_reserve(ctx)
+    assert result.top_momentum_symbol == "TOP" and result.alpha_leader_symbol == "MID"
+    assert result.reserve_cash == 0.0, f"fully spent -> reserve should be $0, got {result.reserve_cash}"
+    print("[resolve-fully-bought] MID spent the full $650 reserve -> reserve_cash=$0 — OK")
 
 
-def test_resolve_alpha_reserve_refreshes_when_not_bought() -> None:
+def test_resolve_reserve_shrinks_partially_when_partially_bought() -> None:
+    """Mirrors a real cycle: step3 planned $650 for the fallback, but Step 5/6 (price-limit
+    halt, hard-cap scale, or min_value_of_trade) only actually placed $100 of it."""
     ctx = RunContext(current_date=date(2026, 8, 7), config=None, account_number="TEST")
-    ctx.alpha_leader = "ALPHA"
-    ctx.alpha_target_dollars = 400.0
-    ctx.buys = [TradeIntent(symbol="OTHER", side="buy", dollar_amount=100.0)]  # ALPHA absent
-    result = resolve_alpha_reserve(ctx)
-    assert result.symbol == "ALPHA" and result.amount == 400.0 and result.lastUpdatedDate == "2026-08-07"
-    print("[resolve-refreshes-on-no-buy] Alpha Leader didn't buy -> reserve refreshed to $400 — OK")
+    ctx.top_momentum_symbol = "TOP"
+    ctx.alpha_leader = "MID"
+    ctx.alpha_leader_reserve_target = 650.0
+    ctx.buys = [TradeIntent(symbol="MID", side="buy", dollar_amount=100.0)]
+    result = resolve_alpha_leader_reserve(ctx)
+    assert result.reserve_cash == 550.0, f"expected $650 - $100 = $550 still reserved, got {result.reserve_cash}"
+    print("[resolve-partially-bought] MID only actually spent $100 of $650 -> reserve_cash=$550 — OK")
 
 
-def test_resolve_alpha_reserve_leader_change_overwrites_not_accumulates() -> None:
-    """A leader change (or the same leader's target changing day to day) must simply overwrite
-    — never sum with — whatever was stored before."""
-    ctx = RunContext(current_date=date(2026, 8, 8), config=None, account_number="TEST")
-    ctx.alpha_leader = "NEWLEADER"
-    ctx.alpha_target_dollars = 123.45
+def test_resolve_reserve_stays_full_when_nobody_bought() -> None:
+    ctx = RunContext(current_date=date(2026, 8, 7), config=None, account_number="TEST")
+    ctx.top_momentum_symbol = "TOP"
+    ctx.alpha_leader = None  # nobody cleared the cascade
+    ctx.alpha_leader_reserve_target = 650.0
     ctx.buys = []
-    ctx.alpha_reserve = AlphaReserve(symbol="OLDLEADER", amount=999.0, lastUpdatedDate="2026-08-07")
-    result = resolve_alpha_reserve(ctx)
-    assert result.symbol == "NEWLEADER" and result.amount == 123.45, "must overwrite, not add to, the old reserve"
-    print("[resolve-overwrites-on-leader-change] old $999 reserve for OLDLEADER replaced by $123.45 for NEWLEADER — OK")
+    result = resolve_alpha_leader_reserve(ctx)
+    assert result.alpha_leader_symbol is None
+    assert result.reserve_cash == 650.0
+    print("[resolve-nobody-bought] no Alpha Leader this cycle -> full $650 stays reserved — OK")
 
 
-def test_resolve_alpha_reserve_untouched_when_no_leader() -> None:
+def test_resolve_reserve_none_when_no_top_momentum_symbol() -> None:
     ctx = RunContext(current_date=date(2026, 8, 7), config=None, account_number="TEST")
-    ctx.alpha_leader = None
-    existing = AlphaReserve(symbol="X", amount=50.0, lastUpdatedDate="2026-08-01")
-    ctx.alpha_reserve = existing
-    result = resolve_alpha_reserve(ctx)
-    assert result is existing
-    print("[resolve-untouched-no-leader] Step 3 never ran (no alpha_leader) -> reserve left as-is — OK")
+    ctx.top_momentum_symbol = None
+    result = resolve_alpha_leader_reserve(ctx)
+    assert result is None, "no in-play symbols at all -> caller should leave alpha_reserve.json untouched"
+    print("[resolve-no-top-symbol] Step 3 had nothing to rank -> resolve returns None (file untouched) — OK")
 
 
 class _Step4Broker:
@@ -355,22 +380,22 @@ def test_size_overweight_trims_walks_down_ranking_for_large_shortfall() -> None:
 
 
 def main() -> None:
-    test_guarded_leader_holds_cash_aside_not_redirected()
-    test_eligible_leader_merges_matching_reserve()
-    test_eligible_leader_ignores_stale_reserve_for_other_symbol()
-    test_reserve_merge_respects_portfolio_cap()
+    test_top_momentum_not_guarded_becomes_leader()
+    test_guarded_top_falls_back_to_next_candidate()
+    test_fallback_capped_by_own_headroom_leaves_reserve_partially_spent()
+    test_cascade_stops_at_least_momentum_score_floor()
     test_underweight_shortfall_requests_full_gap_and_harvests()
-    test_resolve_alpha_reserve_clears_when_bought()
-    test_resolve_alpha_reserve_refreshes_when_not_bought()
-    test_resolve_alpha_reserve_leader_change_overwrites_not_accumulates()
-    test_resolve_alpha_reserve_untouched_when_no_leader()
+    test_resolve_reserve_shrinks_to_zero_when_fully_bought()
+    test_resolve_reserve_shrinks_partially_when_partially_bought()
+    test_resolve_reserve_stays_full_when_nobody_bought()
+    test_resolve_reserve_none_when_no_top_momentum_symbol()
     test_alpha_leader_gtp_blocked_below_threshold_but_fires_above()
     test_non_leader_gtp_unaffected_by_alpha_guard()
     test_alpha_leader_mrt_blocked_below_threshold()
     test_alpha_leader_overweight_trim_blocked_below_threshold()
     test_size_overweight_trims_harvests_top_ranked_first()
     test_size_overweight_trims_walks_down_ranking_for_large_shortfall()
-    print("\nSMOKE TEST (Alpha Reserve + minimum_alpha_leader_sell_profit) PASSED")
+    print("\nSMOKE TEST (Alpha Leader cascade/reserve + minimum_alpha_leader_sell_profit) PASSED")
 
 
 if __name__ == "__main__":

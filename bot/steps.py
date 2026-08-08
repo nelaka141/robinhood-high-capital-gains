@@ -15,15 +15,26 @@ from typing import Dict, List, Optional
 from .broker import BrokerClient
 from .cost_basis import resolve_avg_cost_basis
 from .fifo import fifo_realized_profit, round_sell_quantity
-from .indicators import beta, daily_returns, ema_series, rsi_series
+from .indicators import beta, daily_returns, ema_series, price_zscore, rsi_series
 from .models import DriftResult, MomentumScore, RunContext, SkippedTrade, TradeIntent
-from .state import AlphaReserve, AssetPriceState, load_transferred_basis
+from .state import AlphaLeaderReserve, AssetPriceState, load_transferred_basis
+
+# Z-score lookback for the z_score_points/z_score_sell_points guards (Step 2/4) — matches
+# price_history/daily_bars.json's rolling ~90-day cache, so this reads whatever history is
+# already there without requesting a wider window than the cache actually carries.
+_Z_SCORE_LOOKBACK_DAYS = 95
 
 
 def _parse_date(s: Optional[str]) -> Optional[date]:
     if not s:
         return None
     return datetime.strptime(s, "%Y-%m-%d").date()
+
+
+def _z_score_window(current_date: date) -> tuple[date, date]:
+    end = current_date - timedelta(days=1)
+    start = end - timedelta(days=_Z_SCORE_LOOKBACK_DAYS)
+    return start, end
 
 
 # ============================================================================================
@@ -148,8 +159,9 @@ def has_any_breach(ctx: RunContext) -> bool:
 # Step 2 — Rules and Guardrails (in-play exclusions; places no trades itself)
 # ============================================================================================
 
-def step2_guardrails(ctx: RunContext) -> None:
+def step2_guardrails(ctx: RunContext, broker: BrokerClient) -> None:
     cfg = ctx.config
+    z_start, z_end = _z_score_window(ctx.current_date)
 
     for sym in cfg.targets:
         st = ctx.price_state.get(sym, AssetPriceState())
@@ -181,12 +193,18 @@ def step2_guardrails(ctx: RunContext) -> None:
                 )
                 continue  # nothing more to check — fully excluded
 
-        # Profit-sell buy-guard (v2.41.0: applies uniformly to partial AND full profit-sells).
-        # Blocks NEW BUYS only; a partial-sell remainder otherwise stays fully in play.
+        # Profit-sell buy-guard (v2.41.0: applies uniformly to partial AND full profit-sells;
+        # v2.55.0: pullback check is Z-score based, not a raw price percentage). Blocks NEW
+        # BUYS only; a partial-sell remainder otherwise stays fully in play.
         if st.profitSellPrice is not None and st.profitSellDate:
+            closes = broker.get_daily_closes(sym, z_start, z_end)
+            z_today = price_zscore(closes, price)
+            z_yesterday = price_zscore(closes, closes[-1]) if closes else None
+            # Missing/insufficient history fails closed — pulled_back stays False (guard active)
+            # rather than silently letting a symbol we can't evaluate slip back into play.
             pulled_back = (
-                (st.profitSellPrice - price) / st.profitSellPrice * 100
-                >= cfg.meta.sold_asset_price_change_percentage
+                z_today is not None and z_yesterday is not None
+                and (z_yesterday - z_today) >= cfg.meta.z_score_points
             )
             sell_date = _parse_date(st.profitSellDate)
             cooled_down = (ctx.current_date - sell_date).days >= cfg.meta.sold_asset_repurchase_days
@@ -215,12 +233,18 @@ def in_play_symbols(ctx: RunContext) -> List[str]:
 # ============================================================================================
 
 def step3_alpha_leader(ctx: RunContext, broker: BrokerClient) -> Dict[str, float]:
-    """Computes Momentum_Score for every in-play symbol, selects the Alpha Leader, and returns
-    the PLANNED buy-dollar allocation {symbol: dollars} — Step 6 does the actual placing.
+    """Computes Momentum_Score for every in-play symbol, then runs the buy-guard cascade
+    (CLAUDE.md Step 3, "Alpha Leader selection — buy-guard cascade"): rank in-play symbols by
+    Momentum_Score descending; the top symbol is the `top_momentum_symbol`; walk the ranking
+    while score >= `alpha_leader_least_momentum_score`, and the first candidate that isn't
+    buy-guarded (Step 2's z_score_points check) becomes the (acting) `alpha_leader`. Returns the
+    PLANNED buy-dollar allocation {symbol: dollars} — Step 6 does the actual placing.
 
-    Sets `ctx.alpha_target_dollars` — this cycle's full desired Alpha Leader allocation, used by
-    `resolve_alpha_reserve` (called after Step 6b) to refresh `alpha_reserve.json` if the leader
-    doesn't end up with an actual buy this cycle, for any reason.
+    Sets `ctx.alpha_leader_reserve_target` — what `top_momentum_symbol` would have received this
+    cycle (its own raw target + multiplier, capped by its own headroom), computed fresh every
+    cycle regardless of whether it actually ends up buying. `resolve_alpha_leader_reserve`
+    (called after Step 6b, once the real buy amount is known) subtracts the actual dollars spent
+    on `alpha_leader` from this to get the final `alpha_leader_reserve_cash` for `alpha_reserve.json`.
 
     Sets `ctx.harvest_needed_dollars` — the cash shortfall between this cycle's FULL asks (the
     Alpha Leader's multiplier injection, plus fully closing every Underweight target's drift gap)
@@ -253,18 +277,36 @@ def step3_alpha_leader(ctx: RunContext, broker: BrokerClient) -> Dict[str, float
 
     if not ctx.momentum_scores:
         return {}
-    ctx.alpha_leader = max(ctx.momentum_scores, key=lambda s: ctx.momentum_scores[s].score)
+
+    ranked = sorted(ctx.momentum_scores, key=lambda s: ctx.momentum_scores[s].score, reverse=True)
+    ctx.top_momentum_symbol = ranked[0]
+
+    # Buy-guard cascade: walk the ranking while score >= floor, stop at the first candidate
+    # that isn't buy-guarded (CLAUDE.md Step 3, "Alpha Leader selection — buy-guard cascade").
+    floor = cfg.meta.alpha_leader_least_momentum_score
+    ctx.alpha_leader = None
+    for sym in ranked:
+        if ctx.momentum_scores[sym].score < floor:
+            break
+        if sym not in ctx.buy_guarded_symbols:
+            ctx.alpha_leader = sym
+            break
+
+    def _headroom(sym: str) -> float:
+        cap_dollars = cfg.meta.max_portfolio_percentage / 100 * ctx.account_balance
+        current_mv = ctx.drift_results[sym].market_value
+        return max(0.0, cap_dollars - current_mv)
 
     base_deployable_cash = max(0.0, ctx.current_cash - cfg.meta.min_cash_absolute - ctx.tax_reserve)
     if base_deployable_cash <= 0:
-        ctx.alpha_target_dollars = 0.0
+        ctx.alpha_leader_reserve_target = 0.0
         ctx.harvest_needed_dollars = 0.0
         return {}
 
     raw_alpha_target = base_deployable_cash * cfg.meta.alpha_cash_allocation_percentage / 100
-    # This portion of base_deployable_cash is always carved out for the Alpha Leader's benefit —
-    # either given to it directly this cycle, or held in the Alpha Reserve for it below — never
-    # redirected to Underweight targets (CLAUDE.md Step 3, "Alpha Reserve").
+    # This portion of base_deployable_cash is always carved out for the Top Momentum Symbol's
+    # benefit — either spent this cycle (on whichever symbol the cascade landed on), or held in
+    # the Alpha Leader Reserve — never redirected to Underweight targets (CLAUDE.md Step 3).
     remaining_for_underweight = base_deployable_cash - raw_alpha_target
 
     underweight = [
@@ -279,42 +321,35 @@ def step3_alpha_leader(ctx: RunContext, broker: BrokerClient) -> Dict[str, float
         return max(0.0, dr.target_percentage / 100 * ctx.account_balance - dr.market_value)
 
     allocations: Dict[str, float] = {}
-    cap_dollars = cfg.meta.max_portfolio_percentage / 100 * ctx.account_balance
-    current_mv = ctx.drift_results[ctx.alpha_leader].market_value
-    headroom = max(0.0, cap_dollars - current_mv)
+    multiplier_cash = base_deployable_cash * (cfg.meta.reinvestment_multiplier_factor - 1.0)
+    # alpha_leader_reserve_target: what the Top Momentum Symbol would receive if bought this
+    # cycle — always computed fresh, regardless of whether it (or anyone) actually buys.
+    ctx.alpha_leader_reserve_target = min(
+        raw_alpha_target + multiplier_cash, _headroom(ctx.top_momentum_symbol)
+    )
 
     alpha_harvest_needed = 0.0
-    if ctx.alpha_leader in ctx.buy_guarded_symbols:
-        # Alpha Leader itself buy-guarded (Step 2's profit-sell guard) -> hold this cycle's
-        # would-be allocation aside in the Alpha Reserve instead of giving it to the Alpha
-        # Leader OR redirecting it to Underweight targets. steps.resolve_alpha_reserve (called
-        # from finalize, once the cycle's final buy list is known) persists this to
-        # alpha_reserve.json — always a fresh snapshot of TODAY's target, never cumulative, so
-        # it can never exceed what would ever actually be deployable. No multiplier injection is
-        # requested here either — there's no immediate deployment target to harvest cash for.
-        ctx.alpha_target_dollars = min(raw_alpha_target, headroom)
-    else:
-        # Eligible to buy: raw_alpha_target PLUS the multiplier injection (extra capital the
-        # re-investment multiplier promises — harvested from Overweight positions, NOT drawn
-        # from base_deployable_cash) PLUS whatever was reserved for THIS symbol from a prior
-        # cycle it couldn't buy in (CLAUDE.md: "if this asset is Alpha Leader in next day or few
-        # it can fill the buys with that cash reserve"). A reserve for a DIFFERENT symbol (stale
-        # — the Alpha Leader changed) is simply not applied here; it's released/overwritten by
-        # resolve_alpha_reserve once this cycle's outcome is known.
-        multiplier_cash = base_deployable_cash * (cfg.meta.reinvestment_multiplier_factor - 1.0)
-        reserve_bonus = (
-            ctx.alpha_reserve.amount
-            if ctx.alpha_reserve is not None and ctx.alpha_reserve.symbol == ctx.alpha_leader
-            else 0.0
-        )
-        desired = raw_alpha_target + multiplier_cash + reserve_bonus
-        allocations[ctx.alpha_leader] = max(0.0, min(desired, headroom))
-        ctx.alpha_target_dollars = allocations[ctx.alpha_leader]
-        # raw_alpha_target and reserve_bonus are both real, already-available cash (the reserve
-        # was never actually spent, so it's still sitting in current_cash); only the multiplier
-        # portion — capped along with everything else by headroom — must be harvested.
-        cash_fundable = min(allocations[ctx.alpha_leader], raw_alpha_target + reserve_bonus)
+    if ctx.alpha_leader is not None:
+        if ctx.alpha_leader == ctx.top_momentum_symbol:
+            allocations[ctx.alpha_leader] = ctx.alpha_leader_reserve_target
+        else:
+            # Fallback candidate found by the cascade: bought using its OWN raw target +
+            # multiplier, capped by its own headroom, and additionally capped so it never
+            # draws more than what was reserved for the Top Momentum Symbol — the fallback
+            # spends out of that same pot, which is why the reserve SHRINKS (see
+            # resolve_alpha_leader_reserve) rather than staying untouched.
+            desired = raw_alpha_target + multiplier_cash
+            allocations[ctx.alpha_leader] = max(
+                0.0, min(desired, _headroom(ctx.alpha_leader), ctx.alpha_leader_reserve_target)
+            )
+        # raw_alpha_target is real, already-available cash (base_deployable_cash's own
+        # carve-out); only the multiplier portion — capped along with everything else — must
+        # be harvested via Overweight trims.
+        cash_fundable = min(allocations[ctx.alpha_leader], raw_alpha_target)
         alpha_harvest_needed = max(0.0, allocations[ctx.alpha_leader] - cash_fundable)
+    # else: no candidate down to alpha_leader_least_momentum_score cleared the buy-guard this
+    # cycle — nothing allocated, no multiplier harvest requested; the full
+    # alpha_leader_reserve_target stays reserved (see resolve_alpha_leader_reserve).
 
     total_gap = sum(_gap(s) for s in underweight)
     underweight_harvest_needed = 0.0
@@ -346,6 +381,7 @@ def step3_alpha_leader(ctx: RunContext, broker: BrokerClient) -> Dict[str, float
 def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
     cfg = ctx.config
     fired_today: set = set()
+    z_start, z_end = _z_score_window(ctx.current_date)
 
     for sym, pos in ctx.positions.items():
         if sym not in cfg.targets or pos.quantity <= 0 or pos.avg_cost_basis is None:
@@ -428,11 +464,23 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
             continue
 
         already_today = st.profitSellDate == ctx.current_date.isoformat()
-        cooldown_blocks = (
+        cooldown_blocks = False
+        if (
             st.profitSellDate is not None
             and (ctx.current_date - _parse_date(st.profitSellDate)).days <= cfg.meta.profit_resell_cooldown_days
-            and price < (st.profitSellPrice if st.profitSellPrice is not None else float("inf"))
-        )
+        ):
+            # Z-score recovery check (v2.55.0, replaces the old current_price < profitSellPrice
+            # comparison): recovered once today's Z-score has risen at least z_score_sell_points
+            # above the Z-score profitSellPrice had (both normalized against today's price
+            # history). Missing/insufficient history fails closed — recovered stays False.
+            z_closes = broker.get_daily_closes(sym, z_start, z_end)
+            z_today = price_zscore(z_closes, price)
+            z_sell = price_zscore(z_closes, st.profitSellPrice) if st.profitSellPrice is not None else None
+            recovered = (
+                z_today is not None and z_sell is not None
+                and (z_today - z_sell) >= cfg.meta.z_score_sell_points
+            )
+            cooldown_blocks = not recovered
 
         # --- GET THE PROFITS ---
         if not already_today and raw_gain_pct > cfg.meta.materialize_profit_percentage:
@@ -894,26 +942,30 @@ def step6b_finalize_buys(
     return buys
 
 
-def resolve_alpha_reserve(ctx: RunContext) -> AlphaReserve:
-    """CLAUDE.md's Alpha Reserve (Step 3): call once `ctx.buys` is final (i.e. after
-    step6b_finalize_buys has run) to compute what `alpha_reserve.json` should hold for next
-    cycle. If the Alpha Leader ended up with an actual buy this cycle, the reserve is spent —
-    clear it. Otherwise — for ANY reason it didn't buy (Step 2's buy-guard, a same-cycle sell of
-    the same symbol via GET THE PROFITS/Momentum Reversal Trim/Overweight trim, a price-limit
-    halt, falling under a dollar floor, hard-cap scaling to zero, ...) — refresh the reserve to
-    `ctx.alpha_target_dollars`, tagged to the current Alpha Leader. This is always an overwrite,
-    never a sum: a change in Alpha Leader or in the target dollar amount simply replaces
-    whatever was stored, exactly matching CLAUDE.md's "if Alpha leader changes or the cash
-    amount changes the Alpha reserve also change." Returns the state to persist; the caller
-    (bot/cli.py) writes it to alpha_reserve.json."""
-    if ctx.alpha_leader is None:
-        return ctx.alpha_reserve if ctx.alpha_reserve is not None else AlphaReserve()
+def resolve_alpha_leader_reserve(ctx: RunContext) -> Optional[AlphaLeaderReserve]:
+    """CLAUDE.md's Alpha Leader Reserve (Step 3): call once `ctx.buys` is final (i.e. after
+    step6b_finalize_buys has run) to compute the audit record `alpha_reserve.json` should hold
+    for this cycle. `ctx.alpha_leader_reserve_target` (set in step3_alpha_leader) is what the Top
+    Momentum Symbol would have received this cycle; whatever actually got spent buying
+    `ctx.alpha_leader` — finalized only now that Step 6's price-limit halts, hard-cap scaling,
+    and `min_value_of_trade` floor have all had their say — is subtracted from it, so
+    `reserve_cash` reflects the real outcome, not the Step 3 plan. Recalculated from scratch
+    every cycle; nothing here is ever read back in to influence a future cycle (contrast the
+    pre-cascade design). Returns None if there was no Top Momentum Symbol this cycle at all (no
+    in-play symbols) — the caller should leave alpha_reserve.json untouched in that case."""
+    if ctx.top_momentum_symbol is None:
+        return None
 
-    today = ctx.current_date.isoformat()
-    bought = any(t.symbol == ctx.alpha_leader for t in ctx.buys)
-    if bought:
-        return AlphaReserve(symbol=None, amount=0.0, lastUpdatedDate=today)
-    return AlphaReserve(symbol=ctx.alpha_leader, amount=ctx.alpha_target_dollars, lastUpdatedDate=today)
+    actual_spent = (
+        sum(t.dollar_amount or 0.0 for t in ctx.buys if t.symbol == ctx.alpha_leader)
+        if ctx.alpha_leader is not None else 0.0
+    )
+    return AlphaLeaderReserve(
+        date=ctx.current_date.isoformat(),
+        top_momentum_symbol=ctx.top_momentum_symbol,
+        alpha_leader_symbol=ctx.alpha_leader,
+        reserve_cash=max(0.0, ctx.alpha_leader_reserve_target - actual_spent),
+    )
 
 
 def _enforce_min_trade_value_buys(

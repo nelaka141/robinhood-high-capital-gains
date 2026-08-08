@@ -1,9 +1,11 @@
-"""Pure-Python technical indicators: EMA(9), RSI(14), and beta — computed directly from daily
-closes, matching the exact formulas CLAUDE.md Step 3/4 specify for Momentum_Score and
-High_Beta_Gain_Score. No external indicator API is required."""
+"""Pure-Python technical indicators: EMA(9), RSI(14), beta, and price Z-score — computed
+directly from daily closes, matching the exact formulas CLAUDE.md Step 2/3/4 specify for
+Momentum_Score, High_Beta_Gain_Score, and the Z-score buy-back/resell guards. No external
+indicator API is required."""
 from __future__ import annotations
 
-from typing import List, Sequence
+import statistics
+from typing import List, Optional, Sequence
 
 
 def ema_series(closes: Sequence[float], period: int = 9) -> List[float]:
@@ -68,3 +70,16 @@ def beta(asset_returns: Sequence[float], benchmark_returns: Sequence[float]) -> 
     if var_b == 0:
         raise ValueError("benchmark variance is zero — cannot compute beta")
     return cov / var_b
+
+
+def price_zscore(closes: Sequence[float], price: float) -> Optional[float]:
+    """Z = (price - mean) / stdev, where mean/stdev are the sample mean/stdev of `closes`
+    (CLAUDE.md's z_score_points / z_score_sell_points guards, Step 2/4). Returns None if there
+    isn't enough history (fewer than 2 closes) or the history is perfectly flat (stdev == 0) —
+    callers should fail closed (guard stays active) when this returns None."""
+    if len(closes) < 2:
+        return None
+    stdev = statistics.stdev(closes)
+    if stdev == 0:
+        return None
+    return (price - statistics.mean(closes)) / stdev

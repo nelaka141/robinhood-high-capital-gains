@@ -39,15 +39,16 @@ def _cfg(blocked, force_sell) -> PortfolioConfig:
         sell_price_diff_limit=5, buy_price_diff_limit=5, no_of_days_for_price_compare=3,
         cap_on_total_cash_balance_to_use=30000, cool_down_period_after_lquidation=6,
         beta_benchmark_symbol="SPY", beta_calculation_lookback_days=30,
-        sold_asset_repurchase_days=2, sold_asset_price_change_percentage=1.5,
+        sold_asset_repurchase_days=2, z_score_points=0.5,
         lock_in_period=2, overweight_sell_minimum_profit_margin_percent=1.0,
         momentum_reversal_minimum_profit_margin_percent=1.0,
-        momentum_reversal_minimum_profit_dollars=12.5, profit_resell_cooldown_days=15,
+        momentum_reversal_minimum_profit_dollars=12.5, z_score_sell_points=0.2,
+        profit_resell_cooldown_days=15,
         sell_or_buy_value_limit=10, min_value_of_trade=100,
         materialize_profit_percentage=4.0, profit_sell_percentage=50.0,
         materialize_profit_in_dollars=12.5, keep_aside_profits_for_tax_percent=30.0,
         momentum_lookback_days=5, momentum_reversal_threshold=-10.0,
-        minimum_alpha_leader_sell_profit=5.0,
+        minimum_alpha_leader_sell_profit=5.0, alpha_leader_least_momentum_score=-1000.0,
     )
     targets = {
         "LTRN": AssetTarget(symbol="LTRN", weight=0.5, drift=0.3),
@@ -111,7 +112,7 @@ def test_blocked_and_not_forcesell_is_fully_frozen() -> None:
     assert ctx.blocked_liquidations == [], "not in forceSell -> no forced liquidation"
     assert "LTRN" not in ctx.drawdown_liquidations, "blocked -> exempt even from drawdown audit"
 
-    step2_guardrails(ctx)
+    step2_guardrails(ctx, broker)
     assert "LTRN" not in in_play_symbols(ctx), "blocked -> excluded from Alpha Leader/Underweight buys"
 
     step4_profit_taking(ctx, broker)
@@ -139,7 +140,7 @@ def test_blocked_and_forcesell_and_held_liquidates_fully() -> None:
     assert "LTRN" in ctx.blocked_symbols
     assert has_any_breach(ctx), "a pending blocked+forceSell liquidation must not be a NO TRADES cycle"
 
-    step2_guardrails(ctx)
+    step2_guardrails(ctx, broker)
     step4_profit_taking(ctx, broker)  # must not ALSO try to profit-take/trim it — blocked_symbols skips it
     assert all(t.symbol != "LTRN" for t in ctx.profit_taking_sells)
 
@@ -166,7 +167,7 @@ def test_blocked_but_forcesell_not_held_is_still_frozen() -> None:
     assert ctx.blocked_liquidations == [], "nothing held -> nothing to liquidate"
     assert "LTRN" in ctx.blocked_symbols
 
-    step2_guardrails(ctx)
+    step2_guardrails(ctx, broker)
     assert "LTRN" not in in_play_symbols(ctx), "still blocked -> not a buy candidate either"
     print("[blocked-forcesell-unheld] LTRN (blocked+forceSell, not held) stays frozen — OK")
 
