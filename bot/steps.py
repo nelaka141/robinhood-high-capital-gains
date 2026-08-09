@@ -492,23 +492,26 @@ def step3_alpha_leader(ctx: RunContext, broker: BrokerClient) -> Dict[str, float
     # scale-down) sized larger than what actually gets spent — the surplus simply isn't harvested
     # down again here, it just stays as unspent cash, same graceful-degradation behavior as any
     # other funding shortfall/overshoot in this pipeline.
-    if cfg.sector_groups and cfg.meta.max_sector_percentage > 0:
-        sector_cap_dollars = cfg.meta.max_sector_percentage / 100 * ctx.account_balance
-        for group, members in cfg.sector_groups.items():
-            planned = sum(allocations.get(s, 0.0) for s in members)
-            if planned <= 0:
-                continue
-            current_mv = sum(
-                ctx.drift_results[s].market_value for s in members if s in ctx.drift_results
-            )
-            projected = current_mv + planned
-            if projected <= sector_cap_dollars:
-                continue
-            headroom = max(0.0, sector_cap_dollars - current_mv)
-            scale = headroom / planned
-            for s in members:
-                if s in allocations:
-                    allocations[s] *= scale
+    for group, sector in cfg.sector_groups.items():
+        cap_pct = cfg.sector_cap_percentage(group)  # group's own maxPercentage override, else global
+        if cap_pct <= 0:
+            continue
+        members = sector.members
+        planned = sum(allocations.get(s, 0.0) for s in members)
+        if planned <= 0:
+            continue
+        sector_cap_dollars = cap_pct / 100 * ctx.account_balance
+        current_mv = sum(
+            ctx.drift_results[s].market_value for s in members if s in ctx.drift_results
+        )
+        projected = current_mv + planned
+        if projected <= sector_cap_dollars:
+            continue
+        headroom = max(0.0, sector_cap_dollars - current_mv)
+        scale = headroom / planned
+        for s in members:
+            if s in allocations:
+                allocations[s] *= scale
 
     return allocations
 

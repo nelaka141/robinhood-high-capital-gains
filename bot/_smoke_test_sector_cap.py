@@ -18,7 +18,7 @@ from __future__ import annotations
 import math
 from datetime import date
 
-from bot.config import AssetTarget, PortfolioConfig, PortfolioMetadata
+from bot.config import AssetTarget, PortfolioConfig, PortfolioMetadata, SectorGroup
 from bot.models import DriftResult, Quote, RunContext
 from bot.steps import step3_alpha_leader
 
@@ -64,13 +64,20 @@ def _meta(**overrides) -> PortfolioMetadata:
 def _ctx(symbols: list, sector_groups: dict, market_values: dict = None, **meta_overrides) -> RunContext:
     """current_cash=$4500, no tax reserve, no alpha allocation (alpha_cash_allocation_percentage=0,
     reinvestment_multiplier_factor=1.0) -> remaining_for_underweight = $4500 exactly, split evenly
-    across every tied-score candidate (all symbols share the identical series)."""
+    across every tied-score candidate (all symbols share the identical series).
+
+    `sector_groups` values may be a plain list (no per-group override -> uses the global
+    max_sector_percentage) or an already-built SectorGroup (to set a maxPercentage override)."""
     market_values = market_values or {}
+    groups = {
+        group: (entry if isinstance(entry, SectorGroup) else SectorGroup(members=list(entry)))
+        for group, entry in sector_groups.items()
+    }
     cfg = PortfolioConfig(
         meta=_meta(**meta_overrides),
         targets={s: AssetTarget(s, weight=1.0) for s in symbols},
         force_sell={}, blocked=[],
-        sector_groups=sector_groups,
+        sector_groups=groups,
     )
     ctx = RunContext(current_date=date(2026, 8, 7), config=cfg, account_number="TEST")
     ctx.current_cash = 4500.0
@@ -136,10 +143,40 @@ def test_existing_holdings_alone_can_exhaust_sector_headroom() -> None:
           "X1 and X2 both scale to $0.00, floored (never negative); Y1 unaffected — OK")
 
 
+def test_per_group_max_percentage_override() -> None:
+    """4 symbols tie on Momentum_Score -> each would get an equal $1125 share of the $4500 pool
+    absent any cap ($2250 raw ask per group). grp1 (X1/X2) has its own maxPercentage=10% ->
+    a tighter $1000 cap on $10,000 account_balance -> scaled down to $500 each. grp2 (Z1/Z2) has
+    no override -> uses the global 20% -> a looser $2000 cap -> scaled down to $1000 each. Both
+    groups get capped, but grp1's tighter override bites harder, proving the per-group override
+    actually takes effect instead of silently falling back to the global value."""
+    ctx = _ctx(
+        ["X1", "X2", "Z1", "Z2"],
+        sector_groups={
+            "grp1": SectorGroup(members=["X1", "X2"], max_percentage=10.0),
+            "grp2": ["Z1", "Z2"],
+        },
+    )
+    allocations = step3_alpha_leader(ctx, _TiedBroker())
+
+    grp1_total = allocations["X1"] + allocations["X2"]
+    grp2_total = allocations["Z1"] + allocations["Z2"]
+    assert math.isclose(grp1_total, 1000.0, abs_tol=0.01), (
+        f"grp1's own maxPercentage=10% -> $1000 cap on $10,000 account_balance, got ${grp1_total:.2f}"
+    )
+    assert math.isclose(grp2_total, 2000.0, abs_tol=0.01), (
+        f"grp2 has no override -> uses the global 20% -> $2000 cap, got ${grp2_total:.2f}"
+    )
+    assert grp1_total < grp2_total, "grp1's tighter 10% override must bind harder than grp2's looser global 20%"
+    print(f"[sector-cap-per-group-override] grp1 (10% override) capped at ${grp1_total:.2f}; "
+          f"grp2 (20% global default) capped at ${grp2_total:.2f} — different caps applied correctly — OK")
+
+
 def main() -> None:
     test_same_sector_pair_scaled_down_to_cap()
     test_ungrouped_symbols_never_capped()
     test_existing_holdings_alone_can_exhaust_sector_headroom()
+    test_per_group_max_percentage_override()
     print("\nSMOKE TEST (max_sector_percentage) PASSED")
 
 

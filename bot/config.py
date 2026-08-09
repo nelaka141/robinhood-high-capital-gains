@@ -22,6 +22,12 @@ class ForceSellEntry:
 
 
 @dataclass(frozen=True)
+class SectorGroup:
+    members: List[str]
+    max_percentage: Optional[float] = None  # per-group override; None -> global max_sector_percentage
+
+
+@dataclass(frozen=True)
 class PortfolioMetadata:
     global_drift_tolerance: float
     max_trailing_drawdown_percentage: float
@@ -70,7 +76,7 @@ class PortfolioConfig:
     targets: Dict[str, AssetTarget]
     force_sell: Dict[str, ForceSellEntry]  # keyed by asset symbol
     blocked: List[str]  # exempt from ALL buy/sell this cycle, except forceSell + currently held -> liquidate 100%
-    sector_groups: Dict[str, List[str]] = field(default_factory=dict)  # theme/correlation groups
+    sector_groups: Dict[str, SectorGroup] = field(default_factory=dict)  # theme/correlation groups
         # for max_sector_percentage; a symbol not listed in any group has no sector cap. Defaults
         # to empty (no cap) so existing PortfolioConfig(...) call sites (mostly test fixtures)
         # don't need updating just to opt out of this feature.
@@ -81,10 +87,16 @@ class PortfolioConfig:
 
     def sector_of(self, symbol: str) -> Optional[str]:
         """The sector_groups key `symbol` belongs to, or None if it's in no group (uncapped)."""
-        for group, members in self.sector_groups.items():
-            if symbol in members:
+        for group, sector in self.sector_groups.items():
+            if symbol in sector.members:
                 return group
         return None
+
+    def sector_cap_percentage(self, group: str) -> float:
+        """Effective max_sector_percentage for `group`: its own maxPercentage override if set,
+        else the global max_sector_percentage."""
+        override = self.sector_groups[group].max_percentage
+        return override if override is not None else self.meta.max_sector_percentage
 
     def target_percentage(self, symbol: str) -> float:
         """target_percentage = (weight / sum_of_all_weights) * 100"""
@@ -131,14 +143,27 @@ def _parse_force_sell(raw: list) -> Dict[str, ForceSellEntry]:
     return out
 
 
-def _parse_sector_groups(raw: dict) -> Dict[str, List[str]]:
-    """{"group_name": ["SYM1", "SYM2", ...], ...}. A symbol must appear in at most one group —
-    ambiguous double-membership would make max_sector_percentage's cap math double-count (or
-    silently pick one group arbitrarily), so this fails loudly rather than guessing."""
-    groups = {group: list(members) for group, members in raw.items()}
+def _parse_sector_groups(raw: dict) -> Dict[str, SectorGroup]:
+    """{"group_name": ["SYM1", "SYM2", ...], ...} for a group using the global
+    max_sector_percentage, OR {"group_name": {"members": [...], "maxPercentage": <number>}, ...}
+    for a group with its own override — same plain-value-or-object union pattern as `forceSell`.
+    A symbol must appear in at most one group — ambiguous double-membership would make
+    max_sector_percentage's cap math double-count (or silently pick one group arbitrarily), so
+    this fails loudly rather than guessing."""
+    groups: Dict[str, SectorGroup] = {}
+    for group, entry in raw.items():
+        if isinstance(entry, list):
+            groups[group] = SectorGroup(members=list(entry))
+        else:
+            max_pct = entry.get("maxPercentage")
+            groups[group] = SectorGroup(
+                members=list(entry["members"]),
+                max_percentage=float(max_pct) if max_pct is not None else None,
+            )
+
     seen: Dict[str, str] = {}
-    for group, members in groups.items():
-        for sym in members:
+    for group, sector in groups.items():
+        for sym in sector.members:
             if sym in seen:
                 raise ValueError(
                     f"sector_groups: {sym!r} appears in both {seen[sym]!r} and {group!r} — "
