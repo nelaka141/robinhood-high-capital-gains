@@ -65,6 +65,7 @@ def _meta(**overrides) -> PortfolioMetadata:
         minimum_alpha_leader_sell_profit=0.0, alpha_leader_least_momentum_score=-1000.0,
         alpha_rank_reduction_percent=0.0, min_momentum_score_to_fill_underweight=-1000.0,
         alpha_leader_fresh_position_days=3, alpha_leader_fresh_drawdown_percentage=15.0,
+        max_sector_percentage=0.0,
     )
     base.update(overrides)
     return PortfolioMetadata(**base)

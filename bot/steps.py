@@ -286,7 +286,13 @@ def step3_alpha_leader(ctx: RunContext, broker: BrokerClient) -> Dict[str, float
     sizes real sells to cover exactly this shortfall (CLAUDE.md Step 3/4).
 
     Underweight allocation is weighted by normalized Momentum_Score, NOT gap size or pro-rata:
-    see `min_momentum_score_to_fill_underweight` and `_momentum_weighted_split` below."""
+    see `min_momentum_score_to_fill_underweight` and `_momentum_weighted_split` below.
+
+    Finally, every allocation (Alpha AND Underweight alike) is subject to `max_sector_percentage`
+    — see the sector-cap pass at the end of this function — so a single correlated theme
+    (`sector_groups` in portfolio_targets.json, e.g. leveraged ETFs or AI/semis) can't be
+    over-concentrated across several simultaneously-funded symbols even when each individually
+    clears `max_portfolio_percentage`."""
     cfg = ctx.config
 
     lookback_days = max(30, cfg.meta.momentum_lookback_days + 25)
@@ -474,6 +480,36 @@ def step3_alpha_leader(ctx: RunContext, broker: BrokerClient) -> Dict[str, float
             allocations[sym] = allocations.get(sym, 0.0) + dollars
 
     ctx.harvest_needed_dollars = alpha_harvest_needed + underweight_harvest_needed
+
+    # --- Sector/theme concentration cap (max_sector_percentage) — final pass over the complete
+    # allocations dict, so it uniformly covers both the Alpha allocation and every Underweight
+    # allocation regardless of which pot the dollars came from. For each sector_groups member
+    # group whose PROJECTED total (current market value + everything planned above) would exceed
+    # max_sector_percentage of account_balance, scale every member's planned dollars down
+    # proportionally so the group's projected total lands exactly at the cap. Symbols in no group
+    # are entirely unaffected. Mirrors Step 6's existing hard-cap proportional-scaling pattern;
+    # like that mechanism, this can leave harvest_needed_dollars (computed just above, before this
+    # scale-down) sized larger than what actually gets spent — the surplus simply isn't harvested
+    # down again here, it just stays as unspent cash, same graceful-degradation behavior as any
+    # other funding shortfall/overshoot in this pipeline.
+    if cfg.sector_groups and cfg.meta.max_sector_percentage > 0:
+        sector_cap_dollars = cfg.meta.max_sector_percentage / 100 * ctx.account_balance
+        for group, members in cfg.sector_groups.items():
+            planned = sum(allocations.get(s, 0.0) for s in members)
+            if planned <= 0:
+                continue
+            current_mv = sum(
+                ctx.drift_results[s].market_value for s in members if s in ctx.drift_results
+            )
+            projected = current_mv + planned
+            if projected <= sector_cap_dollars:
+                continue
+            headroom = max(0.0, sector_cap_dollars - current_mv)
+            scale = headroom / planned
+            for s in members:
+                if s in allocations:
+                    allocations[s] *= scale
+
     return allocations
 
 
