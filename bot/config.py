@@ -68,6 +68,7 @@ class PortfolioMetadata:
     alpha_leader_fresh_position_days: int
     alpha_leader_fresh_drawdown_percentage: float
     max_sector_percentage: float
+    wash_sale_lookback_days: int
 
 
 @dataclass(frozen=True)

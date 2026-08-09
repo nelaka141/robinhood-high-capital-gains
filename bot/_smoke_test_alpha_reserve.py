@@ -51,6 +51,7 @@ def _meta(**overrides) -> PortfolioMetadata:
         alpha_leader_fresh_position_days=3,
         alpha_leader_fresh_drawdown_percentage=15.0,
         max_sector_percentage=0.0,  # disabled by default; overridden in sector-cap tests
+        wash_sale_lookback_days=0,  # permissive by default; overridden in wash-sale tests
     )
     base.update(overrides)
     return PortfolioMetadata(**base)
