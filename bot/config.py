@@ -58,6 +58,9 @@ class PortfolioMetadata:
     minimum_alpha_leader_sell_profit: float
     alpha_leader_least_momentum_score: float
     alpha_rank_reduction_percent: float
+    min_momentum_score_to_fill_underweight: float
+    alpha_leader_fresh_position_days: int
+    alpha_leader_fresh_drawdown_percentage: float
 
 
 @dataclass(frozen=True)

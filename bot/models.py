@@ -150,6 +150,8 @@ class RunContext:
 
     blocked_liquidations: List[str] = field(default_factory=list)  # blocked AND forceSell AND held -> liquidate 100%
     drawdown_liquidations: List[str] = field(default_factory=list)
+    fresh_alpha_leader_liquidations: List[str] = field(default_factory=list)  # Fresh Alpha Leader
+                                                                                # Stop (Step 1) -> liquidate 100%
     profit_taking_sells: List[TradeIntent] = field(default_factory=list)  # GET THE PROFITS + Momentum Reversal Trim
     overweight_trims: List[TradeIntent] = field(default_factory=list)
     buys: List[TradeIntent] = field(default_factory=list)

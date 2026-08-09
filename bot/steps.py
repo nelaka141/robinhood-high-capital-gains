@@ -8,6 +8,7 @@ own structure section-by-section, so you can read a step's code next to its CLAU
 from __future__ import annotations
 
 import math
+import statistics
 import time
 from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional
@@ -114,6 +115,33 @@ def step1_fetch_state(ctx: RunContext, broker: BrokerClient, repo_dir: str = "."
         if drop_vs_peak >= drawdown_pct and drop_vs_cost >= drawdown_pct:
             ctx.drawdown_liquidations.append(sym)  # overrides target weights + lock_in_period
 
+    # --- Fresh Alpha Leader Stop: a tighter, faster-acting stop-loss scoped to a position bought
+    # AS the Alpha Leader within the last alpha_leader_fresh_position_days days, measured against
+    # the price of THAT specific buy (peak/prices.json's lastAlphaLeaderBuyPrice/Date) rather than
+    # the portfolio-wide peak/cost-basis pair the main Drawdown Audit uses. Exists because the
+    # main audit's 35%-from-peak-AND-cost-basis bar is deliberately high and only checked once per
+    # scheduled cycle — a large fresh Alpha Leader injection that drops sharply (but not
+    # catastrophically) the next day or two wouldn't trip it, yet still represents concentrated
+    # risk from a single oversized bet. Independent of who the CURRENT Alpha Leader is.
+    fresh_days = cfg.meta.alpha_leader_fresh_position_days
+    fresh_drawdown_pct = cfg.meta.alpha_leader_fresh_drawdown_percentage
+    for sym in symbols:
+        if sym in ctx.blocked_symbols or sym in ctx.drawdown_liquidations:
+            continue  # blocked, or already caught by the main Drawdown Audit -> don't double-sell
+        pos = ctx.positions.get(sym)
+        if not pos or pos.quantity <= 0:
+            continue
+        st = ctx.price_state.get(sym, AssetPriceState())
+        if st.lastAlphaLeaderBuyPrice is None or not st.lastAlphaLeaderBuyDate:
+            continue
+        buy_date = _parse_date(st.lastAlphaLeaderBuyDate)
+        if buy_date is None or (ctx.current_date - buy_date).days > fresh_days:
+            continue
+        price = ctx.quotes[sym].last_trade_price
+        drop_vs_alpha_buy = (st.lastAlphaLeaderBuyPrice - price) / st.lastAlphaLeaderBuyPrice * 100
+        if drop_vs_alpha_buy >= fresh_drawdown_pct:
+            ctx.fresh_alpha_leader_liquidations.append(sym)  # overrides target weights + lock_in_period
+
     # --- Per-asset drift (weight units) ---
     for sym in symbols:
         pos = ctx.positions.get(sym)
@@ -151,6 +179,7 @@ def has_any_breach(ctx: RunContext) -> bool:
     return (
         bool(ctx.drawdown_liquidations)
         or bool(ctx.blocked_liquidations)
+        or bool(ctx.fresh_alpha_leader_liquidations)
         or any(d.breached for d in ctx.drift_results.values())
     )
 
@@ -254,7 +283,10 @@ def step3_alpha_leader(ctx: RunContext, broker: BrokerClient) -> Dict[str, float
     Sets `ctx.harvest_needed_dollars` — the cash shortfall between this cycle's FULL asks (the
     Alpha Leader's multiplier injection, plus fully closing every Underweight target's drift gap)
     and what `base_deployable_cash` alone can fund. `step4_profit_taking`'s Overweight-trim tail
-    sizes real sells to cover exactly this shortfall (CLAUDE.md Step 3/4)."""
+    sizes real sells to cover exactly this shortfall (CLAUDE.md Step 3/4).
+
+    Underweight allocation is weighted by normalized Momentum_Score, NOT gap size or pro-rata:
+    see `min_momentum_score_to_fill_underweight` and `_momentum_weighted_split` below."""
     cfg = ctx.config
 
     lookback_days = max(30, cfg.meta.momentum_lookback_days + 25)
@@ -323,17 +355,72 @@ def step3_alpha_leader(ctx: RunContext, broker: BrokerClient) -> Dict[str, float
     # so subtracting the target up front never allocates cash that isn't really available.
     remaining_for_underweight = max(0.0, base_deployable_cash - ctx.alpha_leader_reserve_target)
 
-    underweight = [
-        sym for sym in in_play_symbols(ctx)
-        if ctx.drift_results[sym].breached
-        and ctx.drift_results[sym].is_underweight
-        and sym not in ctx.buy_guarded_symbols
-        and sym != ctx.alpha_leader  # already funded via the Alpha allocation below — no double-dip
-    ]
+    # A candidate must also clear min_momentum_score_to_fill_underweight to be considered at all
+    # — a symbol below the floor (or with no computable Momentum_Score) is fully excluded from
+    # the Underweight pool this cycle: not funded, and its own gap doesn't inflate total_gap or
+    # trigger extra harvesting on its behalf either (CLAUDE.md Step 3, "Underweight allocation").
+    momentum_floor = cfg.meta.min_momentum_score_to_fill_underweight
+    underweight: List[str] = []
+    for sym in in_play_symbols(ctx):
+        dr = ctx.drift_results[sym]
+        if not (dr.breached and dr.is_underweight):
+            continue
+        if sym in ctx.buy_guarded_symbols or sym == ctx.alpha_leader:
+            continue  # buy-guarded, or already funded via the Alpha allocation — no double-dip
+        score = ctx.momentum_scores[sym].score if sym in ctx.momentum_scores else None
+        if score is None or score < momentum_floor:
+            reason = (
+                f"Momentum_Score ({score:.2f}) below min_momentum_score_to_fill_underweight "
+                f"({momentum_floor:.2f})" if score is not None
+                else f"no Momentum_Score available (below min_momentum_score_to_fill_underweight "
+                     f"floor of {momentum_floor:.2f})"
+            )
+            ctx.skipped.append(SkippedTrade(sym, reason, "Underweight buy"))
+            continue
+        underweight.append(sym)
 
     def _gap(sym: str) -> float:
         dr = ctx.drift_results[sym]
         return max(0.0, dr.target_percentage / 100 * ctx.account_balance - dr.market_value)
+
+    def _momentum_weighted_split(candidates: List[str], pool_dollars: float) -> Dict[str, float]:
+        """Splits `pool_dollars` across `candidates` weighted by each one's Momentum_Score,
+        normalized so the LOWEST-scoring qualifying candidate maps to 0 (e.g. scores +17/+14/+7/-2
+        normalize to 19/16/9/0), then weighted by that normalized score divided by the normalized
+        set's standard deviation. (Dividing every candidate by the same shared stdev doesn't
+        change the RATIOS between them — the resulting split is proportional to the normalized
+        scores themselves; the stdev term standardizes the units without altering the outcome.)
+
+        A candidate whose RAW (un-normalized) Momentum_Score is negative is additionally capped
+        at the pro-rata share its own portfolio_targets.json `weight` field would give it among
+        the qualifying set — so a name with genuinely negative momentum never gets a
+        momentum-boosted allocation, only ever the same modest weight-proportional share it would
+        get regardless of momentum. Capped-away dollars are NOT redistributed to other
+        candidates — same "no re-allocation" principle CLAUDE.md already applies when a
+        downstream gate (e.g. buy_price_diff_limit) drops a candidate after Step 3 has sized it."""
+        if not candidates or pool_dollars <= 0:
+            return {}
+        scores = {s: ctx.momentum_scores[s].score for s in candidates}
+        min_score = min(scores.values())
+        normalized = {s: scores[s] - min_score for s in candidates}
+        if len(candidates) >= 2 and len(set(normalized.values())) > 1:
+            stdev = statistics.stdev(normalized.values())
+            weights = {s: normalized[s] / stdev for s in candidates}
+        else:
+            # A single qualifying candidate, or every one tied on Momentum_Score -> no dispersion
+            # to weight by (stdev would be 0 or undefined) -> split evenly instead.
+            weights = {s: 1.0 for s in candidates}
+        total_weight = sum(weights.values())
+
+        weight_field_sum = sum(cfg.targets[s].weight for s in candidates)
+        result: Dict[str, float] = {}
+        for s in candidates:
+            share = pool_dollars * weights[s] / total_weight
+            if scores[s] < 0 and weight_field_sum > 0:
+                cap = pool_dollars * (cfg.targets[s].weight / weight_field_sum)
+                share = min(share, cap)
+            result[s] = share
+        return result
 
     allocations: Dict[str, float] = {}
     alpha_harvest_needed = 0.0
@@ -370,21 +457,21 @@ def step3_alpha_leader(ctx: RunContext, broker: BrokerClient) -> Dict[str, float
     total_gap = sum(_gap(s) for s in underweight)
     underweight_harvest_needed = 0.0
     if total_gap > remaining_for_underweight:
-        # Cash alone can't close every Underweight gap -> ask for each symbol's FULL gap (not a
-        # scaled-down pro-rata share) and harvest the shortfall via Overweight trims below.
-        # step6b's hard-cap safety net still scales everything down proportionally if the actual
-        # post-sell buying power falls short of this ideal ask for any reason (e.g. a sized trim
-        # gets dropped by a later price-limit halt) — same graceful-degradation behavior as any
-        # other planned buy.
-        for sym in underweight:
-            allocations[sym] = allocations.get(sym, 0.0) + _gap(sym)
+        # Cash alone can't close every qualifying Underweight gap in aggregate -> the shortfall
+        # (harvested via Overweight trims below) still targets closing the FULL total_gap, but
+        # the resulting ask is distributed across candidates by normalized-Momentum_Score weight
+        # (_momentum_weighted_split above) rather than each symbol's own gap size — some
+        # candidates may end up asked for more or less than their individual gap, but the total
+        # ask still sums to total_gap, so the harvest-shortfall math below is unaffected.
+        for sym, dollars in _momentum_weighted_split(underweight, total_gap).items():
+            allocations[sym] = allocations.get(sym, 0.0) + dollars
         underweight_harvest_needed = total_gap - remaining_for_underweight
     elif total_gap > 0 and remaining_for_underweight > 0:
-        # Cash is abundant enough to close every gap (and then some) -> existing behavior:
-        # deploy the full remaining_for_underweight pool, weighted by gap share, to maximize
-        # capital deployment (CLAUDE.md Step 7: keep cash lean, close to min_cash_target).
-        for sym in underweight:
-            allocations[sym] = allocations.get(sym, 0.0) + remaining_for_underweight * (_gap(sym) / total_gap)
+        # Cash is abundant enough to close every gap (and then some) -> deploy the FULL
+        # remaining_for_underweight pool (CLAUDE.md Step 7: keep cash lean, close to
+        # min_cash_target), distributed by normalized-Momentum_Score weight rather than gap size.
+        for sym, dollars in _momentum_weighted_split(underweight, remaining_for_underweight).items():
+            allocations[sym] = allocations.get(sym, 0.0) + dollars
 
     ctx.harvest_needed_dollars = alpha_harvest_needed + underweight_harvest_needed
     return allocations
@@ -861,7 +948,15 @@ def step6a_prepare_sells(
                     reason="Blocked + forceSell: liquidating full position (100%)")
         for sym in ctx.blocked_liquidations if sym in ctx.positions
     ]
-    all_sells = liquidations + blocked_liquidations + ctx.profit_taking_sells + ctx.overweight_trims
+    fresh_alpha_leader_liquidations = [
+        TradeIntent(symbol=sym, side="sell", quantity=ctx.positions[sym].quantity,
+                    reason="Fresh Alpha Leader Stop: emergency liquidation (100%)")
+        for sym in ctx.fresh_alpha_leader_liquidations if sym in ctx.positions
+    ]
+    all_sells = (
+        liquidations + blocked_liquidations + fresh_alpha_leader_liquidations
+        + ctx.profit_taking_sells + ctx.overweight_trims
+    )
 
     selling_syms = _selling_symbols(ctx)
     eligible_buys = {
@@ -907,6 +1002,9 @@ def step6a_prepare_sells(
     # would have made cli.py's _update_peak_prices mark a never-sold symbol as liquidated.
     ctx.drawdown_liquidations = [s for s in ctx.drawdown_liquidations if s in placed_symbols]
     ctx.blocked_liquidations = [s for s in ctx.blocked_liquidations if s in placed_symbols]
+    ctx.fresh_alpha_leader_liquidations = [
+        s for s in ctx.fresh_alpha_leader_liquidations if s in placed_symbols
+    ]
     ctx.profit_taking_sells = [t for t in ctx.profit_taking_sells if t.symbol in placed_symbols]
     ctx.overweight_trims = [t for t in ctx.overweight_trims if t.symbol in placed_symbols]
 

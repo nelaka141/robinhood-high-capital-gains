@@ -156,7 +156,11 @@ def _update_peak_prices(ctx: RunContext) -> None:
         price = ctx.quotes[sym].last_trade_price
         if st.peakPrice is None or price > st.peakPrice:
             st.peakPrice, st.peakDate = price, today
-        if sym in ctx.drawdown_liquidations or sym in ctx.blocked_liquidations:
+        if (
+            sym in ctx.drawdown_liquidations
+            or sym in ctx.blocked_liquidations
+            or sym in ctx.fresh_alpha_leader_liquidations
+        ):
             st.liquidatedPrice, st.liquidatedDate = price, today
 
 
@@ -169,6 +173,12 @@ def _update_profit_sell_and_purchase_dates(ctx: RunContext) -> None:
     for t in ctx.buys:
         st = ctx.price_state[t.symbol]
         st.lastPurchaseDate = today
+        if t.symbol == ctx.alpha_leader:
+            # Fresh Alpha Leader Stop (Step 1) basis: the price of THIS buy, not avg_cost_basis
+            # or the portfolio-wide peak — reset every time this symbol acts as Alpha Leader
+            # again, so the tighter window always tracks the most recent injection.
+            st.lastAlphaLeaderBuyPrice = ctx.quotes[t.symbol].last_trade_price
+            st.lastAlphaLeaderBuyDate = today
         # Repurchase after a FULL-exit profit-sell (Step 6): reset the peak to the purchase
         # price. Detected by: this symbol carries a profitSellDate AND held zero shares going
         # into this buy (a partial-sell remainder always leaves nonzero shares, so this only

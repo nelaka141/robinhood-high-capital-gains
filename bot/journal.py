@@ -84,6 +84,7 @@ def render_entry(ctx: RunContext) -> str:
     ts = ctx.current_date.isoformat()
     n_sells = (
         len(ctx.drawdown_liquidations) + len(ctx.blocked_liquidations)
+        + len(ctx.fresh_alpha_leader_liquidations)
         + len(ctx.profit_taking_sells) + len(ctx.overweight_trims)
     )
     n_buys = len(ctx.buys)
@@ -101,6 +102,12 @@ def render_entry(ctx: RunContext) -> str:
         "",
         "## Drawdown Audit",
         f"Emergency liquidations: {', '.join(ctx.drawdown_liquidations) or 'none'}",
+        "",
+        "## Fresh Alpha Leader Stop",
+        f"Liquidations (bought as Alpha Leader within "
+        f"{ctx.config.meta.alpha_leader_fresh_position_days}d, dropped >= "
+        f"{ctx.config.meta.alpha_leader_fresh_drawdown_percentage:.1f}% from that buy price): "
+        f"{', '.join(ctx.fresh_alpha_leader_liquidations) or 'none'}",
         "",
         "## Excluded / Buy-Guarded Symbols (Step 2)",
     ]
@@ -202,6 +209,7 @@ def render_entry(ctx: RunContext) -> str:
 def render_email_summary(ctx: RunContext) -> str:
     n_sells = (
         len(ctx.drawdown_liquidations) + len(ctx.blocked_liquidations)
+        + len(ctx.fresh_alpha_leader_liquidations)
         + len(ctx.profit_taking_sells) + len(ctx.overweight_trims)
     )
     return (
