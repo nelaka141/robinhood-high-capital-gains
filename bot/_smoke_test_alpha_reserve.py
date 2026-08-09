@@ -176,6 +176,30 @@ def test_fallback_rank_reduction_floors_at_zero() -> None:
     print("[fallback-rank-reduction-floor] 150%/rank reduction at rank 2 -> allocation floors at $0.00 — OK")
 
 
+def test_alpha_leader_excluded_from_underweight_pool() -> None:
+    """MID (the fallback Alpha Leader here) is ALSO Underweight & breached. It must NOT
+    additionally receive an Underweight-gap allocation on top of its $650 Alpha allocation —
+    that would double-fund the same symbol from two different pots. UW1 (the only OTHER
+    Underweight candidate) should still get its normal share of what's left."""
+    ctx = _ctx_for_step3()
+    ctx.buy_guarded_symbols = {"TOP": "profit-sold recently"}
+    # Make MID itself Underweight & breached (it wasn't, by default) so it would ordinarily also
+    # compete for the Underweight cash pool: target_weight 60 vs actual_weight 25, mv unchanged.
+    ctx.drift_results["MID"] = DriftResult("MID", 25, 25, 60, 60, 35, 1, market_value=500.0)
+    allocations = step3_alpha_leader(ctx, _Step3Broker())
+    assert ctx.alpha_leader == "MID"
+    assert allocations.get("MID") == 650.0, (
+        f"MID's allocation must be exactly its $650 Alpha allocation, no added Underweight gap, "
+        f"got {allocations.get('MID')}"
+    )
+    # remaining_for_underweight = base_deployable_cash $1000 - alpha_leader_reserve_target $650
+    # = $350; UW1 is the only remaining Underweight candidate (gap $300 <= $350 available) -> it
+    # gets the full $350 pool (over-deploy rule), same as if MID had never been Underweight at all.
+    assert allocations.get("UW1") == 350.0, f"expected UW1 to get the full $350 pool alone, got {allocations.get('UW1')}"
+    print(f"[alpha-leader-excluded-from-underweight] MID (Alpha Leader + Underweight) allocation "
+          f"stays at ${allocations['MID']:.2f} (no double-dip); UW1 alone gets ${allocations['UW1']:.2f} — OK")
+
+
 def test_fallback_capped_by_own_headroom_leaves_reserve_partially_spent() -> None:
     """MID is already near its own max_portfolio_percentage cap -> it can only draw PART of the
     reserve sized for TOP; the rest stays reserved (checked via resolve_alpha_leader_reserve in
@@ -205,17 +229,20 @@ def test_cascade_stops_at_least_momentum_score_floor() -> None:
 
 def test_underweight_shortfall_requests_full_gap_and_harvests() -> None:
     """UW1 mv=$100 (instead of the default $700) -> gap = 1000-100 = $900, exceeding
-    remaining_for_underweight ($600) -> UW1 should get its FULL $900 gap request (not a
-    proportionally-reduced pro-rata share), and the $300 shortfall should show up in
-    harvest_needed_dollars. Isolate this from the alpha side by guarding TOP AND setting the
-    floor above MID's score, so no Alpha Leader buy competes for harvest budget."""
+    remaining_for_underweight (base_deployable_cash $1000 - alpha_leader_reserve_target $650 =
+    $350 — the FULL reserve target is carved out now, not just the $400 raw Alpha target, so
+    less is "free" for Underweight even though no Alpha Leader actually buys this cycle) -> UW1
+    should get its FULL $900 gap request (not a proportionally-reduced pro-rata share), and the
+    $550 shortfall should show up in harvest_needed_dollars. Isolate this from the alpha side by
+    guarding TOP AND setting the floor above MID's score, so no Alpha Leader buy competes for
+    harvest budget."""
     ctx = _ctx_for_step3(mv={"UW1": 100.0}, alpha_leader_least_momentum_score=20.0)
     ctx.buy_guarded_symbols = {"TOP": "profit-sold recently"}
     allocations = step3_alpha_leader(ctx, _Step3Broker())
     assert ctx.alpha_leader is None
-    assert allocations.get("UW1") == 900.0, f"expected UW1's full $900 gap (not capped to $600), got {allocations.get('UW1')}"
-    assert ctx.harvest_needed_dollars == 300.0, f"expected $300 shortfall ($900 gap - $600 available), got {ctx.harvest_needed_dollars}"
-    print("[underweight-shortfall] UW1 requests full $900 gap, $300 harvest shortfall flagged — OK")
+    assert allocations.get("UW1") == 900.0, f"expected UW1's full $900 gap (not capped to $350), got {allocations.get('UW1')}"
+    assert ctx.harvest_needed_dollars == 550.0, f"expected $550 shortfall ($900 gap - $350 available), got {ctx.harvest_needed_dollars}"
+    print("[underweight-shortfall] UW1 requests full $900 gap, $550 harvest shortfall flagged — OK")
 
 
 def test_resolve_reserve_shrinks_to_zero_when_fully_bought() -> None:
@@ -423,6 +450,7 @@ def main() -> None:
     test_fallback_rank_reduction_applies_haircut()
     test_top_momentum_unaffected_by_rank_reduction()
     test_fallback_rank_reduction_floors_at_zero()
+    test_alpha_leader_excluded_from_underweight_pool()
     test_fallback_capped_by_own_headroom_leaves_reserve_partially_spent()
     test_cascade_stops_at_least_momentum_score_floor()
     test_underweight_shortfall_requests_full_gap_and_harvests()
