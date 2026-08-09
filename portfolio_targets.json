@@ -1,6 +1,6 @@
 {
   "portfolio_metadata": {
-    "version": "2.45.0",
+    "version": "2.46.0",
     "last_updated": "2026-08-09",
     "global_drift_tolerance": 1.0,
     "max_trailing_drawdown_percentage": 35,
@@ -100,19 +100,19 @@
   "forceSell": [{"asset": "LTRN", "triggerPrice": 4.5}],
   "blocked": ["LTRN"],
   "sector_groups": {
-    "leveraged_etf": ["TQQQ", "SOXL"],
+    "leveraged_etf": {"members": ["TQQQ", "SOXL"], "maxPercentage": 10.0},
     "semis_ai_infra": ["NVDA", "AMD", "INTC", "MU", "AVGO", "ARM", "SMCI", "VRT"],
-    "crypto_adjacent": ["MSTR", "COIN", "HOOD"],
+    "crypto_adjacent": {"members": ["MSTR", "COIN", "HOOD"], "maxPercentage": 7.0},
     "megacap_tech": ["AAPL", "MSFT", "GOOG", "META", "AMZN", "NFLX", "ORCL", "PLTR", "IBM"],
-    "ev_auto": ["TSLA", "F", "GM"],
-    "quantum_space": ["IONQ", "SPCX"],
-    "healthcare": ["UNH", "LLY", "JNJ"],
-    "financials": ["JPM", "BRK.B", "V"],
-    "industrials": ["CAT", "UNP", "GE"],
-    "consumer": ["WMT", "PG", "COST", "HD"],
-    "energy": ["XOM", "CVX", "COP"],
-    "utilities": ["SO", "DUK", "NEE"],
-    "reits": ["PLD", "AMT", "EQIX"],
-    "materials": ["LIN", "FCX", "SHW"]
+    "ev_auto": {"members": ["TSLA", "F", "GM"], "maxPercentage": 15.0},
+    "quantum_space": {"members": ["IONQ", "SPCX"], "maxPercentage": 15.0},
+    "healthcare": {"members": ["UNH", "LLY", "JNJ"], "maxPercentage": 12.0},
+    "financials": {"members": ["JPM", "BRK.B", "V"], "maxPercentage": 10.0},
+    "industrials": {"members": ["CAT", "UNP", "GE"], "maxPercentage": 10.0},
+    "consumer": {"members": ["WMT", "PG", "COST", "HD"], "maxPercentage": 12.0},
+    "energy": {"members": ["XOM", "CVX", "COP"], "maxPercentage": 15.0},
+    "utilities": {"members": ["SO", "DUK", "NEE"], "maxPercentage": 8.0},
+    "reits": {"members": ["PLD", "AMT", "EQIX"], "maxPercentage": 12.0},
+    "materials": {"members": ["LIN", "FCX", "SHW"], "maxPercentage": 15.0}
   }
 }
