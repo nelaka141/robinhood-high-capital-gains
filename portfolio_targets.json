@@ -1,7 +1,7 @@
 {
   "portfolio_metadata": {
-    "version": "2.42.0",
-    "last_updated": "2026-08-08",
+    "version": "2.43.0",
+    "last_updated": "2026-08-09",
     "global_drift_tolerance": 1.0,
     "max_trailing_drawdown_percentage": 35,
     "min_recovery_price_percentage": 5.0,
@@ -10,7 +10,7 @@
     "alpha_cash_allocation_percentage": 20.0,
     "min_cash_absolute": 250,
     "min_cash_target": 500,
-    "seek_approval_value": 10000,
+    "seek_approval_value": 20000,
     "sell_price_diff_limit": 5,
     "buy_price_diff_limit": 5,
     "no_of_days_for_price_compare": 3,
