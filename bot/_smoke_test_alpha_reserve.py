@@ -18,6 +18,7 @@ Run: PYTHONPATH=. python3 bot/_smoke_test_alpha_reserve.py
 from __future__ import annotations
 
 import math
+import statistics
 from datetime import date
 
 from bot.config import AssetTarget, PortfolioConfig, PortfolioMetadata
@@ -46,6 +47,9 @@ def _meta(**overrides) -> PortfolioMetadata:
         minimum_alpha_leader_sell_profit=600.0,  # a DOLLAR floor, not a percentage
         alpha_leader_least_momentum_score=10.0,
         alpha_rank_reduction_percent=0.0,  # no rank haircut by default; overridden in rank tests
+        min_momentum_score_to_fill_underweight=-1000.0,  # permissive by default; overridden in floor tests
+        alpha_leader_fresh_position_days=3,
+        alpha_leader_fresh_drawdown_percentage=15.0,
     )
     base.update(overrides)
     return PortfolioMetadata(**base)
@@ -243,6 +247,145 @@ def test_underweight_shortfall_requests_full_gap_and_harvests() -> None:
     assert allocations.get("UW1") == 900.0, f"expected UW1's full $900 gap (not capped to $350), got {allocations.get('UW1')}"
     assert ctx.harvest_needed_dollars == 550.0, f"expected $550 shortfall ($900 gap - $350 available), got {ctx.harvest_needed_dollars}"
     print("[underweight-shortfall] UW1 requests full $900 gap, $550 harvest shortfall flagged — OK")
+
+
+def _underweight_series(drift: float) -> list:
+    return _series(drift=drift)
+
+
+class _UnderweightBroker:
+    """Per-symbol close series keyed by drift, so step3_alpha_leader's real RSI(14)/EMA(9) math
+    produces a controlled, verifiable Momentum_Score per symbol (quotes fixed at $100 in the ctx
+    below, so score depends only on the series, not on a separate live price)."""
+    def __init__(self, drifts: dict):
+        self._drifts = drifts
+
+    def get_daily_closes(self, symbol, start, end):
+        return _underweight_series(self._drifts[symbol])
+
+
+def _ctx_for_underweight_split(symbols: list, weights: dict = None, **meta_overrides) -> tuple:
+    """No Alpha Leader competes for the pool (alpha_cash_allocation_percentage=0 and
+    reinvestment_multiplier_factor=1.0 -> alpha_leader_reserve_target=0 regardless of who ranks
+    top), so remaining_for_underweight = base_deployable_cash exactly ($1000). Each symbol gets a
+    small, equal drift gap ($100, well under the $1000 pool) so total_gap never exceeds
+    remaining_for_underweight -> always the pro-rata/abundant branch, pool = $1000."""
+    # alpha_leader_least_momentum_score set impossibly high so NO symbol here can ever become the
+    # acting Alpha Leader (which would exclude it from the Underweight pool via the "no
+    # double-dip" rule) -> every symbol in `symbols` competes purely as an Underweight candidate.
+    meta_defaults = dict(min_momentum_score_to_fill_underweight=-1000.0, alpha_leader_least_momentum_score=9999.0)
+    meta_defaults.update(meta_overrides)
+    weights = weights or {s: 1.0 for s in symbols}
+    cfg = PortfolioConfig(
+        meta=_meta(
+            alpha_cash_allocation_percentage=0.0, reinvestment_multiplier_factor=1.0,
+            max_portfolio_percentage=90.0, **meta_defaults,
+        ),
+        targets={s: AssetTarget(s, weight=weights[s]) for s in symbols},
+        force_sell={}, blocked=[],
+    )
+    ctx = RunContext(current_date=date(2026, 8, 7), config=cfg, account_number="TEST")
+    ctx.current_cash = 1000.0
+    ctx.tax_reserve = 0.0
+    ctx.account_balance = 10000.0
+    ctx.quotes = {s: Quote(s, last_trade_price=100.0) for s in symbols}
+    ctx.drift_results = {
+        s: DriftResult(s, current_percentage=0, actual_weight=0, target_weight=1.0,
+                        target_percentage=1.0, drift=1.0, asset_drift_tolerance=0.1, market_value=0.0)
+        for s in symbols
+    }
+    return ctx, cfg
+
+
+def _reference_momentum_split(scores: dict, weights: dict, pool: float) -> dict:
+    """Independent reimplementation of CLAUDE.md's "Underweight allocation" formula, used to
+    verify step3_alpha_leader's actual output rather than hardcoding brittle float literals."""
+    min_score = min(scores.values())
+    normalized = {s: scores[s] - min_score for s in scores}
+    if len(scores) >= 2 and len(set(normalized.values())) > 1:
+        sd = statistics.stdev(normalized.values())
+        w = {s: normalized[s] / sd for s in scores}
+    else:
+        w = {s: 1.0 for s in scores}
+    total_w = sum(w.values())
+    weight_field_sum = sum(weights.values())
+    result = {}
+    for s in scores:
+        share = pool * w[s] / total_w
+        if scores[s] < 0 and weight_field_sum > 0:
+            cap = pool * weights[s] / weight_field_sum
+            share = min(share, cap)
+        result[s] = share
+    return result
+
+
+def test_underweight_floor_excludes_low_momentum_and_zeros_the_minimum() -> None:
+    """5-candidate scenario mirroring the user's AMT/HOOD/FCX/UNH/V example: V's Momentum_Score
+    falls below min_momentum_score_to_fill_underweight and must be fully excluded (no allocation,
+    doesn't compete at all); UNH is the lowest-scoring QUALIFYING candidate, normalizes to 0, and
+    gets exactly $0 from the score-weighted split."""
+    symbols = ["AMT", "HOOD", "FCX", "UNH", "V"]
+    drifts = {"AMT": 0.01, "HOOD": 0.0, "FCX": -0.03, "UNH": -0.1, "V": -0.12}
+    ctx, cfg = _ctx_for_underweight_split(symbols, min_momentum_score_to_fill_underweight=-5.0)
+    allocations = step3_alpha_leader(ctx, _UnderweightBroker(drifts))
+
+    assert ctx.momentum_scores["V"].score < -5.0, "fixture assumption: V's score must actually fail the floor"
+    assert "V" not in allocations, f"V's score is below the floor -> must be fully excluded, got {allocations.get('V')}"
+    assert any(s.symbol == "V" and "min_momentum_score_to_fill_underweight" in s.reason for s in ctx.skipped), \
+        "V's exclusion should be logged with the floor as the reason"
+
+    qualifying = [s for s in symbols if s != "V"]
+    scores = {s: ctx.momentum_scores[s].score for s in qualifying}
+    weights = {s: cfg.targets[s].weight for s in qualifying}
+    expected = _reference_momentum_split(scores, weights, 1000.0)
+    for s in qualifying:
+        assert math.isclose(allocations.get(s, 0.0), expected[s], abs_tol=0.01), (
+            f"{s}: expected ${expected[s]:.2f} (reference formula), got ${allocations.get(s, 0.0):.2f}"
+        )
+    assert math.isclose(allocations["UNH"], 0.0, abs_tol=0.01), \
+        f"UNH (lowest qualifying score) should normalize to 0 and get ~$0, got ${allocations['UNH']:.2f}"
+    assert allocations["AMT"] > allocations["HOOD"] > allocations["FCX"] > allocations["UNH"], \
+        "allocation ordering should follow the momentum ranking"
+    print(f"[underweight-floor] V excluded (score {ctx.momentum_scores['V'].score:.2f} < -5.0); "
+          f"AMT=${allocations['AMT']:.2f} HOOD=${allocations['HOOD']:.2f} "
+          f"FCX=${allocations['FCX']:.2f} UNH=${allocations['UNH']:.2f} (all match reference formula) — OK")
+
+
+def test_underweight_negative_momentum_cap_binds() -> None:
+    """B's raw Momentum_Score is negative but B is NOT the minimum (C scores lower), so B's
+    score-weighted share alone would be meaningfully positive. Giving B a deliberately tiny
+    portfolio_targets.json `weight` (0.05 vs A/C's 1.0) makes the weight-proportional cap bind
+    below B's score-weighted share -> B's actual allocation must be the SMALLER, capped figure,
+    and the capped-away dollars must NOT be redistributed to A or C (sum < pool)."""
+    symbols = ["A", "B", "C"]
+    drifts = {"A": 0.2, "B": -0.1, "C": -0.15}
+    weights = {"A": 1.0, "B": 0.05, "C": 1.0}
+    ctx, cfg = _ctx_for_underweight_split(symbols, weights, min_momentum_score_to_fill_underweight=-20.0)
+    allocations = step3_alpha_leader(ctx, _UnderweightBroker(drifts))
+
+    assert ctx.momentum_scores["B"].score < 0, "fixture assumption: B's raw score must be negative"
+    assert ctx.momentum_scores["C"].score < ctx.momentum_scores["B"].score, \
+        "fixture assumption: C must score lower than B so B is not the normalized minimum"
+
+    scores = {s: ctx.momentum_scores[s].score for s in symbols}
+    uncapped = _reference_momentum_split(scores, {s: 1.0 for s in symbols}, 1000.0)  # weights all equal -> no cap
+    capped = _reference_momentum_split(scores, weights, 1000.0)
+
+    assert uncapped["B"] > capped["B"], (
+        f"sanity check: B's uncapped share (${uncapped['B']:.2f}) must exceed its capped share "
+        f"(${capped['B']:.2f}) for this to be a meaningful test of the cap"
+    )
+    assert math.isclose(allocations["B"], capped["B"], abs_tol=0.01), (
+        f"B's negative raw score should cap it at its tiny weight-field's pro-rata share "
+        f"(${capped['B']:.2f}), got ${allocations['B']:.2f} (uncapped would be ${uncapped['B']:.2f})"
+    )
+    total_allocated = sum(allocations.get(s, 0.0) for s in symbols)
+    assert total_allocated < 1000.0 - 1.0, (
+        f"capped-away dollars must NOT be redistributed to A/C -> total allocated (${total_allocated:.2f}) "
+        f"should be meaningfully less than the $1000 pool"
+    )
+    print(f"[underweight-negative-cap] B capped at ${allocations['B']:.2f} (uncapped would've been "
+          f"${uncapped['B']:.2f}); total allocated ${total_allocated:.2f} < $1000 pool, no re-allocation — OK")
 
 
 def test_resolve_reserve_shrinks_to_zero_when_fully_bought() -> None:
@@ -454,6 +597,8 @@ def main() -> None:
     test_fallback_capped_by_own_headroom_leaves_reserve_partially_spent()
     test_cascade_stops_at_least_momentum_score_floor()
     test_underweight_shortfall_requests_full_gap_and_harvests()
+    test_underweight_floor_excludes_low_momentum_and_zeros_the_minimum()
+    test_underweight_negative_momentum_cap_binds()
     test_resolve_reserve_shrinks_to_zero_when_fully_bought()
     test_resolve_reserve_shrinks_partially_when_partially_bought()
     test_resolve_reserve_stays_full_when_nobody_bought()

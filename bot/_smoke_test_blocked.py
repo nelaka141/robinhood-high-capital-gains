@@ -50,6 +50,8 @@ def _cfg(blocked, force_sell) -> PortfolioConfig:
         momentum_lookback_days=5, momentum_reversal_threshold=-10.0,
         minimum_alpha_leader_sell_profit=5.0, alpha_leader_least_momentum_score=-1000.0,
         alpha_rank_reduction_percent=10.0,
+        min_momentum_score_to_fill_underweight=-1000.0,
+        alpha_leader_fresh_position_days=3, alpha_leader_fresh_drawdown_percentage=15.0,
     )
     targets = {
         "LTRN": AssetTarget(symbol="LTRN", weight=0.5, drift=0.3),

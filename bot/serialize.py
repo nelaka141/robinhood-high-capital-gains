@@ -54,6 +54,7 @@ def ctx_to_jsonable(ctx: RunContext) -> Dict[str, Any]:
         "alpha_leader_reserve_target": ctx.alpha_leader_reserve_target,
         "blocked_liquidations": ctx.blocked_liquidations,
         "drawdown_liquidations": ctx.drawdown_liquidations,
+        "fresh_alpha_leader_liquidations": ctx.fresh_alpha_leader_liquidations,
         "profit_taking_sells": [asdict(t) for t in ctx.profit_taking_sells],
         "overweight_trims": [asdict(t) for t in ctx.overweight_trims],
         "skipped": [asdict(s) for s in ctx.skipped],
@@ -87,6 +88,7 @@ def ctx_from_jsonable(data: Dict[str, Any], cfg: PortfolioConfig) -> RunContext:
     ctx.alpha_leader_reserve_target = data.get("alpha_leader_reserve_target", 0.0)
     ctx.blocked_liquidations = data.get("blocked_liquidations", [])
     ctx.drawdown_liquidations = data["drawdown_liquidations"]
+    ctx.fresh_alpha_leader_liquidations = data.get("fresh_alpha_leader_liquidations", [])
     ctx.profit_taking_sells = [TradeIntent(**t) for t in data["profit_taking_sells"]]
     ctx.overweight_trims = [TradeIntent(**t) for t in data["overweight_trims"]]
     ctx.skipped = [SkippedTrade(**s) for s in data["skipped"]]

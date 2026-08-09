@@ -81,7 +81,11 @@ def _update_price_state(ctx: RunContext) -> None:
     today = ctx.current_date.isoformat()
     bought = {t.symbol for t in ctx.buys}
     sold_for_profit = {t.symbol for t in ctx.profit_taking_sells}
-    liquidated = set(ctx.drawdown_liquidations) | set(ctx.blocked_liquidations)
+    liquidated = (
+        set(ctx.drawdown_liquidations)
+        | set(ctx.blocked_liquidations)
+        | set(ctx.fresh_alpha_leader_liquidations)
+    )
 
     for sym in ctx.config.targets:
         st = ctx.price_state.setdefault(sym, AssetPriceState())
@@ -98,6 +102,11 @@ def _update_price_state(ctx: RunContext) -> None:
 
         if sym in bought:
             st.lastPurchaseDate = today
+            if sym == ctx.alpha_leader:
+                # Fresh Alpha Leader Stop (Step 1) basis — see cli.py's
+                # _update_profit_sell_and_purchase_dates for the identical rationale.
+                st.lastAlphaLeaderBuyPrice = price
+                st.lastAlphaLeaderBuyDate = today
             if st.profitSellDate and (sym not in sold_for_profit):
                 # Repurchased after a FULL-exit profit-sell -> fresh peak at the purchase price.
                 # A partial-sell remainder always leaves nonzero shares, so this only fires for
