@@ -22,6 +22,10 @@ class AssetPriceState:
     lastAlphaLeaderBuyPrice: Optional[float] = None  # price of the most recent buy fired while
     lastAlphaLeaderBuyDate: Optional[str] = None     # this symbol was the acting Alpha Leader —
                                                       # basis for the Fresh Alpha Leader Stop (Step 1)
+    lastLossSalePrice: Optional[float] = None  # price of the most recent sale that realized a
+    lastLossSaleDate: Optional[str] = None     # loss (any mechanism) — basis for the wash-sale
+                                                # buy-guard (Step 2): blocks repurchase for
+                                                # wash_sale_lookback_days after ANY loss sale
 
 
 def load_price_state(path: str | Path = "peak/prices.json") -> Dict[str, AssetPriceState]:

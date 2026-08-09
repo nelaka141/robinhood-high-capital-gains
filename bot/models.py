@@ -152,6 +152,9 @@ class RunContext:
     drawdown_liquidations: List[str] = field(default_factory=list)
     fresh_alpha_leader_liquidations: List[str] = field(default_factory=list)  # Fresh Alpha Leader
                                                                                 # Stop (Step 1) -> liquidate 100%
+    loss_sale_symbols: List[str] = field(default_factory=list)  # any sell this cycle (any
+        # mechanism) that realized a loss -> Step 7 stamps lastLossSaleDate/Price, arming the
+        # wash-sale buy-guard (Step 2) for wash_sale_lookback_days
     profit_taking_sells: List[TradeIntent] = field(default_factory=list)  # GET THE PROFITS + Momentum Reversal Trim
     overweight_trims: List[TradeIntent] = field(default_factory=list)
     buys: List[TradeIntent] = field(default_factory=list)

@@ -38,6 +38,17 @@ def _z_score_window(current_date: date) -> tuple[date, date]:
     return start, end
 
 
+def _is_loss(ctx: RunContext, sym: str) -> bool:
+    """Whether `sym`'s current price sits below its avg_cost_basis — used to decide whether a
+    liquidation/trim should arm the wash-sale buy-guard (ctx.loss_sale_symbols). Fails closed
+    (False, i.e. not flagged as a loss) if cost basis is unresolved — same "can't evaluate ->
+    don't assume" posture as the rest of the cost-basis-dependent gates."""
+    pos = ctx.positions.get(sym)
+    if not pos or pos.avg_cost_basis is None:
+        return False
+    return ctx.quotes[sym].last_trade_price < pos.avg_cost_basis
+
+
 # ============================================================================================
 # Step 1 — Fetch State & Track Trailing Drawdowns
 # ============================================================================================
@@ -87,6 +98,8 @@ def step1_fetch_state(ctx: RunContext, broker: BrokerClient, repo_dir: str = "."
         if held and cfg.force_sell_active(sym, price):
             ctx.blocked_symbols[sym] = "blocked, but forceSell + currently held — liquidating full position instead of freezing"
             ctx.blocked_liquidations.append(sym)
+            if _is_loss(ctx, sym):
+                ctx.loss_sale_symbols.append(sym)
         elif held and sym in cfg.force_sell:
             # Listed in forceSell but its triggerPrice hasn't been cleared yet this cycle —
             # stays frozen (not liquidated) until price recovers above the trigger.
@@ -114,6 +127,7 @@ def step1_fetch_state(ctx: RunContext, broker: BrokerClient, repo_dir: str = "."
         drop_vs_cost = (pos.avg_cost_basis - price) / pos.avg_cost_basis * 100
         if drop_vs_peak >= drawdown_pct and drop_vs_cost >= drawdown_pct:
             ctx.drawdown_liquidations.append(sym)  # overrides target weights + lock_in_period
+            ctx.loss_sale_symbols.append(sym)  # drop_vs_cost >= drawdown_pct guarantees a loss
 
     # --- Fresh Alpha Leader Stop: a tighter, faster-acting stop-loss scoped to a position bought
     # AS the Alpha Leader within the last alpha_leader_fresh_position_days days, measured against
@@ -141,6 +155,12 @@ def step1_fetch_state(ctx: RunContext, broker: BrokerClient, repo_dir: str = "."
         drop_vs_alpha_buy = (st.lastAlphaLeaderBuyPrice - price) / st.lastAlphaLeaderBuyPrice * 100
         if drop_vs_alpha_buy >= fresh_drawdown_pct:
             ctx.fresh_alpha_leader_liquidations.append(sym)  # overrides target weights + lock_in_period
+            # Measured against avg_cost_basis, not lastAlphaLeaderBuyPrice: a large drop from the
+            # fresh injection price doesn't always mean the WHOLE position is underwater (e.g. an
+            # add-on to an older, cheaper position) — only arm the wash-sale guard if it's a
+            # genuine loss on the position as a whole.
+            if _is_loss(ctx, sym):
+                ctx.loss_sale_symbols.append(sym)
 
     # --- Per-asset drift (weight units) ---
     for sym in symbols:
@@ -248,6 +268,27 @@ def step2_guardrails(ctx: RunContext, broker: BrokerClient) -> None:
                 if is_full_exit:
                     # Zero position AND buy-guarded => fully out of play, same treatment as a liquidation.
                     ctx.excluded_symbols[sym] = reason
+
+        # Wash-sale buy-guard: blocks a NEW BUY of this symbol for wash_sale_lookback_days after
+        # ANY sell that realized a loss (Drawdown Audit, Fresh Alpha Leader Stop, blocked+
+        # forceSell liquidation, or a forceSell-driven Overweight trim — see ctx.loss_sale_symbols
+        # in Step 1/4) — independent of, and can stack with, the profit-sell buy-guard above (a
+        # symbol could carry both an old profitSellDate and a newer lastLossSaleDate). Deliberately
+        # date-only (no Z-score/price-recovery condition, unlike the profit-sell guard) — the IRS
+        # wash-sale rule is a flat calendar window, not a momentum/price test. Does NOT block the
+        # emergency stops themselves from firing (Drawdown Audit and Fresh Alpha Leader Stop stay
+        # unconditional, CLAUDE.md Step 1) — it only blocks the REPURCHASE afterward, which is
+        # where the actual wash-sale risk lives for an active trading bot.
+        if st.lastLossSaleDate:
+            sell_date = _parse_date(st.lastLossSaleDate)
+            days_since = (ctx.current_date - sell_date).days if sell_date else 0
+            if days_since <= cfg.meta.wash_sale_lookback_days:
+                reason = (
+                    f"wash sale guard: sold at a loss {st.lastLossSaleDate} @ {st.lastLossSalePrice} — "
+                    f"buy-guard active until {cfg.meta.wash_sale_lookback_days}d have passed "
+                    f"({days_since}d so far)"
+                )
+                ctx.buy_guarded_symbols[sym] = reason
 
         # Overweight sell profit-margin / lock-in checks are evaluated per-candidate in Step 4,
         # since they only matter for symbols actually being considered for a trim.
@@ -846,12 +887,34 @@ def _size_overweight_trims(
             ctx.skipped.append(SkippedTrade(sym, "harvest slice rounds to 0 whole shares", "Overweight trim"))
             continue
 
-        fifo = fifo_realized_profit(broker.get_tax_lots(ctx.account_number, sym), sell_qty, price)
+        lots = broker.get_tax_lots(ctx.account_number, sym)
+        fifo = fifo_realized_profit(lots, sell_qty, price)
         if not fifo.fully_covered:
             ctx.skipped.append(SkippedTrade(
                 sym, "cost basis pending transfer on required lots (fail-closed)", "Overweight trim",
             ))
             continue
+
+        # Wash-sale guard (backward-looking): a NEGATIVE FIFO result here can only happen when
+        # forceSell overrode the overweight_sell_minimum_profit_margin_percent gate up in the
+        # caller's ranking loop (routine trims are gated to profit-only) — check whether ANY lot
+        # of this symbol (not just the ones this specific sale would consume; the IRS rule cares
+        # about ANY substantially-identical purchase in the window, not which shares are sold)
+        # was opened within wash_sale_lookback_days days. If so, skip this loss sale entirely
+        # rather than lock in a disallowed loss.
+        if fifo.realized_profit_dollars < 0:
+            wash_window_start = ctx.current_date - timedelta(days=ctx.config.meta.wash_sale_lookback_days)
+            recent_purchase = any(lot.open_date >= wash_window_start for lot in lots)
+            if recent_purchase:
+                ctx.skipped.append(SkippedTrade(
+                    sym,
+                    f"wash sale guard: FIFO loss (${fifo.realized_profit_dollars:.2f}) with a lot "
+                    f"opened within the last {ctx.config.meta.wash_sale_lookback_days}d",
+                    "Overweight trim",
+                ))
+                continue
+            ctx.loss_sale_symbols.append(sym)  # no recent purchase -> safe to sell; arms the
+                                                # forward buy-guard so we don't repurchase into one
 
         actual_dollars = sell_qty * price
         score = (intent.raw_gain_pct or 0.0) * (intent.beta or 0.0)

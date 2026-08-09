@@ -162,6 +162,10 @@ def _update_peak_prices(ctx: RunContext) -> None:
             or sym in ctx.fresh_alpha_leader_liquidations
         ):
             st.liquidatedPrice, st.liquidatedDate = price, today
+        if sym in ctx.loss_sale_symbols:
+            # Wash-sale buy-guard (Step 2) basis: arms wash_sale_lookback_days regardless of
+            # which mechanism realized the loss.
+            st.lastLossSalePrice, st.lastLossSaleDate = price, today
 
 
 def _update_profit_sell_and_purchase_dates(ctx: RunContext) -> None:

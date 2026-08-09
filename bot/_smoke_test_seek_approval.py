@@ -37,6 +37,7 @@ def _minimal_ctx(seek_approval_value: float = 1000.0) -> RunContext:
         min_momentum_score_to_fill_underweight=-1000.0,
         alpha_leader_fresh_position_days=3, alpha_leader_fresh_drawdown_percentage=15.0,
         max_sector_percentage=0.0,
+        wash_sale_lookback_days=0,
     )
     cfg = PortfolioConfig(meta=meta, targets={}, force_sell={}, blocked=[])
     return RunContext(current_date=date(2026, 8, 7), config=cfg, account_number="TEST")

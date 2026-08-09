@@ -1,6 +1,6 @@
 {
   "portfolio_metadata": {
-    "version": "2.47.0",
+    "version": "2.48.0",
     "last_updated": "2026-08-09",
     "global_drift_tolerance": 1.0,
     "max_trailing_drawdown_percentage": 35,
@@ -31,7 +31,7 @@
     "materialize_profit_percentage": 3.0,
     "profit_sell_percentage": 50.0,
     "materialize_profit_in_dollars": 12.5,
-    "keep_aside_profits_for_tax_percent": 30.0,
+    "keep_aside_profits_for_tax_percent": 35.0,
     "momentum_lookback_days": 5,
     "momentum_reversal_threshold": -10.0,
     "minimum_alpha_leader_sell_profit": 250,
@@ -40,7 +40,8 @@
     "min_momentum_score_to_fill_underweight": -5.0,
     "alpha_leader_fresh_position_days": 3,
     "alpha_leader_fresh_drawdown_percentage": 15.0,
-    "max_sector_percentage": 40.0
+    "max_sector_percentage": 40.0,
+    "wash_sale_lookback_days": 30
   },
   "targets": {
     "TQQQ": { "weight": 1.7, "drift": 0.8 },

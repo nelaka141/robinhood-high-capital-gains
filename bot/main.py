@@ -97,6 +97,11 @@ def _update_price_state(ctx: RunContext) -> None:
         if sym in liquidated:
             st.liquidatedPrice, st.liquidatedDate = price, today
 
+        if sym in ctx.loss_sale_symbols:
+            # Wash-sale buy-guard (Step 2) basis — see cli.py's _update_peak_prices for the
+            # identical rationale.
+            st.lastLossSalePrice, st.lastLossSaleDate = price, today
+
         if sym in sold_for_profit:
             st.profitSellPrice, st.profitSellDate = price, today
 
