@@ -309,16 +309,26 @@ def step3_alpha_leader(ctx: RunContext, broker: BrokerClient) -> Dict[str, float
         return {}
 
     raw_alpha_target = base_deployable_cash * cfg.meta.alpha_cash_allocation_percentage / 100
-    # This portion of base_deployable_cash is always carved out for the Top Momentum Symbol's
-    # benefit — either spent this cycle (on whichever symbol the cascade landed on), or held in
-    # the Alpha Leader Reserve — never redirected to Underweight targets (CLAUDE.md Step 3).
-    remaining_for_underweight = base_deployable_cash - raw_alpha_target
+    multiplier_cash = base_deployable_cash * (cfg.meta.reinvestment_multiplier_factor - 1.0)
+    # alpha_leader_reserve_target: what the Top Momentum Symbol would receive if bought this
+    # cycle — always computed fresh, regardless of whether it (or anyone) actually buys.
+    ctx.alpha_leader_reserve_target = min(
+        raw_alpha_target + multiplier_cash, _headroom(ctx.top_momentum_symbol)
+    )
+    # The FULL reserve target — not just the raw Alpha target — is carved out of
+    # base_deployable_cash for the Top Momentum Symbol's benefit: whatever isn't actually spent
+    # this cycle (buy-guarded fallback, rank haircut, headroom cap, ...) stays held in the Alpha
+    # Leader Reserve rather than being handed to Underweight targets as if it were free cash —
+    # "actual alpha allocation" + "alpha reserve left over" always sums back to this same target,
+    # so subtracting the target up front never allocates cash that isn't really available.
+    remaining_for_underweight = max(0.0, base_deployable_cash - ctx.alpha_leader_reserve_target)
 
     underweight = [
         sym for sym in in_play_symbols(ctx)
         if ctx.drift_results[sym].breached
         and ctx.drift_results[sym].is_underweight
         and sym not in ctx.buy_guarded_symbols
+        and sym != ctx.alpha_leader  # already funded via the Alpha allocation below — no double-dip
     ]
 
     def _gap(sym: str) -> float:
@@ -326,13 +336,6 @@ def step3_alpha_leader(ctx: RunContext, broker: BrokerClient) -> Dict[str, float
         return max(0.0, dr.target_percentage / 100 * ctx.account_balance - dr.market_value)
 
     allocations: Dict[str, float] = {}
-    multiplier_cash = base_deployable_cash * (cfg.meta.reinvestment_multiplier_factor - 1.0)
-    # alpha_leader_reserve_target: what the Top Momentum Symbol would receive if bought this
-    # cycle — always computed fresh, regardless of whether it (or anyone) actually buys.
-    ctx.alpha_leader_reserve_target = min(
-        raw_alpha_target + multiplier_cash, _headroom(ctx.top_momentum_symbol)
-    )
-
     alpha_harvest_needed = 0.0
     if ctx.alpha_leader is not None:
         if ctx.alpha_leader == ctx.top_momentum_symbol:
