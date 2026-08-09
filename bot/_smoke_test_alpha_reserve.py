@@ -50,6 +50,7 @@ def _meta(**overrides) -> PortfolioMetadata:
         min_momentum_score_to_fill_underweight=-1000.0,  # permissive by default; overridden in floor tests
         alpha_leader_fresh_position_days=3,
         alpha_leader_fresh_drawdown_percentage=15.0,
+        max_sector_percentage=0.0,  # disabled by default; overridden in sector-cap tests
     )
     base.update(overrides)
     return PortfolioMetadata(**base)

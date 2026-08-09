@@ -1,6 +1,6 @@
 {
   "portfolio_metadata": {
-    "version": "2.44.0",
+    "version": "2.46.0",
     "last_updated": "2026-08-09",
     "global_drift_tolerance": 1.0,
     "max_trailing_drawdown_percentage": 35,
@@ -39,7 +39,8 @@
     "alpha_rank_reduction_percent": 10,
     "min_momentum_score_to_fill_underweight": -5.0,
     "alpha_leader_fresh_position_days": 3,
-    "alpha_leader_fresh_drawdown_percentage": 15.0
+    "alpha_leader_fresh_drawdown_percentage": 15.0,
+    "max_sector_percentage": 40.0
   },
   "targets": {
     "TQQQ": { "weight": 1.7, "drift": 0.8 },
@@ -97,5 +98,21 @@
 "DUK": { "weight": 1.1, "drift": 0.5 }
 },
   "forceSell": [{"asset": "LTRN", "triggerPrice": 4.5}],
-  "blocked": ["LTRN"]
+  "blocked": ["LTRN"],
+  "sector_groups": {
+    "leveraged_etf": {"members": ["TQQQ", "SOXL"], "maxPercentage": 10.0},
+    "semis_ai_infra": ["NVDA", "AMD", "INTC", "MU", "AVGO", "ARM", "SMCI", "VRT"],
+    "crypto_adjacent": {"members": ["MSTR", "COIN", "HOOD"], "maxPercentage": 7.0},
+    "megacap_tech": ["AAPL", "MSFT", "GOOG", "META", "AMZN", "NFLX", "ORCL", "PLTR", "IBM"],
+    "ev_auto": {"members": ["TSLA", "F", "GM"], "maxPercentage": 15.0},
+    "quantum_space": {"members": ["IONQ", "SPCX"], "maxPercentage": 15.0},
+    "healthcare": {"members": ["UNH", "LLY", "JNJ"], "maxPercentage": 12.0},
+    "financials": {"members": ["JPM", "BRK.B", "V"], "maxPercentage": 10.0},
+    "industrials": {"members": ["CAT", "UNP", "GE"], "maxPercentage": 10.0},
+    "consumer": {"members": ["WMT", "PG", "COST", "HD"], "maxPercentage": 12.0},
+    "energy": {"members": ["XOM", "CVX", "COP"], "maxPercentage": 15.0},
+    "utilities": {"members": ["SO", "DUK", "NEE"], "maxPercentage": 8.0},
+    "reits": {"members": ["PLD", "AMT", "EQIX"], "maxPercentage": 12.0},
+    "materials": {"members": ["LIN", "FCX", "SHW"], "maxPercentage": 15.0}
+  }
 }
