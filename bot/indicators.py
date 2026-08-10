@@ -74,9 +74,9 @@ def beta(asset_returns: Sequence[float], benchmark_returns: Sequence[float]) -> 
 
 def price_zscore(closes: Sequence[float], price: float) -> Optional[float]:
     """Z = (price - mean) / stdev, where mean/stdev are the sample mean/stdev of `closes`
-    (CLAUDE.md's z_score_points / z_score_sell_points guards, Step 2/4). Returns None if there
-    isn't enough history (fewer than 2 closes) or the history is perfectly flat (stdev == 0) —
-    callers should fail closed (guard stays active) when this returns None."""
+    (CLAUDE.md's z_score_points / z_score_upward_points / z_score_sell_points guards, Step 2/4).
+    Returns None if there isn't enough history (fewer than 2 closes) or the history is perfectly
+    flat (stdev == 0) — callers should fail closed (guard stays active) when this returns None."""
     if len(closes) < 2:
         return None
     stdev = statistics.stdev(closes)

@@ -243,17 +243,28 @@ def step2_guardrails(ctx: RunContext, broker: BrokerClient) -> None:
                 continue  # nothing more to check — fully excluded
 
         # Profit-sell buy-guard (v2.41.0: applies uniformly to partial AND full profit-sells;
-        # v2.55.0: pullback check is Z-score based, not a raw price percentage). Blocks NEW
-        # BUYS only; a partial-sell remainder otherwise stays fully in play.
+        # v2.55.0: pullback check is Z-score based, not a raw price percentage; v2.50.0 of
+        # portfolio_targets.json / CLAUDE.md 2.62.0: two-part dip-then-turn check instead of a
+        # single yesterday->today drop — see z_score_points / z_score_upward_points). Blocks
+        # NEW BUYS only; a partial-sell remainder otherwise stays fully in play.
         if st.profitSellPrice is not None and st.profitSellDate:
             closes = broker.get_daily_closes(sym, z_start, z_end)
             z_today = price_zscore(closes, price)
             z_yesterday = price_zscore(closes, closes[-1]) if closes else None
+            # closes[-1] is yesterday (ascending-date, cache trails one session), so 3 trading
+            # sessions further back is closes[-4].
+            z_3days_back = price_zscore(closes, closes[-4]) if len(closes) >= 4 else None
             # Missing/insufficient history fails closed — pulled_back stays False (guard active)
             # rather than silently letting a symbol we can't evaluate slip back into play.
+            # Two-part confirmation: (1) a real dip already happened between 3 sessions ago and
+            # yesterday (z_3days_back well above z_yesterday), AND (2) today shows the price
+            # ticking back up off that dip (z_today above z_yesterday by at least the smaller
+            # z_score_upward_points bar) — i.e. wait for the pullback AND the start of a turn,
+            # not just "still below where it was."
             pulled_back = (
-                z_today is not None and z_yesterday is not None
-                and (z_yesterday - z_today) >= cfg.meta.z_score_points
+                z_3days_back is not None and z_yesterday is not None and z_today is not None
+                and (z_3days_back - z_yesterday) > cfg.meta.z_score_points
+                and (z_today - z_yesterday) > cfg.meta.z_score_upward_points
             )
             sell_date = _parse_date(st.profitSellDate)
             cooled_down = (ctx.current_date - sell_date).days >= cfg.meta.sold_asset_repurchase_days
