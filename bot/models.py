@@ -101,6 +101,17 @@ class SkippedTrade:
 
 
 @dataclass
+class DormantAsset:
+    """A currently-held target asset with no recent trading activity — Step 7 reporting only,
+    see `dormant_asset_days`. Never influences any buy/sell decision."""
+    symbol: str
+    days_since_activity: Optional[int]  # None => no lastPurchaseDate/profitSellDate on record at all
+    last_activity_date: Optional[str]   # ISO date string, or None to match days_since_activity
+    unrealized_dollars: float
+    unrealized_pct: float
+
+
+@dataclass
 class RunContext:
     """Accumulates state across Step 1..7; passed through the pipeline in strict order."""
     current_date: date
@@ -164,3 +175,5 @@ class RunContext:
 
     total_high_beta_gains_realized: float = 0.0
     high_beta_gain_rows: List[dict] = field(default_factory=list)
+
+    dormant_assets: List["DormantAsset"] = field(default_factory=list)  # Step 7 reporting only

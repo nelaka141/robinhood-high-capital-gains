@@ -54,6 +54,7 @@ def run_cycle(account_number: str, repo_dir: str, broker: BrokerClient, dry_run:
 
     if not steps.has_any_breach(ctx):
         # No drift breach, no drawdown -> log status & terminate safely (Step 1's early exit).
+        ctx.dormant_assets = steps.compute_dormant_assets(ctx)
         journal.prepend_entry(journal.render_no_trades_entry(ctx), f"{repo_dir}/logs")
         return ctx
 
@@ -140,6 +141,7 @@ def _finalize_step7(ctx: RunContext, repo_dir: str, dry_run: bool) -> None:
     )
     save_tax_by_year(ctx.tax_by_year, f"{repo_dir}/tax/realized_gains_by_year.json")
 
+    ctx.dormant_assets = steps.compute_dormant_assets(ctx)
     entry_md = journal.render_entry(ctx)
     journal.prepend_entry(entry_md, f"{repo_dir}/logs")
 

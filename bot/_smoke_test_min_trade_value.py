@@ -42,6 +42,7 @@ def _minimal_ctx(alpha_leader: str | None = None, targets: dict | None = None) -
         beta_benchmark_symbol="SPY", beta_calculation_lookback_days=30,
         sold_asset_repurchase_days=2, z_score_points=0.5, z_score_upward_points=0.1,
         lock_in_period=2, overweight_sell_minimum_profit_margin_percent=1.0,
+        overweight_sell_minimum_profit_margin_dollars=12.5,
         momentum_reversal_minimum_profit_margin_percent=1.0,
         momentum_reversal_minimum_profit_dollars=12.5, z_score_sell_points=0.2,
         profit_resell_cooldown_days=15,
@@ -55,6 +56,7 @@ def _minimal_ctx(alpha_leader: str | None = None, targets: dict | None = None) -
         alpha_leader_fresh_position_days=3, alpha_leader_fresh_drawdown_percentage=15.0,
         max_sector_percentage=0.0,
         wash_sale_lookback_days=0,
+        dormant_asset_days=5,
     )
     cfg = PortfolioConfig(meta=meta, targets=targets or {}, force_sell={}, blocked=[])
     ctx = RunContext(current_date=date(2026, 8, 4), config=cfg, account_number="TEST")

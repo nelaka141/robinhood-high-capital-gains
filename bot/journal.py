@@ -77,6 +77,7 @@ def render_no_trades_entry(ctx: RunContext) -> str:
     ]
     for sym, dr in sorted(ctx.drift_results.items()):
         lines.append(f"| {sym} | {dr.drift:.3f} | {dr.asset_drift_tolerance:.3f} |")
+    lines += _render_dormant_assets_section(ctx)
     return "\n".join(lines) + "\n"
 
 
@@ -196,6 +197,8 @@ def render_entry(ctx: RunContext) -> str:
     for s in ctx.skipped:
         lines.append(f"| {s.symbol} | {s.reason} | {s.would_be_action} |")
 
+    lines += _render_dormant_assets_section(ctx)
+
     lines += [
         "",
         "## Orders Placed",
@@ -204,6 +207,27 @@ def render_entry(ctx: RunContext) -> str:
         "```",
     ]
     return "\n".join(lines) + "\n"
+
+
+def _render_dormant_assets_section(ctx: RunContext) -> List[str]:
+    """CLAUDE.md Step 7's Dormant Assets report (`dormant_asset_days`) — purely observational,
+    shared by both render_entry and render_no_trades_entry."""
+    lines = [
+        "",
+        f"## Dormant Assets (no activity > {ctx.config.meta.dormant_asset_days}d)",
+    ]
+    if not ctx.dormant_assets:
+        lines.append(f"- none — every held asset traded within the last {ctx.config.meta.dormant_asset_days} day(s)")
+        return lines
+
+    lines += ["| Symbol | Days Dormant | Last Activity | Unrealized $ | Unrealized % |", "|---|---|---|---|---|"]
+    for d in ctx.dormant_assets:
+        days = f"{d.days_since_activity}d" if d.days_since_activity is not None else "never"
+        last_activity = d.last_activity_date or "n/a"
+        lines.append(
+            f"| {d.symbol} | {days} | {last_activity} | ${d.unrealized_dollars:,.2f} | {d.unrealized_pct:+.2f}% |"
+        )
+    return lines
 
 
 def render_email_summary(ctx: RunContext) -> str:
@@ -219,5 +243,6 @@ def render_email_summary(ctx: RunContext) -> str:
         f"Alpha Leader: {ctx.alpha_leader or 'n/a'}. "
         f"Total_High_Beta_Gains_Realized: ${ctx.total_high_beta_gains_realized:,.2f}. "
         f"Final buying_power: ${ctx.account_cash:,.2f}. "
+        f"Dormant assets (no activity > {ctx.config.meta.dormant_asset_days}d): {len(ctx.dormant_assets)}. "
         "See attached journal entry for full detail."
     )

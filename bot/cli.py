@@ -63,12 +63,16 @@ def cmd_plan(args: argparse.Namespace) -> None:
         save_price_state(ctx.price_state, f"{repo_dir}/peak/prices.json")
         ctx.tax_by_year[str(ctx.current_date.year)] = max(0.0, ctx.net_realized_gains_ytd_pretrade)
         save_tax_by_year(ctx.tax_by_year, f"{repo_dir}/tax/realized_gains_by_year.json")
+        ctx.dormant_assets = steps.compute_dormant_assets(ctx)
         entry_md = journal.render_no_trades_entry(ctx)
         journal.prepend_entry(entry_md, f"{repo_dir}/logs")
         dump_json({
             "no_trades": True,
             "journal_entry_markdown": entry_md,
-            "email_summary": f"No trades this cycle — all {len(ctx.drift_results)} assets within tolerance.",
+            "email_summary": (
+                f"No trades this cycle — all {len(ctx.drift_results)} assets within tolerance. "
+                f"Dormant assets (no activity > {cfg.meta.dormant_asset_days}d): {len(ctx.dormant_assets)}."
+            ),
             "files_changed": ["peak/prices.json", "tax/realized_gains_by_year.json", "logs/trade_journal.md"],
         }, args.out)
         print(f"NO TRADES — wrote {args.out}")
@@ -126,6 +130,7 @@ def cmd_finalize(args: argparse.Namespace) -> None:
     if alpha_reserve is not None:
         save_alpha_leader_reserve(alpha_reserve, f"{repo_dir}/alpha_reserve.json")
 
+    ctx.dormant_assets = steps.compute_dormant_assets(ctx)
     entry_md = journal.render_entry(ctx)
     journal.prepend_entry(entry_md, f"{repo_dir}/logs")
 

@@ -17,7 +17,7 @@ from .broker import BrokerClient
 from .cost_basis import resolve_avg_cost_basis
 from .fifo import fifo_realized_profit, round_sell_quantity
 from .indicators import beta, daily_returns, ema_series, price_zscore, rsi_series
-from .models import DriftResult, MomentumScore, RunContext, SkippedTrade, TradeIntent
+from .models import DormantAsset, DriftResult, MomentumScore, RunContext, SkippedTrade, TradeIntent
 from .state import AlphaLeaderReserve, AssetPriceState, load_transferred_basis
 
 # Z-score lookback for the z_score_points/z_score_sell_points guards (Step 2/4) — matches
@@ -731,50 +731,54 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
                         ))
 
         # --- MOMENTUM REVERSAL TRIM (independent of GTP; one shared same-day guard) ---
+        # v2.64.0: the margin-percent gate and dollar gate are OR'd, not AND'd — either one
+        # clearing its own bar is enough, same restructuring as GET THE PROFITS above. The
+        # downtrend condition (Momentum_Score <= momentum_reversal_threshold) is untouched and
+        # still required — this only changes how the profitability side of the gate combines.
         mscore = ctx.momentum_scores.get(sym)
-        if (
-            sym not in fired_today and not already_today and mscore is not None
-            and mscore.score <= cfg.meta.momentum_reversal_threshold
-            and raw_gain_pct >= cfg.meta.momentum_reversal_minimum_profit_margin_percent
-        ):
-            if cooldown_blocks:
-                ctx.skipped.append(SkippedTrade(
-                    sym, f"MRT gates clear (score {mscore.score:.2f}) but profit_resell_cooldown_days active",
-                    "partial profit-take sale",
-                ))
-            else:
-                fifo = fifo_realized_profit(broker.get_tax_lots(ctx.account_number, sym), sell_qty, price)
-                alpha_leader_guard_blocks = (
-                    sym == ctx.alpha_leader and fifo.fully_covered
-                    and fifo.realized_profit_dollars < cfg.meta.minimum_alpha_leader_sell_profit
-                )
-                if alpha_leader_guard_blocks:
+        downtrend_confirmed = mscore is not None and mscore.score <= cfg.meta.momentum_reversal_threshold
+        if sym not in fired_today and not already_today and downtrend_confirmed:
+            fifo = fifo_realized_profit(broker.get_tax_lots(ctx.account_number, sym), sell_qty, price)
+            margin_gate_passes = raw_gain_pct >= cfg.meta.momentum_reversal_minimum_profit_margin_percent
+            dollar_gate_passes = fifo.fully_covered and fifo.realized_profit_dollars > cfg.meta.momentum_reversal_minimum_profit_dollars
+            if margin_gate_passes or dollar_gate_passes:
+                if cooldown_blocks:
                     ctx.skipped.append(SkippedTrade(
-                        sym,
-                        f"MRT gates clear (FIFO ${fifo.realized_profit_dollars:.2f}) but Alpha Leader sell "
-                        f"guard blocks (needs >= ${cfg.meta.minimum_alpha_leader_sell_profit:.2f})",
+                        sym, f"MRT gate clears (score {mscore.score:.2f}, +{raw_gain_pct:.2f}% / "
+                             f"FIFO ${fifo.realized_profit_dollars:.2f}) but profit_resell_cooldown_days active",
                         "partial profit-take sale",
                     ))
-                elif fifo.fully_covered and fifo.realized_profit_dollars > cfg.meta.momentum_reversal_minimum_profit_dollars:
-                    reason = f"MOMENTUM REVERSAL TRIM: score {mscore.score:.2f}, FIFO ${fifo.realized_profit_dollars:.2f}"
-                    if fractional_position:
-                        reason += (" (ordinary order — sub-whole-share position, Robinhood "
-                                    "default lot matching; FIFO figure is an estimate)")
-                    ctx.profit_taking_sells.append(TradeIntent(
-                        symbol=sym, side="sell", quantity=sell_qty, reason=reason,
-                        tax_lots=None if fractional_position else
-                            [{"open_lot_id": l["open_lot_id"], "quantity": l["quantity"]} for l in fifo.lots_consumed],
-                        realized_profit_dollars=fifo.realized_profit_dollars,
-                        raw_gain_pct=raw_gain_pct,
-                    ))
-                    fired_today.add(sym)
                 else:
-                    ctx.skipped.append(SkippedTrade(
-                        sym,
-                        f"MRT momentum/margin gates clear but FIFO dollar gate fails "
-                        f"(${fifo.realized_profit_dollars:.2f} < ${cfg.meta.momentum_reversal_minimum_profit_dollars})",
-                        "partial profit-take sale",
-                    ))
+                    alpha_leader_guard_blocks = (
+                        sym == ctx.alpha_leader and fifo.fully_covered
+                        and fifo.realized_profit_dollars < cfg.meta.minimum_alpha_leader_sell_profit
+                    )
+                    if alpha_leader_guard_blocks:
+                        ctx.skipped.append(SkippedTrade(
+                            sym,
+                            f"MRT gates clear (FIFO ${fifo.realized_profit_dollars:.2f}) but Alpha Leader sell "
+                            f"guard blocks (needs >= ${cfg.meta.minimum_alpha_leader_sell_profit:.2f})",
+                            "partial profit-take sale",
+                        ))
+                    elif fifo.fully_covered:
+                        reason = f"MOMENTUM REVERSAL TRIM: score {mscore.score:.2f}, FIFO ${fifo.realized_profit_dollars:.2f}"
+                        if fractional_position:
+                            reason += (" (ordinary order — sub-whole-share position, Robinhood "
+                                        "default lot matching; FIFO figure is an estimate)")
+                        ctx.profit_taking_sells.append(TradeIntent(
+                            symbol=sym, side="sell", quantity=sell_qty, reason=reason,
+                            tax_lots=None if fractional_position else
+                                [{"open_lot_id": l["open_lot_id"], "quantity": l["quantity"]} for l in fifo.lots_consumed],
+                            realized_profit_dollars=fifo.realized_profit_dollars,
+                            raw_gain_pct=raw_gain_pct,
+                        ))
+                        fired_today.add(sym)
+                    else:
+                        ctx.skipped.append(SkippedTrade(
+                            sym,
+                            "cost basis pending transfer on required lots (fail-closed)",
+                            "partial profit-take sale",
+                        ))
 
     # --- Overweight High-Beta ranking (routine, non-mandatory trim source) ---
     already_sold = {t.symbol for t in ctx.profit_taking_sells}
@@ -809,24 +813,30 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
             ctx.skipped.append(SkippedTrade(sym, f"within lock_in_period ({cfg.meta.lock_in_period}d)", "Overweight trim"))
             continue
 
+        # overweight_sell_minimum_profit_margin_percent/_dollars are OR'd (v2.64.0), not AND'd —
+        # either clearing its own bar is enough. Overweight-trim sizing isn't determined until
+        # later (Step 6 harvests only as much as Underweight/Alpha buys actually need), so at
+        # ranking time the best available estimate for the dollar leg is the FULL held position's
+        # unrealized dollar gain — the ceiling on what this trim could ever realize (same estimate
+        # minimum_alpha_leader_sell_profit below reuses).
         margin_pct = (price - pos.avg_cost_basis) / pos.avg_cost_basis * 100
-        if margin_pct < cfg.meta.overweight_sell_minimum_profit_margin_percent and not cfg.force_sell_active(sym, price):
+        unrealized_dollars = (price - pos.avg_cost_basis) * pos.quantity
+        margin_gate_passes = margin_pct >= cfg.meta.overweight_sell_minimum_profit_margin_percent
+        dollar_gate_passes = unrealized_dollars >= cfg.meta.overweight_sell_minimum_profit_margin_dollars
+        if not (margin_gate_passes or dollar_gate_passes) and not cfg.force_sell_active(sym, price):
             if sym in cfg.force_sell:
                 trigger = cfg.force_sell[sym].trigger_price
                 reason = (
-                    f"underwater ({margin_pct:.2f}% margin); forceSell trigger not yet met "
-                    f"(needs price > ${trigger:,.2f}, currently ${price:,.2f})"
+                    f"underwater ({margin_pct:.2f}% margin, est. ${unrealized_dollars:.2f}); forceSell trigger "
+                    f"not yet met (needs price > ${trigger:,.2f}, currently ${price:,.2f})"
                 )
             else:
-                reason = f"underwater ({margin_pct:.2f}% margin) and not in forceSell"
+                reason = f"underwater ({margin_pct:.2f}% margin, est. ${unrealized_dollars:.2f}) and not in forceSell"
             ctx.skipped.append(SkippedTrade(sym, reason, "Overweight trim to fund Underweight/Multiplier"))
             continue
 
-        # minimum_alpha_leader_sell_profit is a DOLLAR floor. Overweight-trim sizing isn't
-        # determined until later (Step 6 harvests only as much as Underweight/Alpha buys
-        # actually need), so at ranking time the best available estimate is the FULL held
-        # position's unrealized dollar gain — the ceiling on what this trim could ever realize.
-        unrealized_dollars = (price - pos.avg_cost_basis) * pos.quantity
+        # minimum_alpha_leader_sell_profit is a DOLLAR floor — independent of, and stacked on top
+        # of, the margin/dollar gate above (reuses the same unrealized_dollars estimate).
         if (
             sym == ctx.alpha_leader
             and unrealized_dollars < cfg.meta.minimum_alpha_leader_sell_profit
@@ -867,7 +877,8 @@ def _size_overweight_trims(
     `base_deployable_cash` alone can fund). Walks the ranking top-down — highest High-Beta score
     first — trimming each candidate toward its own target weight (its "overweight excess") until
     the shortfall is covered or candidates run out. Every sell guard (`lock_in_period`,
-    `overweight_sell_minimum_profit_margin_percent`/`forceSell`, `minimum_alpha_leader_sell_profit`)
+    `overweight_sell_minimum_profit_margin_percent`/`overweight_sell_minimum_profit_margin_dollars`
+    (OR'd)/`forceSell`, `minimum_alpha_leader_sell_profit`)
     was already applied by the caller's ranking loop before a candidate ever reaches `ranked` —
     harvesting only decides HOW MUCH of an already-qualified candidate to sell, never bypasses
     those guards. Mirrors GET THE PROFITS/Momentum Reversal Trim's whole-share rounding,
@@ -1200,6 +1211,39 @@ def resolve_alpha_leader_reserve(ctx: RunContext) -> Optional[AlphaLeaderReserve
         alpha_leader_symbol=ctx.alpha_leader,
         reserve_cash=max(0.0, ctx.alpha_leader_reserve_target - actual_spent),
     )
+
+
+def compute_dormant_assets(ctx: RunContext) -> List[DormantAsset]:
+    """CLAUDE.md Step 7's Dormant Assets report — purely observational, never influences any
+    buy/sell decision. For every currently-held target asset whose last trading activity (the
+    more recent of `lastPurchaseDate` and `profitSellDate` in peak/prices.json) is more than
+    `dormant_asset_days` days old — or has no recorded activity at all — report its current
+    unrealized dollar profit/loss and percentage. A held asset whose cost basis hasn't fully
+    reconciled yet (Step 1's Fail-Closed rule) is omitted since its unrealized P&L can't be
+    computed. Sorted most-dormant first (no-record assets sort ahead of everything else)."""
+    threshold = ctx.config.meta.dormant_asset_days
+    out: List[DormantAsset] = []
+    for sym, pos in ctx.positions.items():
+        if sym not in ctx.config.targets or pos.quantity <= 0 or pos.avg_cost_basis is None:
+            continue
+        st = ctx.price_state.get(sym, AssetPriceState())
+        candidates = [d for d in (_parse_date(st.lastPurchaseDate), _parse_date(st.profitSellDate)) if d is not None]
+        last_activity = max(candidates) if candidates else None
+        days = (ctx.current_date - last_activity).days if last_activity is not None else None
+        if days is not None and days <= threshold:
+            continue  # recently active -> not dormant
+
+        price = ctx.quotes[sym].last_trade_price
+        out.append(DormantAsset(
+            symbol=sym,
+            days_since_activity=days,
+            last_activity_date=last_activity.isoformat() if last_activity is not None else None,
+            unrealized_dollars=(price - pos.avg_cost_basis) * pos.quantity,
+            unrealized_pct=(price - pos.avg_cost_basis) / pos.avg_cost_basis * 100,
+        ))
+
+    out.sort(key=lambda d: d.days_since_activity if d.days_since_activity is not None else float("inf"), reverse=True)
+    return out
 
 
 def _enforce_min_trade_value_buys(
