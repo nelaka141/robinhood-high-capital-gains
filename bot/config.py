@@ -50,6 +50,7 @@ class PortfolioMetadata:
     z_score_upward_points: float
     lock_in_period: int
     overweight_sell_minimum_profit_margin_percent: float
+    overweight_sell_minimum_profit_margin_dollars: float
     momentum_reversal_minimum_profit_margin_percent: float
     momentum_reversal_minimum_profit_dollars: float
     z_score_sell_points: float
@@ -70,6 +71,7 @@ class PortfolioMetadata:
     alpha_leader_fresh_drawdown_percentage: float
     max_sector_percentage: float
     wash_sale_lookback_days: int
+    dormant_asset_days: int  # Step 7 reporting only — never gates a buy/sell decision
 
 
 @dataclass(frozen=True)
