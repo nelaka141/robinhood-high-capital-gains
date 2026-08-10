@@ -1,7 +1,7 @@
 {
   "portfolio_metadata": {
-    "version": "2.49.0",
-    "last_updated": "2026-08-09",
+    "version": "2.50.0",
+    "last_updated": "2026-08-10",
     "global_drift_tolerance": 1.0,
     "max_trailing_drawdown_percentage": 35,
     "min_recovery_price_percentage": 5.0,
@@ -20,6 +20,7 @@
     "beta_calculation_lookback_days": 30,
     "sold_asset_repurchase_days" : 2,
     "z_score_points": 0.5,
+    "z_score_upward_points": 0.1,
     "lock_in_period": 2,
     "overweight_sell_minimum_profit_margin_percent": 1.0,
     "momentum_reversal_minimum_profit_margin_percent": 1.0,

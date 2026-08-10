@@ -47,6 +47,7 @@ class PortfolioMetadata:
     beta_calculation_lookback_days: int
     sold_asset_repurchase_days: int
     z_score_points: float
+    z_score_upward_points: float
     lock_in_period: int
     overweight_sell_minimum_profit_margin_percent: float
     momentum_reversal_minimum_profit_margin_percent: float
