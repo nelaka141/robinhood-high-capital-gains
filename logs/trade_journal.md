@@ -1,3 +1,142 @@
+# 2026-08-10 — Scheduled Rebalance Check — EXECUTED (2 sell(s), 1 buy(s))
+
+**Status:** EXECUTED. 2 sell order(s), 1 buy order(s) sized this cycle.
+
+## Account Snapshot
+- `buying_power` (settled): **$43,649.50**
+- `cash` (ledger): **$43,649.50**
+- `current_cash` (post-cap): **$43,649.50**
+- `account_balance`: **$173,995.27**
+
+## Drawdown Audit
+Emergency liquidations: none
+
+## Fresh Alpha Leader Stop
+Liquidations (bought as Alpha Leader within 3d, dropped >= 15.0% from that buy price): none
+
+## Excluded / Buy-Guarded Symbols (Step 2)
+- **SOXL** (excluded): liquidated 2026-07-16 @ 147.6401 — recovery (5.0%) or cooldown (6d) not yet met
+- **TQQQ** (buy-guarded only): profit-sold 2026-08-05 @ 76.155 — buy-guard active (partial, remainder still held)
+- **PLTR** (buy-guarded only): profit-sold 2026-08-10 @ 175.94 — buy-guard active (partial, remainder still held)
+- **MU** (buy-guarded only): profit-sold 2026-08-10 @ 879.475 — buy-guard active (partial, remainder still held)
+- **MSTR** (buy-guarded only): profit-sold 2026-08-07 @ 103.555 — buy-guard active (partial, remainder still held)
+- **COIN** (buy-guarded only): profit-sold 2026-07-21 @ 175.7001 — buy-guard active (partial, remainder still held)
+- **ARM** (buy-guarded only): profit-sold 2026-08-06 @ 288.8211 — buy-guard active (partial, remainder still held)
+- **SMCI** (buy-guarded only): profit-sold 2026-08-10 @ 32.73 — buy-guard active (partial, remainder still held)
+- **AMZN** (buy-guarded only): profit-sold 2026-08-10 @ 275.575 — buy-guard active (partial, remainder still held)
+- **TSLA** (buy-guarded only): profit-sold 2026-08-04 @ 324.92 — buy-guard active (partial, remainder still held)
+- **NVDA** (buy-guarded only): profit-sold 2026-08-10 @ 221.86 — buy-guard active (partial, remainder still held)
+- **GOOG** (buy-guarded only): profit-sold 2026-08-05 @ 377.07 — buy-guard active (partial, remainder still held)
+- **MSFT** (buy-guarded only): profit-sold 2026-08-10 @ 507.25 — buy-guard active (partial, remainder still held)
+- **AAPL** (buy-guarded only): profit-sold 2026-07-17 @ 333.4801 — buy-guard active (partial, remainder still held)
+- **AMD** (buy-guarded only): profit-sold 2026-08-04 @ 515.62 — buy-guard active (partial, remainder still held)
+- **VRT** (buy-guarded only): profit-sold 2026-08-05 @ 280.515 — buy-guard active (partial, remainder still held)
+- **AVGO** (buy-guarded only): profit-sold 2026-08-05 @ 422.59 — buy-guard active (partial, remainder still held)
+- **IBM** (buy-guarded only): profit-sold 2026-08-05 @ 234.735 — buy-guard active (partial, remainder still held)
+- **NFLX** (buy-guarded only): profit-sold 2026-08-05 @ 74.16 — buy-guard active (partial, remainder still held)
+- **GE** (buy-guarded only): profit-sold 2026-08-05 @ 382.1775 — buy-guard active (partial, remainder still held)
+- **LLY** (buy-guarded only): profit-sold 2026-08-06 @ 1196.43 — buy-guard active (partial, remainder still held)
+- **XOM** (buy-guarded only): profit-sold 2026-08-10 @ 157.82 — buy-guard active (partial, remainder still held)
+- **COP** (buy-guarded only): profit-sold 2026-08-10 @ 121.27 — buy-guard active (partial, remainder still held)
+
+## Blocked Assets (`blocked` list)
+- **LTRN**: blocked; forceSell trigger not yet met (needs price > $4.50, currently $2.77) — staying frozen this cycle
+
+## Alpha Leader Selection — Momentum_Score
+| Symbol | RSI14 | EMA9_now | EMA9_prior | Price_vs_EMA% | EMA_Slope% | Score |
+|---|---|---|---|---|---|---|
+| PLTR ← TOP MOMENTUM | 74.24 | 147.68 | 125.44 | +19.32 | +17.73 | +61.29 |
+| MSFT | 79.30 | 468.71 | 414.82 | +7.85 | +12.99 | +50.13 |
+| FCX ← ALPHA LEADER | 64.08 | 66.14 | 62.00 | +6.56 | +6.67 | +27.32 |
+| BRK.B | 71.76 | 514.69 | 503.49 | +2.77 | +2.23 | +26.75 |
+| AMZN | 62.75 | 264.70 | 243.13 | +4.65 | +8.87 | +26.26 |
+| ORCL | 55.41 | 138.14 | 124.36 | +9.76 | +11.08 | +26.26 |
+| IONQ | 55.62 | 39.35 | 35.21 | +8.79 | +11.74 | +26.15 |
+| AVGO | 61.46 | 407.25 | 384.27 | +4.22 | +5.98 | +21.65 |
+| SHW | 63.45 | 355.69 | 336.40 | +1.94 | +5.73 | +21.13 |
+| XOM | 66.22 | 153.69 | 153.91 | +3.84 | -0.14 | +19.93 |
+| NVDA | 60.35 | 212.08 | 200.06 | +3.33 | +6.01 | +19.69 |
+| SMCI | 56.23 | 29.56 | 27.95 | +7.54 | +5.76 | +19.54 |
+| GM | 64.96 | 87.15 | 85.70 | +1.55 | +1.69 | +18.20 |
+| JPM | 64.74 | 354.55 | 349.59 | +1.15 | +1.42 | +17.31 |
+| COP | 61.24 | 117.26 | 117.47 | +4.68 | -0.18 | +15.75 |
+| TQQQ | 50.09 | 70.17 | 64.68 | +5.69 | +8.48 | +14.26 |
+| SPCX | 49.45 | 119.17 | 116.24 | +12.25 | +2.52 | +14.21 |
+| HD | 58.36 | 345.72 | 335.58 | +1.17 | +3.02 | +12.56 |
+| COST | 59.04 | 948.28 | 949.28 | +0.09 | -0.11 | +9.02 |
+| CVX | 56.61 | 189.45 | 191.27 | +2.70 | -0.95 | +8.35 |
+| NFLX | 52.88 | 73.19 | 71.83 | +3.15 | +1.90 | +7.93 |
+| MSTR | 55.65 | 97.11 | 95.37 | -0.20 | +1.83 | +7.28 |
+| GE | 54.16 | 368.02 | 355.31 | -0.75 | +3.58 | +6.99 |
+| LLY | 51.90 | 1169.73 | 1178.08 | +4.93 | -0.71 | +6.12 |
+| V | 56.48 | 365.65 | 362.84 | -1.74 | +0.77 | +5.51 |
+| INTC | 47.03 | 97.23 | 92.21 | +1.61 | +5.45 | +4.09 |
+| UNP | 54.02 | 294.36 | 294.33 | -0.51 | +0.01 | +3.52 |
+| JNJ | 53.25 | 257.79 | 259.13 | +0.76 | -0.51 | +3.49 |
+| GOOG | 48.60 | 354.22 | 340.04 | -0.12 | +4.17 | +2.65 |
+| AMT | 53.74 | 171.73 | 171.52 | -1.26 | +0.13 | +2.61 |
+| ARM | 44.50 | 268.94 | 253.61 | +0.92 | +6.05 | +1.47 |
+| EQIX | 48.59 | 1042.76 | 1032.76 | +0.42 | +0.97 | -0.02 |
+| PG | 47.79 | 146.53 | 146.58 | -0.54 | -0.04 | -2.80 |
+| MU | 44.88 | 872.90 | 862.62 | +0.67 | +1.19 | -3.26 |
+| WMT | 46.17 | 111.84 | 111.90 | +0.37 | -0.06 | -3.51 |
+| VRT | 40.21 | 269.33 | 262.63 | +1.69 | +2.55 | -5.55 |
+| DUK | 49.10 | 125.22 | 127.35 | -3.52 | -1.67 | -6.10 |
+| F | 47.81 | 14.25 | 14.65 | -1.31 | -2.71 | -6.21 |
+| AAPL | 49.28 | 316.35 | 327.62 | -2.81 | -3.44 | -6.97 |
+| PLD | 47.83 | 142.16 | 145.89 | -2.82 | -2.55 | -7.54 |
+| COIN | 48.61 | 152.97 | 159.79 | -2.46 | -4.27 | -8.12 |
+| IBM | 35.37 | 230.78 | 223.25 | +2.51 | +3.37 | -8.74 |
+| AMD | 41.43 | 489.55 | 488.55 | -2.92 | +0.21 | -11.28 |
+| UNH | 41.82 | 412.74 | 421.44 | -1.09 | -2.06 | -11.33 |
+| HOOD | 37.62 | 92.85 | 94.08 | +1.88 | -1.30 | -11.80 |
+| META | 36.01 | 590.10 | 590.12 | +0.51 | -0.00 | -13.49 |
+| CAT | 35.99 | 851.66 | 844.90 | -1.28 | +0.80 | -14.49 |
+| SO | 39.94 | 93.79 | 95.54 | -2.80 | -1.84 | -14.70 |
+| TSLA | 30.39 | 324.47 | 325.20 | +1.41 | -0.23 | -18.43 |
+| NEE | 35.05 | 86.45 | 88.39 | -2.28 | -2.20 | -19.43 |
+| LIN | 32.61 | 493.68 | 504.85 | -0.88 | -2.21 | -20.48 |
+
+**Buy-guard cascade:** PLTR (Top Momentum) is buy-guarded — FCX acted as Alpha Leader instead.
+
+`Alpha_leader_reserve_cash`: **$1,672.05** (reserved for PLTR)
+
+## Tax Reserve
+- `net_realized_gains_ytd_pretrade`: **$62,387.45**
+- `net_realized_gains_ytd_effective` (post-sells): **$62,492.90**
+- `tax_reserve` (final): **$21,872.51**
+
+## GET THE PROFITS / Momentum Reversal Trim Sells
+- **VRT**: GET THE PROFITS: +2.47%, FIFO $38.90
+- **CVX**: GET THE PROFITS: +3.63%, FIFO $38.69
+
+## Overweight High-Beta Trims
+- none fired this cycle
+
+## Buys
+- **FCX**: $5,875.32
+
+## Total_High_Beta_Gains_Realized: **$77.58**
+
+## SKIPPED/PENDING
+| Symbol | Reason | Would-be action |
+|---|---|---|
+| ARM | even selling all 0.5321 fractional share(s) held ($144.41) falls short of min_value_of_trade ($250.00) | partial profit-take sale |
+| SMCI | even selling all 3 whole share(s) held ($95.36) falls short of min_value_of_trade ($250.00) | partial profit-take sale |
+| AVGO | even selling all 0.4734 fractional share(s) held ($200.94) falls short of min_value_of_trade ($250.00) | partial profit-take sale |
+| IBM | even selling all 0.4473 fractional share(s) held ($105.82) falls short of min_value_of_trade ($250.00) | partial profit-take sale |
+| NFLX | GTP % gate clears (+4.82%) but FIFO dollar gate fails ($17.35 < $25.0) | partial profit-take sale |
+| LLY | even selling all 0.1522 fractional share(s) held ($186.76) falls short of min_value_of_trade ($250.00) | partial profit-take sale |
+| INTC | underwater (-10.07% margin) and not in forceSell | Overweight trim to fund Underweight/Multiplier |
+| ORCL | underwater (-5.58% margin) and not in forceSell | Overweight trim to fund Underweight/Multiplier |
+| BRK.B | within lock_in_period (2d) | Overweight trim |
+| FCX | within lock_in_period (2d) | Overweight trim |
+| IONQ | buy_price_diff_limit: +7.94% vs. 3-day low (limit 5%) | Underweight/Alpha buy |
+
+## Orders Placed
+```
+```
+
 # 2026-08-10 — Scheduled Rebalance Check — EXECUTED (8 sell(s), 2 buy(s))
 
 **Status:** EXECUTED. 8 sell order(s), 2 buy order(s) sized this cycle.
@@ -548,144 +687,6 @@ Emergency liquidations: none
 | AMD | buy_price_diff_limit: +8.56% vs. 3-day low (limit 5%) | Underweight/Alpha buy |
 | CAT | buy_price_diff_limit: +7.66% vs. 3-day low (limit 5%) | Underweight/Alpha buy |
 | FCX | buy_price_diff_limit: +11.51% vs. 3-day low (limit 5%) | Underweight/Alpha buy |
-
-## Orders Placed
-```
-```
-
-# 2026-08-06 — Scheduled Rebalance Check — EXECUTED (2 sell(s), 0 buy(s))
-
-**Status:** EXECUTED. 2 sell order(s), 0 buy order(s) sized this cycle.
-
-## Account Snapshot
-- `buying_power` (settled): **$83,628.39**
-- `cash` (ledger): **$83,628.39**
-- `current_cash` (post-cap): **$39,000.00**
-- `account_balance`: **$127,844.93**
-
-## Drawdown Audit
-Emergency liquidations: none
-
-## Excluded / Buy-Guarded Symbols (Step 2)
-- **SOXL** (excluded): liquidated 2026-07-16 @ 147.6401 — recovery (5.0%) or cooldown (6d) not yet met
-- **TQQQ** (buy-guarded only): profit-sold 2026-08-05 @ 76.155 — buy-guard active (partial, remainder still held)
-- **PLTR** (buy-guarded only): profit-sold 2026-08-05 @ 164.09 — buy-guard active (partial, remainder still held)
-- **MU** (buy-guarded only): profit-sold 2026-08-05 @ 916.775 — buy-guard active (partial, remainder still held)
-- **ARM** (buy-guarded only): profit-sold 2026-08-05 @ 278.74 — buy-guard active (partial, remainder still held)
-- **NVDA** (buy-guarded only): profit-sold 2026-08-05 @ 220.6 — buy-guard active (partial, remainder still held)
-- **GOOG** (buy-guarded only): profit-sold 2026-08-05 @ 377.07 — buy-guard active (partial, remainder still held)
-- **MSFT** (buy-guarded only): profit-sold 2026-08-04 @ 493.565 — buy-guard active (partial, remainder still held)
-- **VRT** (buy-guarded only): profit-sold 2026-08-05 @ 280.515 — buy-guard active (partial, remainder still held)
-- **AVGO** (buy-guarded only): profit-sold 2026-08-05 @ 422.59 — buy-guard active (partial, remainder still held)
-- **GM** (buy-guarded only): profit-sold 2026-08-05 @ 89.55 — buy-guard active (partial, remainder still held)
-- **IBM** (buy-guarded only): profit-sold 2026-08-05 @ 234.735 — buy-guard active (partial, remainder still held)
-- **NFLX** (buy-guarded only): profit-sold 2026-08-05 @ 74.16 — buy-guard active (partial, remainder still held)
-- **GE** (buy-guarded only): profit-sold 2026-08-05 @ 382.1775 — buy-guard active (partial, remainder still held)
-- **LLY** (buy-guarded only): profit-sold 2026-08-05 @ 1183.65 — buy-guard active (partial, remainder still held)
-
-## Blocked Assets (`blocked` list)
-- **LTRN**: blocked; forceSell trigger not yet met (needs price > $4.50, currently $2.80) — staying frozen this cycle
-
-## Alpha Leader Selection — Momentum_Score
-| Symbol | RSI14 | EMA9_now | EMA9_prior | Price_vs_EMA% | EMA_Slope% | Score |
-|---|---|---|---|---|---|---|
-| MSFT ← ALPHA LEADER | 81.76 | 441.98 | 389.77 | +11.51 | +13.39 | +56.66 |
-| PLTR | 73.16 | 132.85 | 127.76 | +15.28 | +3.98 | +42.42 |
-| AMZN | 68.10 | 256.39 | 238.08 | +6.74 | +7.69 | +32.53 |
-| AVGO | 65.57 | 392.29 | 384.59 | +6.63 | +2.00 | +24.21 |
-| ORCL | 57.02 | 131.60 | 123.36 | +10.25 | +6.68 | +23.95 |
-| GM | 66.75 | 86.59 | 82.86 | +2.61 | +4.51 | +23.87 |
-| FCX | 61.83 | 63.36 | 61.93 | +9.47 | +2.32 | +23.61 |
-| NVDA | 61.20 | 203.28 | 203.22 | +9.80 | +0.03 | +21.02 |
-| SHW | 57.65 | 344.18 | 329.82 | +6.88 | +4.35 | +18.88 |
-| XOM | 68.65 | 154.17 | 151.86 | -1.45 | +1.52 | +18.73 |
-| COP | 66.07 | 117.87 | 115.76 | -1.46 | +1.82 | +16.44 |
-| SMCI | 61.13 | 28.84 | 28.51 | +3.90 | +1.16 | +16.20 |
-| CVX | 66.67 | 191.42 | 188.68 | -2.12 | +1.45 | +16.01 |
-| GOOG | 59.14 | 352.11 | 336.07 | +2.05 | +4.77 | +15.96 |
-| JPM | 62.71 | 351.65 | 349.52 | +2.48 | +0.61 | +15.81 |
-| BRK.B | 61.07 | 507.91 | 497.38 | +2.56 | +2.12 | +15.75 |
-| AMT | 64.83 | 172.31 | 167.37 | -2.13 | +2.95 | +15.65 |
-| TQQQ | 54.52 | 67.18 | 66.70 | +7.40 | +0.72 | +12.64 |
-| GE | 53.68 | 361.87 | 354.67 | +6.82 | +2.03 | +12.53 |
-| V | 59.74 | 364.48 | 358.51 | +0.96 | +1.67 | +12.37 |
-| IONQ | 46.67 | 37.20 | 35.68 | +10.10 | +4.26 | +11.03 |
-| EQIX | 57.40 | 1036.00 | 1038.68 | +2.01 | -0.26 | +9.15 |
-| UNP | 58.98 | 294.10 | 296.81 | +0.57 | -0.91 | +8.63 |
-| HD | 52.14 | 338.65 | 336.48 | +3.51 | +0.64 | +6.30 |
-| WMT | 51.39 | 111.51 | 111.44 | +1.29 | +0.06 | +2.74 |
-| NFLX | 46.78 | 72.36 | 70.85 | +2.45 | +2.14 | +1.37 |
-| MSTR | 49.03 | 95.88 | 96.38 | +1.81 | -0.52 | +0.32 |
-| ARM | 47.42 | 257.19 | 271.58 | +8.09 | -5.30 | +0.21 |
-| COST | 48.22 | 950.20 | 941.88 | +0.26 | +0.88 | -0.64 |
-| PG | 49.97 | 146.65 | 148.46 | +0.55 | -1.22 | -0.70 |
-| F | 50.62 | 14.53 | 14.40 | -3.36 | +0.89 | -1.85 |
-| INTC | 43.82 | 93.97 | 96.60 | +5.56 | -2.72 | -3.34 |
-| META | 49.28 | 587.74 | 614.29 | +0.53 | -4.32 | -4.51 |
-| JNJ | 44.69 | 257.76 | 260.33 | +0.40 | -0.99 | -5.91 |
-| AMD | 49.49 | 494.16 | 509.84 | -2.68 | -3.08 | -6.26 |
-| MU | 47.56 | 864.72 | 909.46 | +0.95 | -4.92 | -6.41 |
-| NEE | 47.22 | 87.83 | 89.00 | -2.59 | -1.31 | -6.68 |
-| CAT | 43.35 | 848.84 | 883.35 | +2.53 | -3.91 | -8.03 |
-| AAPL | 44.31 | 319.98 | 330.12 | -1.43 | -3.07 | -10.19 |
-| DUK | 42.96 | 126.29 | 128.14 | -2.03 | -1.45 | -10.52 |
-| PLD | 43.48 | 144.24 | 146.39 | -2.62 | -1.47 | -10.62 |
-| UNH | 43.18 | 417.89 | 425.00 | -2.58 | -1.67 | -11.07 |
-| VRT | 42.44 | 264.36 | 292.35 | +5.77 | -9.57 | -11.36 |
-| IBM | 34.62 | 226.75 | 224.69 | +2.50 | +0.92 | -11.97 |
-| SO | 40.37 | 94.67 | 96.18 | -1.95 | -1.57 | -13.16 |
-| LLY | 35.57 | 1157.57 | 1191.94 | +3.36 | -2.88 | -13.95 |
-| COIN | 40.95 | 156.05 | 164.42 | -4.70 | -5.09 | -18.83 |
-| SPCX | 37.85 | 117.78 | 121.48 | -6.98 | -3.05 | -22.18 |
-| HOOD | 35.51 | 93.32 | 100.27 | -1.27 | -6.93 | -22.69 |
-| TSLA | 31.33 | 324.92 | 341.84 | -1.83 | -4.95 | -25.46 |
-| LIN | 25.90 | 496.88 | 512.34 | -0.43 | -3.02 | -27.55 |
-
-## Tax Reserve
-- `net_realized_gains_ytd_pretrade`: **$57,929.89**
-- `net_realized_gains_ytd_effective` (post-sells): **$58,525.49**
-- `tax_reserve` (final): **$17,557.65**
-
-## GET THE PROFITS / Momentum Reversal Trim Sells
-- **NVDA**: GET THE PROFITS: +19.85%, FIFO $583.78
-- **LLY**: GET THE PROFITS: +7.53%, FIFO $12.75 (ordinary order — sub-whole-share position, Robinhood default lot matching; FIFO figure is an estimate)
-
-## Overweight High-Beta Trims
-- none fired this cycle
-
-## Buys
-- none fired this cycle
-
-## Total_High_Beta_Gains_Realized: **$596.53**
-
-## SKIPPED/PENDING
-| Symbol | Reason | Would-be action |
-|---|---|---|
-| PLTR | GTP % gate clears (+15.81%) but profit_resell_cooldown_days active | partial profit-take sale |
-| MU | GTP % gate clears (+249.42%) but profit_resell_cooldown_days active | partial profit-take sale |
-| AMZN | GTP % gate clears (+32.42%) but profit_resell_cooldown_days active | partial profit-take sale |
-| MSFT | GTP % gate clears (+22.01%) but profit_resell_cooldown_days active | partial profit-take sale |
-| ARM | GTP % gate clears (+17.71%) but profit_resell_cooldown_days active | partial profit-take sale |
-| SMCI | GTP % gate clears (+9.26%) but profit_resell_cooldown_days active | partial profit-take sale |
-| AMD | GTP % gate clears (+9.04%) but profit_resell_cooldown_days active | partial profit-take sale |
-| VRT | GTP % gate clears (+21.25%) but profit_resell_cooldown_days active | partial profit-take sale |
-| VRT | MRT gates clear (score -11.36) but profit_resell_cooldown_days active | partial profit-take sale |
-| AVGO | GTP % gate clears (+10.71%) but profit_resell_cooldown_days active | partial profit-take sale |
-| IBM | even selling all 0.4473 fractional share(s) held ($60.00) falls short of min_value_of_trade ($60.00) | partial profit-take sale |
-| GE | GTP % gate clears (+8.57%) but FIFO dollar gate fails ($8.15 < $12.5) | partial profit-take sale |
-| HD | even selling all 0.0795 fractional share(s) held ($27.86) falls short of min_value_of_trade ($60.00) | partial profit-take sale |
-| LIN | MRT momentum/margin gates clear but FIFO dollar gate fails ($11.86 < $12.5) | partial profit-take sale |
-| INTC | underwater (-9.71% margin) and not in forceSell | Overweight trim to fund Underweight/Multiplier |
-| ORCL | underwater (-9.65% margin) and not in forceSell | Overweight trim to fund Underweight/Multiplier |
-| META | underwater (-11.02% margin) and not in forceSell | Overweight trim to fund Underweight/Multiplier |
-| SMCI | buy_price_diff_limit: +10.14% vs. 3-day low (limit 5%) | Underweight/Alpha buy |
-| IONQ | buy_price_diff_limit: +15.61% vs. 3-day low (limit 5%) | Underweight/Alpha buy |
-| AMD | buy_price_diff_limit: +5.63% vs. 3-day low (limit 5%) | Underweight/Alpha buy |
-| HD | buy_price_diff_limit: +6.61% vs. 3-day low (limit 5%) | Underweight/Alpha buy |
-| CAT | buy_price_diff_limit: +8.17% vs. 3-day low (limit 5%) | Underweight/Alpha buy |
-| LIN | buy_price_diff_limit: +5.96% vs. 3-day low (limit 5%) | Underweight/Alpha buy |
-| FCX | buy_price_diff_limit: +13.76% vs. 3-day low (limit 5%) | Underweight/Alpha buy |
-| SHW | buy_price_diff_limit: +9.00% vs. 3-day low (limit 5%) | Underweight/Alpha buy |
 
 ## Orders Placed
 ```

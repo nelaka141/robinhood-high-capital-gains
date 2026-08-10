@@ -26,7 +26,7 @@
 		"lastLossSaleDate": null
 	},
 	"PLTR": {
-		"peakPrice": 175.94,
+		"peakPrice": 176.21,
 		"peakDate": "2026-08-10",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -182,7 +182,7 @@
 		"lastLossSaleDate": null
 	},
 	"ORCL": {
-		"peakPrice": 148.67,
+		"peakPrice": 151.625,
 		"peakDate": "2026-08-10",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -290,8 +290,8 @@
 		"peakDate": "2026-07-13",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
-		"profitSellPrice": 280.515,
-		"profitSellDate": "2026-08-05",
+		"profitSellPrice": 273.8903,
+		"profitSellDate": "2026-08-10",
 		"lastPurchaseDate": "2026-08-07",
 		"lastAlphaLeaderBuyPrice": null,
 		"lastAlphaLeaderBuyDate": null,
@@ -351,8 +351,8 @@
 		"lastLossSaleDate": null
 	},
 	"NFLX": {
-		"peakPrice": 74.3226,
-		"peakDate": "2026-08-07",
+		"peakPrice": 75.5,
+		"peakDate": "2026-08-10",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 74.16,
@@ -403,7 +403,7 @@
 		"lastLossSaleDate": null
 	},
 	"LLY": {
-		"peakPrice": 1211.68,
+		"peakPrice": 1227.37,
 		"peakDate": "2026-08-10",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -546,7 +546,7 @@
 		"lastLossSaleDate": null
 	},
 	"XOM": {
-		"peakPrice": 157.82,
+		"peakPrice": 159.6,
 		"peakDate": "2026-08-10",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -559,12 +559,12 @@
 		"lastLossSaleDate": null
 	},
 	"CVX": {
-		"peakPrice": 191.8648,
+		"peakPrice": 194.5574,
 		"peakDate": "2026-08-10",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
-		"profitSellPrice": null,
-		"profitSellDate": null,
+		"profitSellPrice": 194.5574,
+		"profitSellDate": "2026-08-10",
 		"lastPurchaseDate": "2026-08-07",
 		"lastAlphaLeaderBuyPrice": null,
 		"lastAlphaLeaderBuyDate": null,
@@ -572,7 +572,7 @@
 		"lastLossSaleDate": null
 	},
 	"COP": {
-		"peakPrice": 121.27,
+		"peakPrice": 122.75,
 		"peakDate": "2026-08-10",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -650,15 +650,15 @@
 		"lastLossSaleDate": null
 	},
 	"FCX": {
-		"peakPrice": 70.465,
-		"peakDate": "2026-08-07",
+		"peakPrice": 70.477,
+		"peakDate": "2026-08-10",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": null,
 		"profitSellDate": null,
 		"lastPurchaseDate": "2026-08-10",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
+		"lastAlphaLeaderBuyPrice": 70.477,
+		"lastAlphaLeaderBuyDate": "2026-08-10",
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
