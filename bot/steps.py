@@ -677,51 +677,58 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
             cooldown_blocks = not recovered
 
         # --- GET THE PROFITS ---
-        if not already_today and raw_gain_pct > cfg.meta.materialize_profit_percentage:
-            if cooldown_blocks:
-                ctx.skipped.append(SkippedTrade(
-                    sym, f"GTP % gate clears (+{raw_gain_pct:.2f}%) but profit_resell_cooldown_days active",
-                    "partial profit-take sale",
-                ))
-            else:
-                fifo = fifo_realized_profit(broker.get_tax_lots(ctx.account_number, sym), sell_qty, price)
-                # Extra dollar-profit floor when the candidate is the CURRENT Alpha Leader —
-                # protects it from being sold too cheaply just because a routine sell gate
-                # cleared. Checked against the same FIFO-matched realized dollar figure the
-                # mechanism's own dollar gate uses (not the raw percentage) — independent of,
-                # and typically stricter than, materialize_profit_in_dollars.
-                alpha_leader_guard_blocks = (
-                    sym == ctx.alpha_leader and fifo.fully_covered
-                    and fifo.realized_profit_dollars < cfg.meta.minimum_alpha_leader_sell_profit
-                )
-                if alpha_leader_guard_blocks:
+        # v2.63.0: the percentage gate and dollar gate are OR'd, not AND'd — either one clearing
+        # its own bar is enough to fire. The dollar gate needs the FIFO figure regardless of
+        # which leg passed, so it's computed unconditionally here rather than only after the
+        # percentage gate clears (as it was under the old AND semantics).
+        if not already_today:
+            fifo = fifo_realized_profit(broker.get_tax_lots(ctx.account_number, sym), sell_qty, price)
+            percent_gate_passes = raw_gain_pct > cfg.meta.materialize_profit_percentage
+            dollar_gate_passes = fifo.fully_covered and fifo.realized_profit_dollars > cfg.meta.materialize_profit_in_dollars
+            if percent_gate_passes or dollar_gate_passes:
+                if cooldown_blocks:
                     ctx.skipped.append(SkippedTrade(
-                        sym,
-                        f"GTP gates clear (FIFO ${fifo.realized_profit_dollars:.2f}) but Alpha Leader sell "
-                        f"guard blocks (needs >= ${cfg.meta.minimum_alpha_leader_sell_profit:.2f})",
+                        sym, f"GTP gate clears (+{raw_gain_pct:.2f}% / FIFO ${fifo.realized_profit_dollars:.2f}) "
+                             f"but profit_resell_cooldown_days active",
                         "partial profit-take sale",
                     ))
-                elif fifo.fully_covered and fifo.realized_profit_dollars > cfg.meta.materialize_profit_in_dollars:
-                    reason = f"GET THE PROFITS: +{raw_gain_pct:.2f}%, FIFO ${fifo.realized_profit_dollars:.2f}"
-                    if fractional_position:
-                        reason += (" (ordinary order — sub-whole-share position, Robinhood "
-                                    "default lot matching; FIFO figure is an estimate)")
-                    ctx.profit_taking_sells.append(TradeIntent(
-                        symbol=sym, side="sell", quantity=sell_qty, reason=reason,
-                        tax_lots=None if fractional_position else
-                            [{"open_lot_id": l["open_lot_id"], "quantity": l["quantity"]} for l in fifo.lots_consumed],
-                        realized_profit_dollars=fifo.realized_profit_dollars,
-                        raw_gain_pct=raw_gain_pct,
-                    ))
-                    fired_today.add(sym)
-                    continue  # GTP is exclusive with MRT for the same symbol/cycle
                 else:
-                    ctx.skipped.append(SkippedTrade(
-                        sym,
-                        f"GTP % gate clears (+{raw_gain_pct:.2f}%) but FIFO dollar gate fails "
-                        f"(${fifo.realized_profit_dollars:.2f} < ${cfg.meta.materialize_profit_in_dollars})",
-                        "partial profit-take sale",
-                    ))
+                    # Extra dollar-profit floor when the candidate is the CURRENT Alpha Leader —
+                    # protects it from being sold too cheaply just because a routine sell gate
+                    # cleared. Checked against the same FIFO-matched realized dollar figure the
+                    # mechanism's own dollar gate uses (not the raw percentage) — independent of,
+                    # and typically stricter than, materialize_profit_in_dollars.
+                    alpha_leader_guard_blocks = (
+                        sym == ctx.alpha_leader and fifo.fully_covered
+                        and fifo.realized_profit_dollars < cfg.meta.minimum_alpha_leader_sell_profit
+                    )
+                    if alpha_leader_guard_blocks:
+                        ctx.skipped.append(SkippedTrade(
+                            sym,
+                            f"GTP gates clear (FIFO ${fifo.realized_profit_dollars:.2f}) but Alpha Leader sell "
+                            f"guard blocks (needs >= ${cfg.meta.minimum_alpha_leader_sell_profit:.2f})",
+                            "partial profit-take sale",
+                        ))
+                    elif fifo.fully_covered:
+                        reason = f"GET THE PROFITS: +{raw_gain_pct:.2f}%, FIFO ${fifo.realized_profit_dollars:.2f}"
+                        if fractional_position:
+                            reason += (" (ordinary order — sub-whole-share position, Robinhood "
+                                        "default lot matching; FIFO figure is an estimate)")
+                        ctx.profit_taking_sells.append(TradeIntent(
+                            symbol=sym, side="sell", quantity=sell_qty, reason=reason,
+                            tax_lots=None if fractional_position else
+                                [{"open_lot_id": l["open_lot_id"], "quantity": l["quantity"]} for l in fifo.lots_consumed],
+                            realized_profit_dollars=fifo.realized_profit_dollars,
+                            raw_gain_pct=raw_gain_pct,
+                        ))
+                        fired_today.add(sym)
+                        continue  # GTP is exclusive with MRT for the same symbol/cycle
+                    else:
+                        ctx.skipped.append(SkippedTrade(
+                            sym,
+                            "cost basis pending transfer on required lots (fail-closed)",
+                            "partial profit-take sale",
+                        ))
 
         # --- MOMENTUM REVERSAL TRIM (independent of GTP; one shared same-day guard) ---
         mscore = ctx.momentum_scores.get(sym)

@@ -501,7 +501,10 @@ def test_alpha_leader_mrt_blocked_below_threshold() -> None:
 
 
 def test_alpha_leader_overweight_trim_blocked_below_threshold() -> None:
-    ctx = _ctx_for_step4()
+    # materialize_profit_in_dollars raised alongside the base materialize_profit_percentage=2.0
+    # so GET THE PROFITS (now OR'd, not AND'd, v2.63.0) doesn't fire and pull ALPHA/OTHER out of
+    # the Overweight-trim candidate pool this test is actually exercising.
+    ctx = _ctx_for_step4(materialize_profit_in_dollars=1e9)
     ctx.positions = {
         "ALPHA": Position("ALPHA", quantity=10.0, avg_cost_basis=100.0),
         "OTHER": Position("OTHER", quantity=10.0, avg_cost_basis=100.0),
@@ -529,7 +532,11 @@ def test_size_overweight_trims_harvests_top_ranked_first() -> None:
     """Two Overweight candidates, LOW-beta HIGH-margin (worse score) and HIGH-beta HIGH-margin
     (better score). harvest_needed_dollars is small enough that only the top-ranked candidate
     should get sized; the other should be skipped as "no harvest shortfall remains"."""
-    ctx = _ctx_for_step4(alpha_leader=None, symbols=("LOWSCORE", "HISCORE"), materialize_profit_percentage=1000.0)
+    # materialize_profit_in_dollars raised too — under OR semantics (v2.63.0) a sky-high
+    # materialize_profit_percentage alone no longer suppresses GET THE PROFITS, since the dollar
+    # gate could still pass on its own.
+    ctx = _ctx_for_step4(alpha_leader=None, symbols=("LOWSCORE", "HISCORE"),
+                          materialize_profit_percentage=1000.0, materialize_profit_in_dollars=1e9)
     ctx.positions = {
         "LOWSCORE": Position("LOWSCORE", quantity=100.0, avg_cost_basis=50.0),
         "HISCORE": Position("HISCORE", quantity=100.0, avg_cost_basis=50.0),
@@ -567,7 +574,9 @@ def test_size_overweight_trims_harvests_top_ranked_first() -> None:
 def test_size_overweight_trims_walks_down_ranking_for_large_shortfall() -> None:
     """A shortfall larger than the top-ranked candidate's own overweight excess should spill
     over into the next-ranked candidate too."""
-    ctx = _ctx_for_step4(alpha_leader=None, symbols=("A", "B"), materialize_profit_percentage=1000.0)
+    # materialize_profit_in_dollars raised too — see the OR-semantics note above.
+    ctx = _ctx_for_step4(alpha_leader=None, symbols=("A", "B"),
+                          materialize_profit_percentage=1000.0, materialize_profit_in_dollars=1e9)
     ctx.positions = {
         "A": Position("A", quantity=100.0, avg_cost_basis=50.0),
         "B": Position("B", quantity=100.0, avg_cost_basis=50.0),
