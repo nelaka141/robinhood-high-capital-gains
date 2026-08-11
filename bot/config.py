@@ -54,6 +54,7 @@ class PortfolioMetadata:
     momentum_reversal_minimum_profit_margin_percent: float
     momentum_reversal_minimum_profit_dollars: float
     profit_resell_cooldown_days: int
+    z_score_sell_points: float
     sell_or_buy_value_limit: float
     min_value_of_trade: float
     materialize_profit_percentage: float
