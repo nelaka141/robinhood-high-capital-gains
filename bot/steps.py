@@ -660,9 +660,11 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
         # v2.65.0: purely a flat calendar-day check — the Z-score recovery leg (z_score_sell_points)
         # was removed; profit_resell_cooldown_days is now the sole guard, paired only with each
         # mechanism's own percentage/dollar gate above.
+        # v2.69.0: strict "<" — only a gap strictly less than the cooldown window blocks; a gap
+        # exactly equal to profit_resell_cooldown_days now clears.
         cooldown_blocks = (
             st.profitSellDate is not None
-            and (ctx.current_date - _parse_date(st.profitSellDate)).days <= cfg.meta.profit_resell_cooldown_days
+            and (ctx.current_date - _parse_date(st.profitSellDate)).days < cfg.meta.profit_resell_cooldown_days
         )
 
         # --- GET THE PROFITS ---
