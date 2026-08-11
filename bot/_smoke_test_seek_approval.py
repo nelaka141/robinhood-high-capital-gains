@@ -29,6 +29,7 @@ def _minimal_ctx(seek_approval_value: float = 1000.0) -> RunContext:
         momentum_reversal_minimum_profit_margin_percent=1.0,
         momentum_reversal_minimum_profit_dollars=12.5,
         profit_resell_cooldown_days=15,
+        z_score_sell_points=0.1,
         sell_or_buy_value_limit=10, min_value_of_trade=60,
         materialize_profit_percentage=4.0, profit_sell_percentage=50.0,
         materialize_profit_in_dollars=12.5, keep_aside_profits_for_tax_percent=30.0,

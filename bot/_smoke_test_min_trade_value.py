@@ -28,7 +28,10 @@ class _TaxLotOnlyBroker:
         return self._lots.get(symbol, [])
 
     def get_daily_closes(self, symbol: str, start, end):
-        return []
+        # Mildly oscillating series well below every test's sell price so the new
+        # z_score_sell_points guard (Z_yesterday - Z_today < threshold) passes trivially:
+        # Z_today ends up far above Z_yesterday, giving a strongly negative diff.
+        return [98.0, 98.5, 99.0, 99.5, 100.0]
 
 
 def _minimal_ctx(alpha_leader: str | None = None, targets: dict | None = None) -> RunContext:
@@ -46,6 +49,7 @@ def _minimal_ctx(alpha_leader: str | None = None, targets: dict | None = None) -
         momentum_reversal_minimum_profit_margin_percent=1.0,
         momentum_reversal_minimum_profit_dollars=12.5,
         profit_resell_cooldown_days=15,
+        z_score_sell_points=0.1,
         sell_or_buy_value_limit=10, min_value_of_trade=100,
         materialize_profit_percentage=4.0, profit_sell_percentage=50.0,
         materialize_profit_in_dollars=12.5, keep_aside_profits_for_tax_percent=30.0,

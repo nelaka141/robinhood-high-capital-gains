@@ -575,6 +575,7 @@ def step3_alpha_leader(ctx: RunContext, broker: BrokerClient) -> Dict[str, float
 def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
     cfg = ctx.config
     fired_today: set = set()
+    z_start, z_end = _z_score_window(ctx.current_date)
 
     for sym, pos in ctx.positions.items():
         if sym not in cfg.targets or pos.quantity <= 0 or pos.avg_cost_basis is None:
@@ -667,6 +668,23 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
             and (ctx.current_date - _parse_date(st.profitSellDate)).days < cfg.meta.profit_resell_cooldown_days
         )
 
+        # v2.70.0: z_score_sell_points — additional mandatory guard for GET THE PROFITS and
+        # Momentum Reversal Trim, independent of cooldown_blocks above. Z_yesterday uses the
+        # most recent stored close (price_history/daily_bars.json, cache trails one session);
+        # Z_today uses the live current price — same price_history-derived mean/stdev basis as
+        # the Step 2 buy-guard's z_score_points/z_score_upward_points. The sale is only allowed
+        # to fire when (Z_yesterday - Z_today) < z_score_sell_points — i.e. today's price hasn't
+        # already dropped too far, in standard-deviation terms, off yesterday's close. Missing/
+        # insufficient price history fails closed (guard stays active, blocking the sale), same
+        # posture as every other Z-score guard in this file.
+        sell_closes = broker.get_daily_closes(sym, z_start, z_end)
+        sell_z_yesterday = price_zscore(sell_closes, sell_closes[-1]) if sell_closes else None
+        sell_z_today = price_zscore(sell_closes, price)
+        zscore_sell_blocks = not (
+            sell_z_yesterday is not None and sell_z_today is not None
+            and (sell_z_yesterday - sell_z_today) < cfg.meta.z_score_sell_points
+        )
+
         # --- GET THE PROFITS ---
         # v2.63.0: the percentage gate and dollar gate are OR'd, not AND'd — either one clearing
         # its own bar is enough to fire. The dollar gate needs the FIFO figure regardless of
@@ -705,6 +723,12 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
                     ctx.skipped.append(SkippedTrade(
                         sym, f"GTP gate clears (+{raw_gain_pct:.2f}% / FIFO ${fifo.realized_profit_dollars:.2f}) "
                              f"but profit_resell_cooldown_days active",
+                        "partial profit-take sale",
+                    ))
+                elif zscore_sell_blocks:
+                    ctx.skipped.append(SkippedTrade(
+                        sym, f"GTP gate clears (+{raw_gain_pct:.2f}% / FIFO ${fifo.realized_profit_dollars:.2f}) "
+                             f"but z_score_sell_points guard active (price hasn't turned back up)",
                         "partial profit-take sale",
                     ))
                 else:
@@ -777,6 +801,13 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
                     ctx.skipped.append(SkippedTrade(
                         sym, f"MRT gate clears (score {mscore.score:.2f}, +{raw_gain_pct:.2f}% / "
                              f"FIFO ${fifo.realized_profit_dollars:.2f}) but profit_resell_cooldown_days active",
+                        "partial profit-take sale",
+                    ))
+                elif zscore_sell_blocks:
+                    ctx.skipped.append(SkippedTrade(
+                        sym, f"MRT gate clears (score {mscore.score:.2f}, +{raw_gain_pct:.2f}% / "
+                             f"FIFO ${fifo.realized_profit_dollars:.2f}) but z_score_sell_points guard active "
+                             f"(price hasn't turned back up)",
                         "partial profit-take sale",
                     ))
                 else:

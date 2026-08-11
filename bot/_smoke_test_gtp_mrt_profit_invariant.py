@@ -40,6 +40,7 @@ def _meta(**overrides) -> PortfolioMetadata:
         momentum_reversal_minimum_profit_margin_percent=1.0,
         momentum_reversal_minimum_profit_dollars=1e9,
         profit_resell_cooldown_days=15,
+        z_score_sell_points=0.1,
         sell_or_buy_value_limit=1, min_value_of_trade=1,
         materialize_profit_percentage=2.5, profit_sell_percentage=50.0,
         materialize_profit_in_dollars=1e9,  # unreachable -> only the percent gate can fire in GTP tests
@@ -70,7 +71,10 @@ class _Broker:
         return self._lots.get(symbol, [])
 
     def get_daily_closes(self, symbol: str, start, end):
-        return []
+        # Mildly oscillating series well below every test's sell price (all $80 or $100 vs. a
+        # ~$60 basis) so the new z_score_sell_points guard (Z_yesterday - Z_today < threshold)
+        # passes trivially: Z_today is far above Z_yesterday, giving a strongly negative diff.
+        return [58.0, 58.5, 59.0, 59.5, 60.0]
 
 
 def _decreasing_cost_position(sym: str, price: float, meta_overrides: dict | None = None) -> tuple:
