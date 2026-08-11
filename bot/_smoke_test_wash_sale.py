@@ -118,7 +118,7 @@ def test_forward_guard_blocks_buy_within_window() -> None:
     """Loss-sold 10 days ago, wash_sale_lookback_days=30 -> still inside the window -> buy-guarded."""
     ctx = _step2_ctx(loss_sale_date="2026-07-28", current_date=date(2026, 8, 7))
     assert "SYM" in ctx.buy_guarded_symbols, ctx.buy_guarded_symbols
-    assert "wash sale" in ctx.buy_guarded_symbols["SYM"].lower()
+    assert any("wash-sale" in r.lower() for r in ctx.buy_guarded_symbols["SYM"])
     print(f"[wash-forward-blocks] {ctx.buy_guarded_symbols['SYM']}")
 
 
