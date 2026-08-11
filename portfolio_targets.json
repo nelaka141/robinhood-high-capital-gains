@@ -1,6 +1,6 @@
 {
   "portfolio_metadata": {
-    "version": "2.56.0",
+    "version": "2.57.0",
     "last_updated": "2026-08-10",
     "global_drift_tolerance": 1.0,
     "max_trailing_drawdown_percentage": 35,
@@ -26,7 +26,6 @@
     "overweight_sell_minimum_profit_margin_dollars": 40.0,
     "momentum_reversal_minimum_profit_margin_percent": 1.5,
     "momentum_reversal_minimum_profit_dollars": 40.0,
-    "z_score_sell_points": 0.2,
     "profit_resell_cooldown_days": 1,
     "sell_or_buy_value_limit": 50,
     "min_value_of_trade": 250,

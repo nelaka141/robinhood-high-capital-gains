@@ -44,7 +44,7 @@ def _meta(**overrides) -> PortfolioMetadata:
         lock_in_period=2, overweight_sell_minimum_profit_margin_percent=1.0,
         overweight_sell_minimum_profit_margin_dollars=0.0,
         momentum_reversal_minimum_profit_margin_percent=1.0,
-        momentum_reversal_minimum_profit_dollars=0.0, z_score_sell_points=0.2,
+        momentum_reversal_minimum_profit_dollars=0.0,
         profit_resell_cooldown_days=15,
         sell_or_buy_value_limit=10, min_value_of_trade=0,
         materialize_profit_percentage=2.0, profit_sell_percentage=50.0,
