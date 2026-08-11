@@ -20,7 +20,7 @@ from .indicators import beta, daily_returns, ema_series, price_zscore, rsi_serie
 from .models import DormantAsset, DriftResult, MomentumScore, RunContext, SkippedTrade, TradeIntent
 from .state import AlphaLeaderReserve, AssetPriceState, load_transferred_basis
 
-# Z-score lookback for the z_score_points/z_score_sell_points guards (Step 2/4) — matches
+# Z-score lookback for the z_score_points/z_score_upward_points buy-guard (Step 2) — matches
 # price_history/daily_bars.json's rolling ~90-day cache, so this reads whatever history is
 # already there without requesting a wider window than the cache actually carries.
 _Z_SCORE_LOOKBACK_DAYS = 95
@@ -575,7 +575,6 @@ def step3_alpha_leader(ctx: RunContext, broker: BrokerClient) -> Dict[str, float
 def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
     cfg = ctx.config
     fired_today: set = set()
-    z_start, z_end = _z_score_window(ctx.current_date)
 
     for sym, pos in ctx.positions.items():
         if sym not in cfg.targets or pos.quantity <= 0 or pos.avg_cost_basis is None:
@@ -658,23 +657,13 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
             continue
 
         already_today = st.profitSellDate == ctx.current_date.isoformat()
-        cooldown_blocks = False
-        if (
+        # v2.65.0: purely a flat calendar-day check — the Z-score recovery leg (z_score_sell_points)
+        # was removed; profit_resell_cooldown_days is now the sole guard, paired only with each
+        # mechanism's own percentage/dollar gate above.
+        cooldown_blocks = (
             st.profitSellDate is not None
             and (ctx.current_date - _parse_date(st.profitSellDate)).days <= cfg.meta.profit_resell_cooldown_days
-        ):
-            # Z-score recovery check (v2.55.0, replaces the old current_price < profitSellPrice
-            # comparison): recovered once today's Z-score has risen at least z_score_sell_points
-            # above the Z-score profitSellPrice had (both normalized against today's price
-            # history). Missing/insufficient history fails closed — recovered stays False.
-            z_closes = broker.get_daily_closes(sym, z_start, z_end)
-            z_today = price_zscore(z_closes, price)
-            z_sell = price_zscore(z_closes, st.profitSellPrice) if st.profitSellPrice is not None else None
-            recovered = (
-                z_today is not None and z_sell is not None
-                and (z_today - z_sell) >= cfg.meta.z_score_sell_points
-            )
-            cooldown_blocks = not recovered
+        )
 
         # --- GET THE PROFITS ---
         # v2.63.0: the percentage gate and dollar gate are OR'd, not AND'd — either one clearing
