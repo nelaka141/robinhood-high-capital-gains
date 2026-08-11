@@ -675,7 +675,31 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
             percent_gate_passes = raw_gain_pct > cfg.meta.materialize_profit_percentage
             dollar_gate_passes = fifo.fully_covered and fifo.realized_profit_dollars > cfg.meta.materialize_profit_in_dollars
             if percent_gate_passes or dollar_gate_passes:
-                if cooldown_blocks:
+                # v2.66.0: percent_gate_passes is based on avg_cost_basis (a whole-position
+                # blended average) and can pass even when the FIFO-matched lots actually being
+                # sold realize a loss — this happens whenever the position was built at
+                # decreasing cost over time (expensive shares bought first, cheaper ones bought
+                # later), since FIFO always disposes of the oldest (here, priciest) lots first.
+                # Require the true FIFO-matched dollar figure to be positive unconditionally,
+                # regardless of which gate (percent or dollar) is what actually passed — this is
+                # what CLAUDE.md's "structurally profit-gated" assumption for GTP/MRT (used to
+                # exempt them from the wash-sale backward sell-guard) depends on holding in fact,
+                # not just on paper via the blended-average estimate.
+                if not fifo.fully_covered:
+                    ctx.skipped.append(SkippedTrade(
+                        sym,
+                        "cost basis pending transfer on required lots (fail-closed)",
+                        "partial profit-take sale",
+                    ))
+                elif fifo.realized_profit_dollars <= 0:
+                    ctx.skipped.append(SkippedTrade(
+                        sym,
+                        f"GTP gate clears on blended-average (+{raw_gain_pct:.2f}%) but the FIFO-matched "
+                        f"lots actually being sold would realize ${fifo.realized_profit_dollars:.2f} "
+                        f"(not a real profit) — refusing to sell at a loss",
+                        "partial profit-take sale",
+                    ))
+                elif cooldown_blocks:
                     ctx.skipped.append(SkippedTrade(
                         sym, f"GTP gate clears (+{raw_gain_pct:.2f}% / FIFO ${fifo.realized_profit_dollars:.2f}) "
                              f"but profit_resell_cooldown_days active",
@@ -688,7 +712,7 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
                     # mechanism's own dollar gate uses (not the raw percentage) — independent of,
                     # and typically stricter than, materialize_profit_in_dollars.
                     alpha_leader_guard_blocks = (
-                        sym == ctx.alpha_leader and fifo.fully_covered
+                        sym == ctx.alpha_leader
                         and fifo.realized_profit_dollars < cfg.meta.minimum_alpha_leader_sell_profit
                     )
                     if alpha_leader_guard_blocks:
@@ -698,7 +722,7 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
                             f"guard blocks (needs >= ${cfg.meta.minimum_alpha_leader_sell_profit:.2f})",
                             "partial profit-take sale",
                         ))
-                    elif fifo.fully_covered:
+                    else:
                         reason = f"GET THE PROFITS: +{raw_gain_pct:.2f}%, FIFO ${fifo.realized_profit_dollars:.2f}"
                         if fractional_position:
                             reason += (" (ordinary order — sub-whole-share position, Robinhood "
@@ -710,14 +734,13 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
                             realized_profit_dollars=fifo.realized_profit_dollars,
                             raw_gain_pct=raw_gain_pct,
                         ))
+                        if fifo.realized_profit_dollars <= 0:
+                            # Defensive backstop — unreachable given the guard above, but keeps
+                            # the wash-sale forward buy-guard armed correctly if this invariant is
+                            # ever loosened by a future change.
+                            ctx.loss_sale_symbols.append(sym)
                         fired_today.add(sym)
                         continue  # GTP is exclusive with MRT for the same symbol/cycle
-                    else:
-                        ctx.skipped.append(SkippedTrade(
-                            sym,
-                            "cost basis pending transfer on required lots (fail-closed)",
-                            "partial profit-take sale",
-                        ))
 
         # --- MOMENTUM REVERSAL TRIM (independent of GTP; one shared same-day guard) ---
         # v2.64.0: the margin-percent gate and dollar gate are OR'd, not AND'd — either one
@@ -731,7 +754,24 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
             margin_gate_passes = raw_gain_pct >= cfg.meta.momentum_reversal_minimum_profit_margin_percent
             dollar_gate_passes = fifo.fully_covered and fifo.realized_profit_dollars > cfg.meta.momentum_reversal_minimum_profit_dollars
             if margin_gate_passes or dollar_gate_passes:
-                if cooldown_blocks:
+                # v2.66.0: same FIFO-vs-blended-average gap as GET THE PROFITS above — require
+                # the true FIFO-matched dollar figure to be positive unconditionally before firing,
+                # regardless of which gate (margin or dollar) actually passed.
+                if not fifo.fully_covered:
+                    ctx.skipped.append(SkippedTrade(
+                        sym,
+                        "cost basis pending transfer on required lots (fail-closed)",
+                        "partial profit-take sale",
+                    ))
+                elif fifo.realized_profit_dollars <= 0:
+                    ctx.skipped.append(SkippedTrade(
+                        sym,
+                        f"MRT gate clears on blended-average (score {mscore.score:.2f}, +{raw_gain_pct:.2f}%) "
+                        f"but the FIFO-matched lots actually being sold would realize "
+                        f"${fifo.realized_profit_dollars:.2f} (not a real profit) — refusing to sell at a loss",
+                        "partial profit-take sale",
+                    ))
+                elif cooldown_blocks:
                     ctx.skipped.append(SkippedTrade(
                         sym, f"MRT gate clears (score {mscore.score:.2f}, +{raw_gain_pct:.2f}% / "
                              f"FIFO ${fifo.realized_profit_dollars:.2f}) but profit_resell_cooldown_days active",
@@ -739,7 +779,7 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
                     ))
                 else:
                     alpha_leader_guard_blocks = (
-                        sym == ctx.alpha_leader and fifo.fully_covered
+                        sym == ctx.alpha_leader
                         and fifo.realized_profit_dollars < cfg.meta.minimum_alpha_leader_sell_profit
                     )
                     if alpha_leader_guard_blocks:
@@ -749,7 +789,7 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
                             f"guard blocks (needs >= ${cfg.meta.minimum_alpha_leader_sell_profit:.2f})",
                             "partial profit-take sale",
                         ))
-                    elif fifo.fully_covered:
+                    else:
                         reason = f"MOMENTUM REVERSAL TRIM: score {mscore.score:.2f}, FIFO ${fifo.realized_profit_dollars:.2f}"
                         if fractional_position:
                             reason += (" (ordinary order — sub-whole-share position, Robinhood "
@@ -761,13 +801,12 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
                             realized_profit_dollars=fifo.realized_profit_dollars,
                             raw_gain_pct=raw_gain_pct,
                         ))
+                        if fifo.realized_profit_dollars <= 0:
+                            # Defensive backstop — unreachable given the guard above, but keeps
+                            # the wash-sale forward buy-guard armed correctly if this invariant is
+                            # ever loosened by a future change.
+                            ctx.loss_sale_symbols.append(sym)
                         fired_today.add(sym)
-                    else:
-                        ctx.skipped.append(SkippedTrade(
-                            sym,
-                            "cost basis pending transfer on required lots (fail-closed)",
-                            "partial profit-take sale",
-                        ))
 
     # --- Overweight High-Beta ranking (routine, non-mandatory trim source) ---
     already_sold = {t.symbol for t in ctx.profit_taking_sells}
