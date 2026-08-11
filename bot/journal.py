@@ -114,9 +114,18 @@ def render_entry(ctx: RunContext) -> str:
     ]
     for sym, reason in ctx.excluded_symbols.items():
         lines.append(f"- **{sym}** (excluded): {reason}")
-    for sym, reason in ctx.buy_guarded_symbols.items():
+    for sym, reasons in ctx.buy_guarded_symbols.items():
         if sym not in ctx.excluded_symbols:
-            lines.append(f"- **{sym}** (buy-guarded only): {reason}")
+            if len(reasons) == 1:
+                lines.append(f"- **{sym}** (buy-guarded only): {reasons[0]}")
+            else:
+                # More than one guard mechanism is active on this symbol at once (e.g. the
+                # profit-sell guard and the wash-sale guard both armed) — list each separately
+                # rather than only showing whichever one happened to be computed last.
+                joined = " | ".join(f"[{i}] {r}" for i, r in enumerate(reasons, 1))
+                lines.append(
+                    f"- **{sym}** (buy-guarded only, {len(reasons)} guard(s) active): {joined}"
+                )
 
     lines += ["", "## Blocked Assets (`blocked` list)"]
     for sym, reason in ctx.blocked_symbols.items():

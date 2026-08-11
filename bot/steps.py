@@ -267,15 +267,39 @@ def step2_guardrails(ctx: RunContext, broker: BrokerClient) -> None:
                 and (z_today - z_yesterday) > cfg.meta.z_score_upward_points
             )
             sell_date = _parse_date(st.profitSellDate)
-            cooled_down = (ctx.current_date - sell_date).days >= cfg.meta.sold_asset_repurchase_days
+            days_since_sell = (ctx.current_date - sell_date).days if sell_date else 0
+            cooled_down = days_since_sell >= cfg.meta.sold_asset_repurchase_days
             if not (pulled_back and cooled_down):
                 pos = ctx.positions.get(sym)
                 is_full_exit = not pos or pos.quantity <= 0
+                # Report exactly which of the three sub-conditions hasn't cleared yet, so the
+                # journal/email doesn't just say "buy-guard active" with no way to tell whether
+                # it's waiting on the calendar, the dip, or the upturn.
+                unmet: List[str] = []
+                if not cooled_down:
+                    unmet.append(
+                        f"cooldown not met ({days_since_sell}d/{cfg.meta.sold_asset_repurchase_days}d "
+                        f"required)"
+                    )
+                if z_3days_back is None or z_yesterday is None or z_today is None:
+                    unmet.append("insufficient price history to compute Z-scores")
+                else:
+                    if not (z_3days_back - z_yesterday > cfg.meta.z_score_points):
+                        unmet.append(
+                            f"dip not confirmed (Z_3d_back−Z_yesterday="
+                            f"{z_3days_back - z_yesterday:+.3f}, need > {cfg.meta.z_score_points:.3f})"
+                        )
+                    if not (z_today - z_yesterday > cfg.meta.z_score_upward_points):
+                        unmet.append(
+                            f"upturn not confirmed (Z_today−Z_yesterday="
+                            f"{z_today - z_yesterday:+.3f}, need > {cfg.meta.z_score_upward_points:.3f})"
+                        )
                 reason = (
-                    f"profit-sold {st.profitSellDate} @ {st.profitSellPrice} — "
-                    f"buy-guard active ({'full exit' if is_full_exit else 'partial, remainder still held'})"
+                    f"Profit-sell buy-guard: profit-sold {st.profitSellDate} @ {st.profitSellPrice} "
+                    f"({'full exit' if is_full_exit else 'partial, remainder still held'}) — "
+                    f"blocked because: {'; '.join(unmet)}"
                 )
-                ctx.buy_guarded_symbols[sym] = reason
+                ctx.buy_guarded_symbols.setdefault(sym, []).append(reason)
                 if is_full_exit:
                     # Zero position AND buy-guarded => fully out of play, same treatment as a liquidation.
                     ctx.excluded_symbols[sym] = reason
@@ -295,11 +319,11 @@ def step2_guardrails(ctx: RunContext, broker: BrokerClient) -> None:
             days_since = (ctx.current_date - sell_date).days if sell_date else 0
             if days_since <= cfg.meta.wash_sale_lookback_days:
                 reason = (
-                    f"wash sale guard: sold at a loss {st.lastLossSaleDate} @ {st.lastLossSalePrice} — "
-                    f"buy-guard active until {cfg.meta.wash_sale_lookback_days}d have passed "
+                    f"Wash-sale buy-guard: sold at a loss {st.lastLossSaleDate} @ {st.lastLossSalePrice} — "
+                    f"blocked until {cfg.meta.wash_sale_lookback_days}d have passed "
                     f"({days_since}d so far)"
                 )
-                ctx.buy_guarded_symbols[sym] = reason
+                ctx.buy_guarded_symbols.setdefault(sym, []).append(reason)
 
         # Overweight sell profit-margin / lock-in checks are evaluated per-candidate in Step 4,
         # since they only matter for symbols actually being considered for a trim.

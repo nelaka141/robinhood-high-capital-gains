@@ -135,7 +135,10 @@ class RunContext:
 
     drift_results: Dict[str, DriftResult] = field(default_factory=dict)
     excluded_symbols: Dict[str, str] = field(default_factory=dict)      # fully out of play (liquidation/full-exit)
-    buy_guarded_symbols: Dict[str, str] = field(default_factory=dict)   # buys blocked, otherwise in play
+    buy_guarded_symbols: Dict[str, List[str]] = field(default_factory=dict)  # buys blocked, otherwise in play —
+                                                                          # one reason string per guard mechanism
+                                                                          # active for that symbol (a symbol can be
+                                                                          # caught by more than one at once)
     blocked_symbols: Dict[str, str] = field(default_factory=dict)       # `blocked` list — exempt from ALL buy/sell
                                                                           # this cycle (drawdown, GTP/MRT, Overweight
                                                                           # trims, Underweight/Alpha buys), including
