@@ -11,7 +11,7 @@ from datetime import date
 
 from bot.config import PortfolioConfig, PortfolioMetadata
 from bot.models import Position, Quote, RunContext, TradeIntent
-from bot.steps import step6a_prepare_sells
+from bot.steps import step6a_prepare_sells, step6b_finalize_buys
 
 
 def _minimal_ctx(seek_approval_value: float = 1000.0) -> RunContext:
@@ -99,6 +99,41 @@ def test_excluded_buy_does_not_falsely_halt() -> None:
     print("[excluded-buy-same-symbol-sell] $1,500 phantom buy for a symbol also selling -> no halt — OK")
 
 
+def test_excluded_buy_fresh_alpha_leader_liquidation_does_not_falsely_halt() -> None:
+    """Regression test: a symbol flagged for the Fresh Alpha Leader Stop (Step 1's tighter,
+    faster-acting liquidation — CLAUDE.md Step 1) is ALSO selling this cycle, exactly like an
+    overweight trim or drawdown liquidation. `_selling_symbols()` previously unioned
+    profit_taking_sells/overweight_trims/drawdown_liquidations/blocked_liquidations but omitted
+    ctx.fresh_alpha_leader_liquidations, so a same-cycle buy of a fresh-alpha-liquidated symbol
+    could slip through the same-cycle buy/sell exclusivity rule undetected."""
+    ctx = _minimal_ctx(seek_approval_value=1000.0)
+    ctx.quotes = {"W": Quote(symbol="W", last_trade_price=5.0)}
+    ctx.fresh_alpha_leader_liquidations = ["W"]
+    ctx.positions = {"W": Position(symbol="W", quantity=10.0, avg_cost_basis=6.0)}
+    sells, halted, reason = step6a_prepare_sells(ctx, planned_buys={"W": 1500.0})
+    assert not halted, f"a buy excluded by a same-cycle Fresh Alpha Leader Stop sell should never reach the halt check, got: {reason}"
+    assert len(sells) == 1 and sells[0].symbol == "W"
+    print("[excluded-buy-fresh-alpha-leader-liquidation] $1,500 phantom buy for a symbol also "
+          "liquidated via Fresh Alpha Leader Stop -> no halt — OK")
+
+
+def test_fresh_alpha_leader_liquidation_symbol_excluded_from_final_buys() -> None:
+    """Same regression, exercised through step6b_finalize_buys (the function that actually
+    produces buys_to_place) rather than just the seek_approval_value halt check: a symbol
+    liquidated via the Fresh Alpha Leader Stop must never appear in the final buy list, even if
+    it was independently planned as an Underweight/Alpha buy earlier in the cycle."""
+    ctx = _minimal_ctx(seek_approval_value=100000.0)
+    ctx.quotes = {"W": Quote(symbol="W", last_trade_price=100.0)}
+    ctx.fresh_alpha_leader_liquidations = ["W"]
+    buys = step6b_finalize_buys(
+        ctx, planned_buys={"W": 500.0}, net_realized_gains_ytd_effective=0.0, buying_power_now=10000.0
+    )
+    assert not any(b.symbol == "W" for b in buys), (
+        f"W was liquidated via Fresh Alpha Leader Stop this cycle and must not also be bought, got: {buys}"
+    )
+    print("[final-buys-exclude-fresh-alpha-leader-liquidation] W correctly dropped from buys_to_place — OK")
+
+
 def test_blocked_buy_does_not_falsely_halt() -> None:
     """A planned buy for a `blocked` symbol will never actually be placed either — must not
     trigger a halt."""
@@ -127,6 +162,8 @@ def main() -> None:
     test_single_oversized_sell_halts()
     test_single_oversized_buy_halts_with_no_sells()
     test_excluded_buy_does_not_falsely_halt()
+    test_excluded_buy_fresh_alpha_leader_liquidation_does_not_falsely_halt()
+    test_fresh_alpha_leader_liquidation_symbol_excluded_from_final_buys()
     test_blocked_buy_does_not_falsely_halt()
     test_mixed_small_sells_and_one_big_buy_halts_on_the_buy()
     print("\nSMOKE TEST (per-trade seek_approval_value) PASSED")

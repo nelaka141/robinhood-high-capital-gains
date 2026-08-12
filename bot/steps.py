@@ -1123,6 +1123,7 @@ def _selling_symbols(ctx: RunContext) -> set:
         | {t.symbol for t in ctx.overweight_trims}
         | set(ctx.drawdown_liquidations)
         | set(ctx.blocked_liquidations)
+        | set(ctx.fresh_alpha_leader_liquidations)
     )
 
 
