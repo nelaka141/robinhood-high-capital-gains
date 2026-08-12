@@ -104,7 +104,7 @@
 		"lastLossSaleDate": null
 	},
 	"SMCI": {
-		"peakPrice": 36.65,
+		"peakPrice": 37.89,
 		"peakDate": "2026-08-12",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -169,8 +169,8 @@
 		"lastLossSaleDate": null
 	},
 	"NVDA": {
-		"peakPrice": 223.195,
-		"peakDate": "2026-08-06",
+		"peakPrice": 223.525,
+		"peakDate": "2026-08-12",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 222.77,
@@ -182,8 +182,8 @@
 		"lastLossSaleDate": null
 	},
 	"ORCL": {
-		"peakPrice": 151.625,
-		"peakDate": "2026-08-10",
+		"peakPrice": 152.46,
+		"peakDate": "2026-08-12",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": null,
@@ -420,8 +420,8 @@
 		"peakDate": "2026-08-11",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
-		"profitSellPrice": null,
-		"profitSellDate": null,
+		"profitSellPrice": 260.84,
+		"profitSellDate": "2026-08-12",
 		"lastPurchaseDate": "2026-08-07",
 		"lastAlphaLeaderBuyPrice": null,
 		"lastAlphaLeaderBuyDate": null,
@@ -429,12 +429,12 @@
 		"lastLossSaleDate": null
 	},
 	"JPM": {
-		"peakPrice": 362.79,
+		"peakPrice": 365.73,
 		"peakDate": "2026-08-12",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
-		"profitSellPrice": null,
-		"profitSellDate": null,
+		"profitSellPrice": 365.73,
+		"profitSellDate": "2026-08-12",
 		"lastPurchaseDate": "2026-08-07",
 		"lastAlphaLeaderBuyPrice": null,
 		"lastAlphaLeaderBuyDate": null,
@@ -507,7 +507,7 @@
 		"lastLossSaleDate": null
 	},
 	"WMT": {
-		"peakPrice": 114.06,
+		"peakPrice": 115.28,
 		"peakDate": "2026-08-12",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -559,8 +559,8 @@
 		"lastLossSaleDate": null
 	},
 	"CVX": {
-		"peakPrice": 196.32,
-		"peakDate": "2026-08-11",
+		"peakPrice": 196.7,
+		"peakDate": "2026-08-12",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 196.32,
@@ -572,8 +572,8 @@
 		"lastLossSaleDate": null
 	},
 	"COP": {
-		"peakPrice": 125.6775,
-		"peakDate": "2026-08-11",
+		"peakPrice": 127.03,
+		"peakDate": "2026-08-12",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 125.6775,
@@ -624,8 +624,8 @@
 		"lastLossSaleDate": null
 	},
 	"EQIX": {
-		"peakPrice": 1056.8025,
-		"peakDate": "2026-08-06",
+		"peakPrice": 1065.07,
+		"peakDate": "2026-08-12",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": null,
