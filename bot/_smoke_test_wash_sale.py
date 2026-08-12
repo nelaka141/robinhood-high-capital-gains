@@ -40,7 +40,11 @@ def _meta(**overrides) -> PortfolioMetadata:
         sell_price_diff_limit=5, buy_price_diff_limit=5, no_of_days_for_price_compare=3,
         cap_on_total_cash_balance_to_use=30000, cool_down_period_after_lquidation=6,
         beta_benchmark_symbol="SPY", beta_calculation_lookback_days=30,
-        sold_asset_repurchase_days=2, z_score_points=0.5, z_score_upward_points=0.1, z_score_downward_points=0.5,
+        # Permissive (not-under-test here) buy-timing thresholds: this file covers the
+        # wash-sale guards specifically, not the buy-timing guard (which is now universal —
+        # see bot/steps.py step2_guardrails v2.71.0), so these are set to always clear as long
+        # as real Z-scores are computed (see _Broker.get_daily_closes below for why they must be).
+        sold_asset_repurchase_days=2, z_score_points=-999.0, z_score_upward_points=-999.0, z_score_downward_points=-999.0,
         lock_in_period=2, overweight_sell_minimum_profit_margin_percent=1.0,
         overweight_sell_minimum_profit_margin_dollars=0.0,
         momentum_reversal_minimum_profit_margin_percent=1.0,
@@ -80,7 +84,11 @@ class _Broker:
         return self._lots.get(symbol, [])
 
     def get_daily_closes(self, symbol, start, end):
-        return []  # empty history -> Z-score guards fail closed (not exercised here) / beta=0
+        # Non-empty and non-flat (needed for the now-universal buy-timing guard in
+        # step2_guardrails to compute real Z-scores rather than fail closed on missing
+        # history) — the permissive z_score_* thresholds above make the actual shape
+        # irrelevant to this file's wash-sale-specific assertions.
+        return [95.0, 96.0, 94.5]
 
     def get_buying_power(self, account_number):
         return 10_000.0
@@ -115,11 +123,16 @@ def _step2_ctx(loss_sale_date: str, current_date: date, **meta_overrides) -> Run
 
 
 def test_forward_guard_blocks_buy_within_window() -> None:
-    """Loss-sold 10 days ago, wash_sale_lookback_days=30 -> still inside the window -> buy-guarded."""
+    """Loss-sold 10 days ago, wash_sale_lookback_days=30 -> still inside the window -> buy-guarded.
+    Unlike the buy-timing guard (see _smoke_test_alpha_reserve.py's
+    test_buy_timing_guard_does_not_block_alpha_leader), the wash-sale guard is a tax-compliance
+    rule, not a momentum filter — it also populates alpha_buy_guarded_symbols, so it DOES block
+    the Alpha Leader too."""
     ctx = _step2_ctx(loss_sale_date="2026-07-28", current_date=date(2026, 8, 7))
     assert "SYM" in ctx.buy_guarded_symbols, ctx.buy_guarded_symbols
     assert any("wash-sale" in r.lower() for r in ctx.buy_guarded_symbols["SYM"])
-    print(f"[wash-forward-blocks] {ctx.buy_guarded_symbols['SYM']}")
+    assert "SYM" in ctx.alpha_buy_guarded_symbols, ctx.alpha_buy_guarded_symbols
+    print(f"[wash-forward-blocks] {ctx.buy_guarded_symbols['SYM']} (also gates Alpha Leader)")
 
 
 def test_forward_guard_clears_outside_window() -> None:

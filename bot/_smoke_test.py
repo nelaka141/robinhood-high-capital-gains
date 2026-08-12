@@ -119,7 +119,11 @@ def main() -> None:
 
         planned_buys = steps.step3_alpha_leader(ctx, broker)
         print(f"[Step 3] alpha_leader={ctx.alpha_leader} planned_buys={ {k: round(v,2) for k,v in planned_buys.items()} }")
-        assert ctx.alpha_leader in ctx.momentum_scores
+        # v2.71.0: the buy-timing guard (three-leg Z-score dip-then-turn confirmation) is now
+        # universal — it can legitimately leave NO candidate eligible this cycle (alpha_leader
+        # stays None) against random synthetic price data and the real, tight production
+        # thresholds. When a leader IS chosen, it must still be a genuinely scored candidate.
+        assert ctx.alpha_leader is None or ctx.alpha_leader in ctx.momentum_scores
         for m in ctx.momentum_scores.values():
             assert not math.isnan(m.score)
 

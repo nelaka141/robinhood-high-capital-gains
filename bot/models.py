@@ -138,7 +138,21 @@ class RunContext:
     buy_guarded_symbols: Dict[str, List[str]] = field(default_factory=dict)  # buys blocked, otherwise in play —
                                                                           # one reason string per guard mechanism
                                                                           # active for that symbol (a symbol can be
-                                                                          # caught by more than one at once)
+                                                                          # caught by more than one at once). Gates
+                                                                          # Underweight buys and profit-sell
+                                                                          # repurchases; the Alpha Leader cascade
+                                                                          # does NOT consult this — see below.
+    alpha_buy_guarded_symbols: Dict[str, List[str]] = field(default_factory=dict)  # SUBSET of the guard
+                                                                          # reasons above that also block the Alpha
+                                                                          # Leader specifically (currently: the
+                                                                          # wash-sale guard only). The buy-timing
+                                                                          # guard (three-leg Z-score dip-then-turn +
+                                                                          # its cooldown) deliberately does NOT
+                                                                          # populate this — the Alpha Leader is
+                                                                          # chosen from the strongest-momentum
+                                                                          # candidates, which routinely won't show a
+                                                                          # recent pullback, so requiring one would
+                                                                          # gut the cascade's whole purpose.
     blocked_symbols: Dict[str, str] = field(default_factory=dict)       # `blocked` list — exempt from ALL buy/sell
                                                                           # this cycle (drawdown, GTP/MRT, Overweight
                                                                           # trims, Underweight/Alpha buys), including

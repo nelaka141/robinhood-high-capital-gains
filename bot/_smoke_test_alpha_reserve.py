@@ -23,7 +23,7 @@ from datetime import date
 
 from bot.config import AssetTarget, PortfolioConfig, PortfolioMetadata
 from bot.models import DriftResult, MomentumScore, Position, Quote, RunContext, TaxLot, TradeIntent
-from bot.steps import resolve_alpha_leader_reserve, step3_alpha_leader, step4_profit_taking
+from bot.steps import resolve_alpha_leader_reserve, step2_guardrails, step3_alpha_leader, step4_profit_taking
 
 
 def _meta(**overrides) -> PortfolioMetadata:
@@ -131,11 +131,33 @@ def test_top_momentum_not_guarded_becomes_leader() -> None:
           f"== alpha_leader_reserve_target — OK")
 
 
+def test_buy_timing_guard_does_not_block_alpha_leader() -> None:
+    """TOP is on a strong, steady upward drift (see _series/_Step3Broker) — it never shows the
+    three-leg dip-then-turn pattern, so the real step2_guardrails correctly buy-guards it. But
+    the buy-timing guard must NOT gate the Alpha Leader (see steps.py step2_guardrails v2.72.0):
+    TOP should land in buy_guarded_symbols (blocking it from an Underweight buy or a same-symbol
+    repurchase) while staying OUT of alpha_buy_guarded_symbols, so the cascade still picks it."""
+    ctx = _ctx_for_step3()
+    ctx.price_state = {}  # nobody has a recorded profit-sell or liquidation
+    step2_guardrails(ctx, _Step3Broker())
+    assert "TOP" in ctx.buy_guarded_symbols, (
+        f"TOP's steadily-rising series should fail the buy-timing pattern, got {ctx.buy_guarded_symbols}"
+    )
+    assert "TOP" not in ctx.alpha_buy_guarded_symbols, (
+        f"buy-timing guard must not populate alpha_buy_guarded_symbols, got {ctx.alpha_buy_guarded_symbols}"
+    )
+    allocations = step3_alpha_leader(ctx, _Step3Broker())
+    assert ctx.alpha_leader == "TOP", f"TOP must still win Alpha Leader despite failing buy-timing, got {ctx.alpha_leader}"
+    assert allocations.get("TOP") == ctx.alpha_leader_reserve_target
+    print("[buy-timing-exempts-alpha] TOP fails the universal buy-timing guard "
+          "(buy_guarded=True) but still becomes Alpha Leader (alpha_guarded=False) — OK")
+
+
 def test_guarded_top_falls_back_to_next_candidate() -> None:
     """TOP is buy-guarded -> MID (next in ranking, score 16 >= floor 10) becomes the acting
     Alpha Leader instead, drawing from (not adding to) the reserve sized for TOP."""
     ctx = _ctx_for_step3()
-    ctx.buy_guarded_symbols = {"TOP": "profit-sold recently"}
+    ctx.alpha_buy_guarded_symbols = {"TOP": ["profit-sold recently"]}
     allocations = step3_alpha_leader(ctx, _Step3Broker())
     assert ctx.top_momentum_symbol == "TOP"
     assert ctx.alpha_leader == "MID", f"expected MID to act as fallback leader, got {ctx.alpha_leader}"
@@ -154,7 +176,7 @@ def test_fallback_rank_reduction_applies_haircut() -> None:
     Rank_Multiplier = 1 - (2-1)*0.10 = 0.9 -> $585. The reserve TARGET itself (TOP's own
     would-be allocation) stays unreduced -> more of the $650 reserve survives than before."""
     ctx = _ctx_for_step3(alpha_rank_reduction_percent=10.0)
-    ctx.buy_guarded_symbols = {"TOP": "profit-sold recently"}
+    ctx.alpha_buy_guarded_symbols = {"TOP": ["profit-sold recently"]}
     allocations = step3_alpha_leader(ctx, _Step3Broker())
     assert ctx.alpha_leader == "MID"
     assert ctx.alpha_leader_reserve_target == 650.0, "reserve target itself (TOP's own would-be allocation) is unreduced"
@@ -178,7 +200,7 @@ def test_fallback_rank_reduction_floors_at_zero() -> None:
     """alpha_rank_reduction_percent > 100 can drive Rank_Multiplier negative for a rank-2
     fallback -> the allocation must floor at $0.00, never go negative."""
     ctx = _ctx_for_step3(alpha_rank_reduction_percent=150.0)  # rank 2 -> 1-(2-1)*1.5 = -0.5 -> floored to 0
-    ctx.buy_guarded_symbols = {"TOP": "profit-sold recently"}
+    ctx.alpha_buy_guarded_symbols = {"TOP": ["profit-sold recently"]}
     allocations = step3_alpha_leader(ctx, _Step3Broker())
     assert ctx.alpha_leader == "MID"
     assert allocations.get("MID") == 0.0, f"expected $0 (floored), got {allocations.get('MID')}"
@@ -191,7 +213,7 @@ def test_alpha_leader_excluded_from_underweight_pool() -> None:
     that would double-fund the same symbol from two different pots. UW1 (the only OTHER
     Underweight candidate) should still get its normal share of what's left."""
     ctx = _ctx_for_step3()
-    ctx.buy_guarded_symbols = {"TOP": "profit-sold recently"}
+    ctx.alpha_buy_guarded_symbols = {"TOP": ["profit-sold recently"]}
     # Make MID itself Underweight & breached (it wasn't, by default) so it would ordinarily also
     # compete for the Underweight cash pool: target_weight 60 vs actual_weight 25, mv unchanged.
     ctx.drift_results["MID"] = DriftResult("MID", 25, 25, 60, 60, 35, 1, market_value=500.0)
@@ -214,7 +236,7 @@ def test_fallback_capped_by_own_headroom_leaves_reserve_partially_spent() -> Non
     reserve sized for TOP; the rest stays reserved (checked via resolve_alpha_leader_reserve in
     a separate test below, once ctx.buys reflects what actually got bought)."""
     ctx = _ctx_for_step3(mv={"MID": 1700.0})  # headroom(MID) = 0.9*2000 - 1700 = $100
-    ctx.buy_guarded_symbols = {"TOP": "profit-sold recently"}
+    ctx.alpha_buy_guarded_symbols = {"TOP": ["profit-sold recently"]}
     allocations = step3_alpha_leader(ctx, _Step3Broker())
     assert ctx.alpha_leader == "MID"
     assert ctx.alpha_leader_reserve_target == 650.0, "TOP's own headroom (unaffected by MID's mv) still $800, doesn't bind"
@@ -227,7 +249,7 @@ def test_cascade_stops_at_least_momentum_score_floor() -> None:
     """TOP guarded, and MID's score is now BELOW alpha_leader_least_momentum_score -> the
     cascade must NOT fall back to MID (or anyone else) -> no Alpha Leader this cycle."""
     ctx = _ctx_for_step3(alpha_leader_least_momentum_score=20.0)  # MID's score (16) < 20
-    ctx.buy_guarded_symbols = {"TOP": "profit-sold recently"}
+    ctx.alpha_buy_guarded_symbols = {"TOP": ["profit-sold recently"]}
     allocations = step3_alpha_leader(ctx, _Step3Broker())
     assert ctx.alpha_leader is None, f"MID's score is below the floor -> no fallback allowed, got {ctx.alpha_leader}"
     assert "MID" not in allocations and "TOP" not in allocations
@@ -246,7 +268,7 @@ def test_underweight_shortfall_requests_full_gap_and_harvests() -> None:
     guarding TOP AND setting the floor above MID's score, so no Alpha Leader buy competes for
     harvest budget."""
     ctx = _ctx_for_step3(mv={"UW1": 100.0}, alpha_leader_least_momentum_score=20.0)
-    ctx.buy_guarded_symbols = {"TOP": "profit-sold recently"}
+    ctx.alpha_buy_guarded_symbols = {"TOP": ["profit-sold recently"]}
     allocations = step3_alpha_leader(ctx, _Step3Broker())
     assert ctx.alpha_leader is None
     assert allocations.get("UW1") == 900.0, f"expected UW1's full $900 gap (not capped to $350), got {allocations.get('UW1')}"
@@ -603,6 +625,7 @@ def test_size_overweight_trims_walks_down_ranking_for_large_shortfall() -> None:
 
 def main() -> None:
     test_top_momentum_not_guarded_becomes_leader()
+    test_buy_timing_guard_does_not_block_alpha_leader()
     test_guarded_top_falls_back_to_next_candidate()
     test_fallback_rank_reduction_applies_haircut()
     test_top_momentum_unaffected_by_rank_reduction()
