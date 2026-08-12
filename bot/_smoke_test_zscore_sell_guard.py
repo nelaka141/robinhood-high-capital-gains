@@ -30,7 +30,7 @@ def _meta(**overrides) -> PortfolioMetadata:
         sell_price_diff_limit=5, buy_price_diff_limit=5, no_of_days_for_price_compare=3,
         cap_on_total_cash_balance_to_use=30000, cool_down_period_after_lquidation=6,
         beta_benchmark_symbol="SPY", beta_calculation_lookback_days=30,
-        sold_asset_repurchase_days=2, z_score_points=0.5, z_score_upward_points=0.1,
+        sold_asset_repurchase_days=2, z_score_points=0.5, z_score_upward_points=0.1, z_score_downward_points=0.5,
         lock_in_period=2, overweight_sell_minimum_profit_margin_percent=1.0,
         overweight_sell_minimum_profit_margin_dollars=1e9,
         momentum_reversal_minimum_profit_margin_percent=1.0,

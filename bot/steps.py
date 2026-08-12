@@ -245,24 +245,30 @@ def step2_guardrails(ctx: RunContext, broker: BrokerClient) -> None:
         # Profit-sell buy-guard (v2.41.0: applies uniformly to partial AND full profit-sells;
         # v2.55.0: pullback check is Z-score based, not a raw price percentage; v2.50.0 of
         # portfolio_targets.json / CLAUDE.md 2.62.0: two-part dip-then-turn check instead of a
-        # single yesterday->today drop — see z_score_points / z_score_upward_points). Blocks
-        # NEW BUYS only; a partial-sell remainder otherwise stays fully in play.
+        # single yesterday->today drop — see z_score_points / z_score_upward_points; three-part
+        # downward-dip-then-turn check adds z_score_downward_points as an earlier confirmation
+        # leg). Blocks NEW BUYS only; a partial-sell remainder otherwise stays fully in play.
         if st.profitSellPrice is not None and st.profitSellDate:
             closes = broker.get_daily_closes(sym, z_start, z_end)
             z_today = price_zscore(closes, price)
             z_yesterday = price_zscore(closes, closes[-1]) if closes else None
             # closes[-1] is yesterday (ascending-date, cache trails one session), so 1 trading
-            # session further back is closes[-2].
+            # session further back is closes[-2], and 2 sessions further back is closes[-3].
             z_1day_back = price_zscore(closes, closes[-2]) if len(closes) >= 2 else None
+            z_2day_back = price_zscore(closes, closes[-3]) if len(closes) >= 3 else None
             # Missing/insufficient history fails closed — pulled_back stays False (guard active)
             # rather than silently letting a symbol we can't evaluate slip back into play.
-            # Two-part confirmation: (1) a real dip already happened between the session before
-            # yesterday and yesterday (z_1day_back well above z_yesterday), AND (2) today shows
-            # the price ticking back up off that dip (z_today above z_yesterday by at least the
-            # smaller z_score_upward_points bar) — i.e. wait for the pullback AND the start of a
-            # turn, not just "still below where it was."
+            # Three-part confirmation: (1) an earlier downward leg already happened between 2
+            # sessions back and 1 session back (z_2day_back well above z_1day_back), AND (2) a
+            # real dip continued between the session before yesterday and yesterday (z_1day_back
+            # well above z_yesterday), AND (3) today shows the price ticking back up off that dip
+            # (z_today above z_yesterday by at least the smaller z_score_upward_points bar) — i.e.
+            # wait for a confirmed downtrend AND the start of a turn, not just "still below where
+            # it was."
             pulled_back = (
-                z_1day_back is not None and z_yesterday is not None and z_today is not None
+                z_2day_back is not None and z_1day_back is not None
+                and z_yesterday is not None and z_today is not None
+                and (z_2day_back - z_1day_back) > cfg.meta.z_score_downward_points
                 and (z_1day_back - z_yesterday) > cfg.meta.z_score_points
                 and (z_today - z_yesterday) > cfg.meta.z_score_upward_points
             )
@@ -272,18 +278,23 @@ def step2_guardrails(ctx: RunContext, broker: BrokerClient) -> None:
             if not (pulled_back and cooled_down):
                 pos = ctx.positions.get(sym)
                 is_full_exit = not pos or pos.quantity <= 0
-                # Report exactly which of the three sub-conditions hasn't cleared yet, so the
+                # Report exactly which of the four sub-conditions hasn't cleared yet, so the
                 # journal/email doesn't just say "buy-guard active" with no way to tell whether
-                # it's waiting on the calendar, the dip, or the upturn.
+                # it's waiting on the calendar, the earlier dip, the dip, or the upturn.
                 unmet: List[str] = []
                 if not cooled_down:
                     unmet.append(
                         f"cooldown not met ({days_since_sell}d/{cfg.meta.sold_asset_repurchase_days}d "
                         f"required)"
                     )
-                if z_1day_back is None or z_yesterday is None or z_today is None:
+                if z_2day_back is None or z_1day_back is None or z_yesterday is None or z_today is None:
                     unmet.append("insufficient price history to compute Z-scores")
                 else:
+                    if not (z_2day_back - z_1day_back > cfg.meta.z_score_downward_points):
+                        unmet.append(
+                            f"earlier dip not confirmed (Z_2d_back−Z_1d_back="
+                            f"{z_2day_back - z_1day_back:+.3f}, need > {cfg.meta.z_score_downward_points:.3f})"
+                        )
                     if not (z_1day_back - z_yesterday > cfg.meta.z_score_points):
                         unmet.append(
                             f"dip not confirmed (Z_1d_back−Z_yesterday="
