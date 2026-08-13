@@ -42,6 +42,7 @@ class PortfolioMetadata:
     seek_approval_value: float
     sell_price_diff_limit: float
     buy_price_diff_limit: float
+    fifty_two_week_high_guard: float  # JSON key: 52_week_high_guard
     no_of_days_for_price_compare: int
     cap_on_total_cash_balance_to_use: float
     cool_down_period_after_lquidation: int
@@ -170,13 +171,15 @@ class PortfolioConfig:
 # (not risk parameters) and shouldn't be passed into PortfolioMetadata's constructor.
 _METADATA_IGNORE_KEYS = {"version", "last_updated"}
 
-# portfolio_targets.json spells these three with a leading digit ("1st_leg_price_change", ...) —
-# not a legal Python identifier/dataclass field name, so they're renamed on the way into
-# PortfolioMetadata. `selling_price_change` needs no rename (already a valid identifier).
+# portfolio_targets.json spells these four with a leading digit ("1st_leg_price_change",
+# "52_week_high_guard", ...) — not a legal Python identifier/dataclass field name, so they're
+# renamed on the way into PortfolioMetadata. `selling_price_change` needs no rename (already a
+# valid identifier).
 _METADATA_KEY_RENAMES = {
     "1st_leg_price_change": "leg1_price_change",
     "2nd_leg_price_change": "leg2_price_change",
     "3rd_leg_price_change": "leg3_price_change",
+    "52_week_high_guard": "fifty_two_week_high_guard",
 }
 
 

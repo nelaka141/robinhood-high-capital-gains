@@ -32,7 +32,7 @@ def _meta(**overrides) -> PortfolioMetadata:
         min_recovery_price_percentage=5.0, reinvestment_multiplier_factor=1.25,
         max_portfolio_percentage=90.0, alpha_cash_allocation_percentage=40.0,
         min_cash_absolute=0, min_cash_target=500, seek_approval_value=15000,
-        sell_price_diff_limit=5, buy_price_diff_limit=5, no_of_days_for_price_compare=3,
+        sell_price_diff_limit=5, buy_price_diff_limit=5, fifty_two_week_high_guard=1000.0, no_of_days_for_price_compare=3,
         cap_on_total_cash_balance_to_use=30000, cool_down_period_after_lquidation=6,
         beta_benchmark_symbol="SPY", beta_calculation_lookback_days=30,
         sold_asset_repurchase_days=2, leg2_price_change=0.5, leg3_price_change=0.1, leg1_price_change=0.5,

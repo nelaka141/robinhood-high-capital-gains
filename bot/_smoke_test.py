@@ -61,6 +61,9 @@ class FakeBroker:
         closes = self._closes[symbol][-10:]
         return [(c * 0.98, c * 1.02) for c in closes]
 
+    def get_fifty_two_week_high(self, symbol: str):
+        return max(self._closes[symbol]) * 1.05  # comfortably above the whole synthetic series
+
     def get_tax_lots(self, account_number: str, symbol: str) -> List[TaxLot]:
         price = self._closes[symbol][-1]
         return [

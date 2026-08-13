@@ -61,6 +61,11 @@ class SnapshotBroker:
             if start.isoformat() <= b["date"] <= end.isoformat()
         ]
 
+    def get_fifty_two_week_high(self, symbol: str) -> Optional[float]:
+        highs = self._snap.get("fifty_two_week_highs", {})
+        value = highs.get(symbol)
+        return float(value) if value is not None else None
+
     def get_tax_lots(self, account_number: str, symbol: str) -> List[TaxLot]:
         lots = self._snap.get("tax_lots", {}).get(symbol, [])
         return [
