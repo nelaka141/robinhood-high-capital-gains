@@ -119,7 +119,7 @@ def main() -> None:
 
         planned_buys = steps.step3_alpha_leader(ctx, broker)
         print(f"[Step 3] alpha_leader={ctx.alpha_leader} planned_buys={ {k: round(v,2) for k,v in planned_buys.items()} }")
-        # v2.71.0: the buy-timing guard (three-leg Z-score dip-then-turn confirmation) is now
+        # v2.71.0: the buy-timing guard (three-leg price-change dip-then-turn confirmation) is now
         # universal — it can legitimately leave NO candidate eligible this cycle (alpha_leader
         # stays None) against random synthetic price data and the real, tight production
         # thresholds. When a leader IS chosen, it must still be a genuinely scored candidate.

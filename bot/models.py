@@ -146,7 +146,7 @@ class RunContext:
                                                                           # reasons above that also block the Alpha
                                                                           # Leader specifically (currently: the
                                                                           # wash-sale guard only). The buy-timing
-                                                                          # guard (three-leg Z-score dip-then-turn +
+                                                                          # guard (three-leg price-change dip-then-turn +
                                                                           # its cooldown) deliberately does NOT
                                                                           # populate this — the Alpha Leader is
                                                                           # chosen from the strongest-momentum

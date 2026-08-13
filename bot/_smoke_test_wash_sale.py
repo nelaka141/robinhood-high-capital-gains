@@ -43,14 +43,15 @@ def _meta(**overrides) -> PortfolioMetadata:
         # Permissive (not-under-test here) buy-timing thresholds: this file covers the
         # wash-sale guards specifically, not the buy-timing guard (which is now universal —
         # see bot/steps.py step2_guardrails v2.71.0), so these are set to always clear as long
-        # as real Z-scores are computed (see _Broker.get_daily_closes below for why they must be).
-        sold_asset_repurchase_days=2, z_score_points=-999.0, z_score_upward_points=-999.0, z_score_downward_points=-999.0,
+        # as real daily closes are available (see _Broker.get_daily_closes below for why they
+        # must be non-empty).
+        sold_asset_repurchase_days=2, leg1_price_change=-999.0, leg2_price_change=-999.0, leg3_price_change=-999.0,
         lock_in_period=2, overweight_sell_minimum_profit_margin_percent=1.0,
         overweight_sell_minimum_profit_margin_dollars=0.0,
         momentum_reversal_minimum_profit_margin_percent=1.0,
         momentum_reversal_minimum_profit_dollars=0.0,
         profit_resell_cooldown_days=15,
-        z_score_sell_points=0.1,
+        selling_price_change=0.1,
         sell_or_buy_value_limit=10, min_value_of_trade=0,
         materialize_profit_percentage=2.0, profit_sell_percentage=50.0,
         materialize_profit_in_dollars=0.0, keep_aside_profits_for_tax_percent=35.0,
@@ -84,10 +85,10 @@ class _Broker:
         return self._lots.get(symbol, [])
 
     def get_daily_closes(self, symbol, start, end):
-        # Non-empty and non-flat (needed for the now-universal buy-timing guard in
-        # step2_guardrails to compute real Z-scores rather than fail closed on missing
-        # history) — the permissive z_score_* thresholds above make the actual shape
-        # irrelevant to this file's wash-sale-specific assertions.
+        # Non-empty (needed for the now-universal buy-timing guard in step2_guardrails to
+        # compute real leg price changes rather than fail closed on missing history) — the
+        # permissive leg*_price_change/selling_price_change thresholds above make the actual
+        # shape irrelevant to this file's wash-sale-specific assertions.
         return [95.0, 96.0, 94.5]
 
     def get_buying_power(self, account_number):

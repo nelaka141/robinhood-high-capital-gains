@@ -48,16 +48,16 @@ class PortfolioMetadata:
     beta_benchmark_symbol: str
     beta_calculation_lookback_days: int
     sold_asset_repurchase_days: int
-    z_score_points: float
-    z_score_upward_points: float
-    z_score_downward_points: float
+    leg1_price_change: float  # JSON key: 1st_leg_price_change
+    leg2_price_change: float  # JSON key: 2nd_leg_price_change
+    leg3_price_change: float  # JSON key: 3rd_leg_price_change
     lock_in_period: int
     overweight_sell_minimum_profit_margin_percent: float
     overweight_sell_minimum_profit_margin_dollars: float
     momentum_reversal_minimum_profit_margin_percent: float
     momentum_reversal_minimum_profit_dollars: float
     profit_resell_cooldown_days: int
-    z_score_sell_points: float
+    selling_price_change: float
     sell_or_buy_value_limit: float
     min_value_of_trade: float
     materialize_profit_percentage: float
@@ -143,6 +143,15 @@ class PortfolioConfig:
 # (not risk parameters) and shouldn't be passed into PortfolioMetadata's constructor.
 _METADATA_IGNORE_KEYS = {"version", "last_updated"}
 
+# portfolio_targets.json spells these three with a leading digit ("1st_leg_price_change", ...) —
+# not a legal Python identifier/dataclass field name, so they're renamed on the way into
+# PortfolioMetadata. `selling_price_change` needs no rename (already a valid identifier).
+_METADATA_KEY_RENAMES = {
+    "1st_leg_price_change": "leg1_price_change",
+    "2nd_leg_price_change": "leg2_price_change",
+    "3rd_leg_price_change": "leg3_price_change",
+}
+
 
 def _parse_force_sell(raw: list) -> Dict[str, ForceSellEntry]:
     """Each entry is either a plain string (just the symbol, no trigger price — sell at
@@ -192,7 +201,10 @@ def _parse_sector_groups(raw: dict) -> Dict[str, SectorGroup]:
 def load_portfolio_config(path: str | Path = "portfolio_targets.json") -> PortfolioConfig:
     data = json.loads(Path(path).read_text())
 
-    meta_fields = {k: v for k, v in data["portfolio_metadata"].items() if k not in _METADATA_IGNORE_KEYS}
+    meta_fields = {
+        _METADATA_KEY_RENAMES.get(k, k): v
+        for k, v in data["portfolio_metadata"].items() if k not in _METADATA_IGNORE_KEYS
+    }
     meta = PortfolioMetadata(**meta_fields)
 
     targets = {

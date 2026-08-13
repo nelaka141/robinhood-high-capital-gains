@@ -1,11 +1,12 @@
-"""Pure-Python technical indicators: EMA(9), RSI(14), beta, and price Z-score — computed
-directly from daily closes, matching the exact formulas CLAUDE.md Step 2/3/4 specify for
-Momentum_Score, High_Beta_Gain_Score, and the Z-score buy-back/resell guards. No external
-indicator API is required."""
+"""Pure-Python technical indicators: EMA(9), RSI(14), and beta — computed directly from daily
+closes, matching the exact formulas CLAUDE.md Step 3/4 specify for Momentum_Score and
+High_Beta_Gain_Score. No external indicator API is required. (The buy-timing/resell-timing
+guards in steps.py compare raw daily-close percentage price changes directly — see
+`leg1_price_change`/`leg2_price_change`/`leg3_price_change`/`selling_price_change` in
+config.py — and don't need an indicator helper of their own.)"""
 from __future__ import annotations
 
-import statistics
-from typing import List, Optional, Sequence
+from typing import List, Sequence
 
 
 def ema_series(closes: Sequence[float], period: int = 9) -> List[float]:
@@ -70,16 +71,3 @@ def beta(asset_returns: Sequence[float], benchmark_returns: Sequence[float]) -> 
     if var_b == 0:
         raise ValueError("benchmark variance is zero — cannot compute beta")
     return cov / var_b
-
-
-def price_zscore(closes: Sequence[float], price: float) -> Optional[float]:
-    """Z = (price - mean) / stdev, where mean/stdev are the sample mean/stdev of `closes`
-    (CLAUDE.md's z_score_points / z_score_upward_points buy-guard, Step 2).
-    Returns None if there isn't enough history (fewer than 2 closes) or the history is perfectly
-    flat (stdev == 0) — callers should fail closed (guard stays active) when this returns None."""
-    if len(closes) < 2:
-        return None
-    stdev = statistics.stdev(closes)
-    if stdev == 0:
-        return None
-    return (price - statistics.mean(closes)) / stdev
