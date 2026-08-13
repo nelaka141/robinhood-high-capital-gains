@@ -148,7 +148,7 @@ uses; kept for fully-standalone use outside of any MCP/agent setup.
 
 | File | CLAUDE.md section | What it does |
 |---|---|---|
-| `config.py` | "Core Parameters & Risk Triggers", `targets`/`forceSell` | Loads `portfolio_targets.json` into typed dataclasses |
+| `config.py` | "Core Parameters & Risk Triggers", `targets`/`forceSell` | Loads `portfolio_targets.json` into typed dataclasses; `max_allocation_percentage(symbol)` resolves a target's own `max_allocation_percent` override, else the global `max_portfolio_percentage`, mirroring `drift_tolerance(symbol)`'s per-asset `drift` override pattern |
 | `state.py` | `peak/prices.json`, `tax/realized_gains_by_year.json`, `alpha_reserve.json`, `transferred_basis.json` | Load/save the persistent state files |
 | `models.py` | — | Shared value objects (`Position`, `DriftResult`, `MomentumScore`, `TradeIntent`, `RunContext`, ...) |
 | `broker.py` | "You execute actions via the connected Robinhood MCP Server" | `BrokerClient` Protocol + a `robin_stocks` reference implementation (standalone mode only) |
