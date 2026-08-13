@@ -28,9 +28,9 @@ class _TaxLotOnlyBroker:
         return self._lots.get(symbol, [])
 
     def get_daily_closes(self, symbol: str, start, end):
-        # Mildly oscillating series well below every test's sell price so the new
-        # z_score_sell_points guard (Z_yesterday - Z_today < threshold) passes trivially:
-        # Z_today ends up far above Z_yesterday, giving a strongly negative diff.
+        # Mildly oscillating series well below every test's sell price so the
+        # selling_price_change guard ((close_yesterday - price)*100/price < threshold) passes
+        # trivially: price ends up far above close_yesterday, giving a strongly negative change.
         return [98.0, 98.5, 99.0, 99.5, 100.0]
 
 
@@ -43,13 +43,13 @@ def _minimal_ctx(alpha_leader: str | None = None, targets: dict | None = None) -
         sell_price_diff_limit=5, buy_price_diff_limit=5, no_of_days_for_price_compare=3,
         cap_on_total_cash_balance_to_use=30000, cool_down_period_after_lquidation=6,
         beta_benchmark_symbol="SPY", beta_calculation_lookback_days=30,
-        sold_asset_repurchase_days=2, z_score_points=0.5, z_score_upward_points=0.1, z_score_downward_points=0.5,
+        sold_asset_repurchase_days=2, leg2_price_change=0.5, leg3_price_change=0.1, leg1_price_change=0.5,
         lock_in_period=2, overweight_sell_minimum_profit_margin_percent=1.0,
         overweight_sell_minimum_profit_margin_dollars=12.5,
         momentum_reversal_minimum_profit_margin_percent=1.0,
         momentum_reversal_minimum_profit_dollars=12.5,
         profit_resell_cooldown_days=15,
-        z_score_sell_points=0.1,
+        selling_price_change=0.1,
         sell_or_buy_value_limit=10, min_value_of_trade=100,
         materialize_profit_percentage=4.0, profit_sell_percentage=50.0,
         materialize_profit_in_dollars=12.5, keep_aside_profits_for_tax_percent=30.0,

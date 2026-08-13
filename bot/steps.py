@@ -16,14 +16,14 @@ from typing import Dict, List, Optional
 from .broker import BrokerClient
 from .cost_basis import resolve_avg_cost_basis
 from .fifo import fifo_realized_profit, round_sell_quantity
-from .indicators import beta, daily_returns, ema_series, price_zscore, rsi_series
+from .indicators import beta, daily_returns, ema_series, rsi_series
 from .models import DormantAsset, DriftResult, MomentumScore, RunContext, SkippedTrade, TradeIntent
 from .state import AlphaLeaderReserve, AssetPriceState, load_transferred_basis
 
-# Z-score lookback for the z_score_points/z_score_upward_points buy-guard (Step 2) — matches
-# price_history/daily_bars.json's rolling ~90-day cache, so this reads whatever history is
-# already there without requesting a wider window than the cache actually carries.
-_Z_SCORE_LOOKBACK_DAYS = 95
+# Lookback for the leg1/leg2/leg3_price_change buy-guard and selling_price_change resell-guard
+# (Step 2/4) — matches price_history/daily_bars.json's rolling ~90-day cache, so this reads
+# whatever history is already there without requesting a wider window than the cache carries.
+_PRICE_CHANGE_LOOKBACK_DAYS = 95
 
 
 def _parse_date(s: Optional[str]) -> Optional[date]:
@@ -32,9 +32,9 @@ def _parse_date(s: Optional[str]) -> Optional[date]:
     return datetime.strptime(s, "%Y-%m-%d").date()
 
 
-def _z_score_window(current_date: date) -> tuple[date, date]:
+def _price_change_window(current_date: date) -> tuple[date, date]:
     end = current_date - timedelta(days=1)
-    start = end - timedelta(days=_Z_SCORE_LOOKBACK_DAYS)
+    start = end - timedelta(days=_PRICE_CHANGE_LOOKBACK_DAYS)
     return start, end
 
 
@@ -210,7 +210,7 @@ def has_any_breach(ctx: RunContext) -> bool:
 
 def step2_guardrails(ctx: RunContext, broker: BrokerClient) -> None:
     cfg = ctx.config
-    z_start, z_end = _z_score_window(ctx.current_date)
+    hist_start, hist_end = _price_change_window(ctx.current_date)
 
     for sym in cfg.targets:
         st = ctx.price_state.get(sym, AssetPriceState())
@@ -245,34 +245,46 @@ def step2_guardrails(ctx: RunContext, broker: BrokerClient) -> None:
         # Buy-timing guard (v2.71.0: UNIVERSAL — applies to every in-play symbol before ANY buy
         # this cycle, not just a profit-sell repurchase: the Alpha Leader allocation, an
         # Underweight allocation, and a profit-sell repurchase are all gated by the same
-        # three-leg dip-then-turn Z-score confirmation. v2.41.0: the profit-sell-specific
-        # cooldown (sold_asset_repurchase_days) still applies uniformly to partial AND full
-        # profit-sells, but only when the symbol actually HAS a recorded profit-sell — it's
-        # meaningless without one and never blocks a never-sold symbol. v2.55.0/2.62.0/2.70.0:
-        # pullback check is Z-score based; three-part downward-dip-then-turn check — see
-        # z_score_downward_points / z_score_points / z_score_upward_points.
-        closes = broker.get_daily_closes(sym, z_start, z_end)
-        z_today = price_zscore(closes, price)
-        z_yesterday = price_zscore(closes, closes[-1]) if closes else None
+        # three-leg dip-then-turn confirmation. v2.41.0: the profit-sell-specific cooldown
+        # (sold_asset_repurchase_days) still applies uniformly to partial AND full profit-sells,
+        # but only when the symbol actually HAS a recorded profit-sell — it's meaningless without
+        # one and never blocks a never-sold symbol. v2.72.0: the pullback check compares raw
+        # daily-close percentage price changes directly (against the live current price as the
+        # denominator) instead of Z-scores — see leg1_price_change / leg2_price_change /
+        # leg3_price_change.
+        closes = broker.get_daily_closes(sym, hist_start, hist_end)
         # closes[-1] is yesterday (ascending-date, cache trails one session), so 1 trading
         # session further back is closes[-2], and 2 sessions further back is closes[-3].
-        z_1day_back = price_zscore(closes, closes[-2]) if len(closes) >= 2 else None
-        z_2day_back = price_zscore(closes, closes[-3]) if len(closes) >= 3 else None
+        close_yesterday = closes[-1] if closes else None
+        close_1day_back = closes[-2] if len(closes) >= 2 else None
+        close_2day_back = closes[-3] if len(closes) >= 3 else None
+        leg1_change = (
+            (close_2day_back - close_1day_back) * 100 / price
+            if close_2day_back is not None and close_1day_back is not None else None
+        )
+        leg2_change = (
+            (close_1day_back - close_yesterday) * 100 / price
+            if close_1day_back is not None and close_yesterday is not None else None
+        )
+        leg3_change = (
+            (price - close_yesterday) * 100 / price
+            if close_yesterday is not None else None
+        )
         # Missing/insufficient history fails closed — pulled_back stays False (guard active)
         # rather than silently letting a symbol we can't evaluate slip back into play.
         # Three-part confirmation: (1) an earlier downward leg already happened between 2
-        # sessions back and 1 session back (z_2day_back well above z_1day_back), AND (2) a
-        # real dip continued between the session before yesterday and yesterday (z_1day_back
-        # well above z_yesterday), AND (3) today shows the price ticking back up off that dip
-        # (z_today above z_yesterday by at least the smaller z_score_upward_points bar) — i.e.
-        # wait for a confirmed downtrend AND the start of a turn, not just "still below where
-        # it was."
+        # sessions back and 1 session back (close_2day_back well above close_1day_back), AND (2)
+        # a real dip continued between the session before yesterday and yesterday (close_1day_back
+        # well above close_yesterday), AND (3) today shows the price ticking back up off that dip
+        # (today's live price above close_yesterday by at least the smaller leg3_price_change
+        # bar) — i.e. wait for a confirmed downtrend AND the start of a turn, not just "still
+        # below where it was." All three legs are measured as a percentage of the live current
+        # price, so they're directly comparable regardless of the symbol's own price level.
         pulled_back = (
-            z_2day_back is not None and z_1day_back is not None
-            and z_yesterday is not None and z_today is not None
-            and (z_2day_back - z_1day_back) > cfg.meta.z_score_downward_points
-            and (z_1day_back - z_yesterday) > cfg.meta.z_score_points
-            and (z_today - z_yesterday) > cfg.meta.z_score_upward_points
+            leg1_change is not None and leg2_change is not None and leg3_change is not None
+            and leg1_change > cfg.meta.leg1_price_change
+            and leg2_change > cfg.meta.leg2_price_change
+            and leg3_change > cfg.meta.leg3_price_change
         )
         cooled_down = True
         days_since_sell: Optional[int] = None
@@ -292,23 +304,23 @@ def step2_guardrails(ctx: RunContext, broker: BrokerClient) -> None:
                     f"cooldown not met ({days_since_sell}d/{cfg.meta.sold_asset_repurchase_days}d "
                     f"required)"
                 )
-            if z_2day_back is None or z_1day_back is None or z_yesterday is None or z_today is None:
-                unmet.append("insufficient price history to compute Z-scores")
+            if leg1_change is None or leg2_change is None or leg3_change is None:
+                unmet.append("insufficient price history to compute leg price changes")
             else:
-                if not (z_2day_back - z_1day_back > cfg.meta.z_score_downward_points):
+                if not (leg1_change > cfg.meta.leg1_price_change):
                     unmet.append(
-                        f"earlier dip not confirmed (Z_2d_back−Z_1d_back="
-                        f"{z_2day_back - z_1day_back:+.3f}, need > {cfg.meta.z_score_downward_points:.3f})"
+                        f"earlier dip not confirmed (leg1 close_2d_back→close_1d_back change="
+                        f"{leg1_change:+.3f}%, need > {cfg.meta.leg1_price_change:.3f}%)"
                     )
-                if not (z_1day_back - z_yesterday > cfg.meta.z_score_points):
+                if not (leg2_change > cfg.meta.leg2_price_change):
                     unmet.append(
-                        f"dip not confirmed (Z_1d_back−Z_yesterday="
-                        f"{z_1day_back - z_yesterday:+.3f}, need > {cfg.meta.z_score_points:.3f})"
+                        f"dip not confirmed (leg2 close_1d_back→close_yesterday change="
+                        f"{leg2_change:+.3f}%, need > {cfg.meta.leg2_price_change:.3f}%)"
                     )
-                if not (z_today - z_yesterday > cfg.meta.z_score_upward_points):
+                if not (leg3_change > cfg.meta.leg3_price_change):
                     unmet.append(
-                        f"upturn not confirmed (Z_today−Z_yesterday="
-                        f"{z_today - z_yesterday:+.3f}, need > {cfg.meta.z_score_upward_points:.3f})"
+                        f"upturn not confirmed (leg3 close_yesterday→today change="
+                        f"{leg3_change:+.3f}%, need > {cfg.meta.leg3_price_change:.3f}%)"
                     )
             if st.profitSellPrice is not None and st.profitSellDate:
                 prefix = (
@@ -335,7 +347,7 @@ def step2_guardrails(ctx: RunContext, broker: BrokerClient) -> None:
         # forceSell liquidation, or a forceSell-driven Overweight trim — see ctx.loss_sale_symbols
         # in Step 1/4) — independent of, and can stack with, the buy-timing guard above (a
         # symbol could carry both an old profitSellDate and a newer lastLossSaleDate). Deliberately
-        # date-only (no Z-score/price-recovery condition, unlike the buy-timing guard) — the IRS
+        # date-only (no price-change/recovery condition, unlike the buy-timing guard) — the IRS
         # wash-sale rule is a flat calendar window, not a momentum/price test. Does NOT block the
         # emergency stops themselves from firing (Drawdown Audit and Fresh Alpha Leader Stop stay
         # unconditional, CLAUDE.md Step 1) — it only blocks the REPURCHASE afterward, which is
@@ -371,7 +383,7 @@ def step3_alpha_leader(ctx: RunContext, broker: BrokerClient) -> Dict[str, float
     (CLAUDE.md Step 3, "Alpha Leader selection — buy-guard cascade"): rank in-play symbols by
     Momentum_Score descending; the top symbol is the `top_momentum_symbol`; walk the ranking
     while score >= `alpha_leader_least_momentum_score`, and the first candidate that isn't
-    buy-guarded (Step 2's z_score_points check) becomes the (acting) `alpha_leader`. Returns the
+    buy-guarded (Step 2's wash-sale check) becomes the (acting) `alpha_leader`. Returns the
     PLANNED buy-dollar allocation {symbol: dollars} — Step 6 does the actual placing.
 
     If `alpha_leader` is a fallback (not `top_momentum_symbol`), its fully-capped allocation is
@@ -436,7 +448,7 @@ def step3_alpha_leader(ctx: RunContext, broker: BrokerClient) -> Dict[str, float
     # Buy-guard cascade: walk the ranking while score >= floor, stop at the first candidate
     # that isn't buy-guarded (CLAUDE.md Step 3, "Alpha Leader selection — buy-guard cascade").
     # Deliberately checks alpha_buy_guarded_symbols, NOT the full buy_guarded_symbols — the
-    # buy-timing guard (three-leg Z-score dip-then-turn + its cooldown) does not gate the Alpha
+    # buy-timing guard (three-leg price-change dip-then-turn + its cooldown) does not gate the Alpha
     # Leader (see Step 2); only the wash-sale guard still applies here.
     floor = cfg.meta.alpha_leader_least_momentum_score
     ctx.alpha_leader = None
@@ -654,7 +666,7 @@ def step3_alpha_leader(ctx: RunContext, broker: BrokerClient) -> Dict[str, float
 def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
     cfg = ctx.config
     fired_today: set = set()
-    z_start, z_end = _z_score_window(ctx.current_date)
+    hist_start, hist_end = _price_change_window(ctx.current_date)
 
     for sym, pos in ctx.positions.items():
         if sym not in cfg.targets or pos.quantity <= 0 or pos.avg_cost_basis is None:
@@ -737,9 +749,9 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
             continue
 
         already_today = st.profitSellDate == ctx.current_date.isoformat()
-        # v2.65.0: purely a flat calendar-day check — the Z-score recovery leg (z_score_sell_points)
-        # was removed; profit_resell_cooldown_days is now the sole guard, paired only with each
-        # mechanism's own percentage/dollar gate above.
+        # v2.65.0: purely a flat calendar-day check — the earlier Z-score recovery leg
+        # (pre-v2.70.0's z_score_sell_points) was removed; profit_resell_cooldown_days is now the
+        # sole guard, paired only with each mechanism's own percentage/dollar gate above.
         # v2.69.0: strict "<" — only a gap strictly less than the cooldown window blocks; a gap
         # exactly equal to profit_resell_cooldown_days now clears.
         cooldown_blocks = (
@@ -747,21 +759,22 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
             and (ctx.current_date - _parse_date(st.profitSellDate)).days < cfg.meta.profit_resell_cooldown_days
         )
 
-        # v2.70.0: z_score_sell_points — additional mandatory guard for GET THE PROFITS and
-        # Momentum Reversal Trim, independent of cooldown_blocks above. Z_yesterday uses the
-        # most recent stored close (price_history/daily_bars.json, cache trails one session);
-        # Z_today uses the live current price — same price_history-derived mean/stdev basis as
-        # the Step 2 buy-guard's z_score_points/z_score_upward_points. The sale is only allowed
-        # to fire when (Z_yesterday - Z_today) < z_score_sell_points — i.e. today's price hasn't
-        # already dropped too far, in standard-deviation terms, off yesterday's close. Missing/
-        # insufficient price history fails closed (guard stays active, blocking the sale), same
-        # posture as every other Z-score guard in this file.
-        sell_closes = broker.get_daily_closes(sym, z_start, z_end)
-        sell_z_yesterday = price_zscore(sell_closes, sell_closes[-1]) if sell_closes else None
-        sell_z_today = price_zscore(sell_closes, price)
-        zscore_sell_blocks = not (
-            sell_z_yesterday is not None and sell_z_today is not None
-            and (sell_z_yesterday - sell_z_today) < cfg.meta.z_score_sell_points
+        # v2.70.0/2.72.0: selling_price_change — additional mandatory guard for GET THE PROFITS
+        # and Momentum Reversal Trim, independent of cooldown_blocks above. Compares the most
+        # recent stored close (price_history/daily_bars.json, cache trails one session) against
+        # the live current price, as a percentage of the live current price — same basis as the
+        # Step 2 buy-guard's leg1/leg2/leg3_price_change. The sale is only allowed to fire when
+        # (close_yesterday - price) * 100 / price < selling_price_change — i.e. today's price
+        # hasn't already dropped too far off yesterday's close. Missing/insufficient price
+        # history fails closed (guard stays active, blocking the sale), same posture as every
+        # other price-change guard in this file.
+        sell_closes = broker.get_daily_closes(sym, hist_start, hist_end)
+        sell_close_yesterday = sell_closes[-1] if sell_closes else None
+        sell_price_change = (
+            (sell_close_yesterday - price) * 100 / price if sell_close_yesterday is not None else None
+        )
+        sell_price_guard_blocks = not (
+            sell_price_change is not None and sell_price_change < cfg.meta.selling_price_change
         )
 
         # --- GET THE PROFITS ---
@@ -804,10 +817,10 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
                              f"but profit_resell_cooldown_days active",
                         "partial profit-take sale",
                     ))
-                elif zscore_sell_blocks:
+                elif sell_price_guard_blocks:
                     ctx.skipped.append(SkippedTrade(
                         sym, f"GTP gate clears (+{raw_gain_pct:.2f}% / FIFO ${fifo.realized_profit_dollars:.2f}) "
-                             f"but z_score_sell_points guard active (price hasn't turned back up)",
+                             f"but selling_price_change guard active (price hasn't turned back up)",
                         "partial profit-take sale",
                     ))
                 else:
@@ -882,10 +895,10 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
                              f"FIFO ${fifo.realized_profit_dollars:.2f}) but profit_resell_cooldown_days active",
                         "partial profit-take sale",
                     ))
-                elif zscore_sell_blocks:
+                elif sell_price_guard_blocks:
                     ctx.skipped.append(SkippedTrade(
                         sym, f"MRT gate clears (score {mscore.score:.2f}, +{raw_gain_pct:.2f}% / "
-                             f"FIFO ${fifo.realized_profit_dollars:.2f}) but z_score_sell_points guard active "
+                             f"FIFO ${fifo.realized_profit_dollars:.2f}) but selling_price_change guard active "
                              f"(price hasn't turned back up)",
                         "partial profit-take sale",
                     ))

@@ -1,13 +1,16 @@
-"""Focused coverage for the v2.70.0 `z_score_sell_points` guard on GET THE PROFITS and Momentum
+"""Focused coverage for the v2.72.0 `selling_price_change` guard on GET THE PROFITS and Momentum
 Reversal Trim (bot/steps.py::step4_profit_taking): a sale is only allowed to fire once
-`Z_yesterday - Z_today < z_score_sell_points` — i.e. today's price hasn't already dropped too
-far, in standard-deviation terms, below yesterday's close. This guard is independent of, and
-stacks with, `profit_resell_cooldown_days`; both must clear for either mechanism to fire.
+`(close_yesterday - price) * 100 / price < selling_price_change` — i.e. today's live price hasn't
+already dropped too far (as a percentage of itself) below yesterday's stored close. This guard is
+independent of, and stacks with, `profit_resell_cooldown_days`; both must clear for either
+mechanism to fire. (Superseded the pre-v2.72.0 `z_score_sell_points` guard, which compared
+Z-scores of the same two prices against the mean/stdev of the stored closes instead of a raw
+percentage change — see git history for that version's `_smoke_test_zscore_sell_guard.py`.)
 
 Pure logic tests against step4_profit_taking directly (same style as
 bot/_smoke_test_gtp_mrt_profit_invariant.py).
 
-Run: PYTHONPATH=. python3 bot/_smoke_test_zscore_sell_guard.py
+Run: PYTHONPATH=. python3 bot/_smoke_test_selling_price_guard.py
 """
 from __future__ import annotations
 
@@ -17,8 +20,9 @@ from bot.config import AssetTarget, PortfolioConfig, PortfolioMetadata
 from bot.models import Position, Quote, RunContext, TaxLot
 from bot.steps import step4_profit_taking
 
-# Ascending closes ending at 100.0 (mean=95, stdev~3.742) -> Z_yesterday = (100-95)/3.742 ~ 1.336
-_RISING_CLOSES = [90.0, 92.0, 94.0, 96.0, 98.0, 100.0]
+# Only the last close (yesterday) actually matters to selling_price_change; the guard only reads
+# closes[-1]. Yesterday's close is 100.0.
+_CLOSES = [90.0, 92.0, 94.0, 96.0, 98.0, 100.0]
 
 
 def _meta(**overrides) -> PortfolioMetadata:
@@ -30,13 +34,13 @@ def _meta(**overrides) -> PortfolioMetadata:
         sell_price_diff_limit=5, buy_price_diff_limit=5, no_of_days_for_price_compare=3,
         cap_on_total_cash_balance_to_use=30000, cool_down_period_after_lquidation=6,
         beta_benchmark_symbol="SPY", beta_calculation_lookback_days=30,
-        sold_asset_repurchase_days=2, z_score_points=0.5, z_score_upward_points=0.1, z_score_downward_points=0.5,
+        sold_asset_repurchase_days=2, leg1_price_change=0.5, leg2_price_change=0.5, leg3_price_change=0.1,
         lock_in_period=2, overweight_sell_minimum_profit_margin_percent=1.0,
         overweight_sell_minimum_profit_margin_dollars=1e9,
         momentum_reversal_minimum_profit_margin_percent=1.0,
         momentum_reversal_minimum_profit_dollars=1e9,
         profit_resell_cooldown_days=0,
-        z_score_sell_points=0.1,
+        selling_price_change=1.0,
         sell_or_buy_value_limit=1, min_value_of_trade=1,
         materialize_profit_percentage=2.5, profit_sell_percentage=50.0,
         materialize_profit_in_dollars=1e9,  # unreachable -> only the percent gate can fire
@@ -57,7 +61,7 @@ def _meta(**overrides) -> PortfolioMetadata:
 
 class _Broker:
     """Minimal BrokerClient stub: get_tax_lots (FIFO dollar-gate) + get_daily_closes (the
-    z_score_sell_points guard, and the beta benchmark call in step4's Overweight-ranking tail)."""
+    selling_price_change guard, and the beta benchmark call in step4's Overweight-ranking tail)."""
 
     def __init__(self, lots: dict, closes):
         self._lots = lots
@@ -87,50 +91,50 @@ def _ctx_and_broker(sym: str, price: float, closes, meta_overrides: dict | None 
 
 
 def test_sharp_drop_blocks_gtp() -> None:
-    """Price dropped sharply today (80.0) off yesterday's close (100.0, top of _RISING_CLOSES).
-    Z_yesterday ~ 1.336, Z_today = (80-95)/3.742 ~ -4.008 -> Z_yesterday - Z_today ~ 5.34, well
-    over z_score_sell_points (0.1) -> GTP must be blocked even though the percent gate clears
-    ((80-50)/50 = +60%) and FIFO is unambiguously profitable."""
-    ctx, broker = _ctx_and_broker("DROP", price=80.0, closes=_RISING_CLOSES)
+    """Price dropped sharply today (80.0) off yesterday's close (100.0, top of _CLOSES).
+    sell_price_change = (100 - 80) * 100 / 80 = +25.0%, well over selling_price_change (1.0) ->
+    GTP must be blocked even though the percent gate clears ((80-50)/50 = +60%) and FIFO is
+    unambiguously profitable."""
+    ctx, broker = _ctx_and_broker("DROP", price=80.0, closes=_CLOSES)
     step4_profit_taking(ctx, broker)
     assert ctx.profit_taking_sells == [], ctx.profit_taking_sells
     reasons = [s.reason for s in ctx.skipped if s.symbol == "DROP"]
-    assert any("z_score_sell_points guard active" in r for r in reasons), reasons
-    print(f"[zscore-sell-blocks-sharp-drop] {reasons[0]}")
+    assert any("selling_price_change guard active" in r for r in reasons), reasons
+    print(f"[selling-price-blocks-sharp-drop] {reasons[0]}")
 
 
 def test_flat_or_rising_price_allows_gtp() -> None:
-    """Price at/above yesterday's close (105.0 vs. yesterday's 100.0) -> Z_today ends up above
-    Z_yesterday -> Z_yesterday - Z_today is negative, comfortably clears z_score_sell_points ->
-    GTP fires normally."""
-    ctx, broker = _ctx_and_broker("RISE", price=105.0, closes=_RISING_CLOSES)
+    """Price at/above yesterday's close (105.0 vs. yesterday's 100.0) -> sell_price_change =
+    (100 - 105) * 100 / 105 = -4.76%, comfortably clears selling_price_change (1.0) -> GTP fires
+    normally."""
+    ctx, broker = _ctx_and_broker("RISE", price=105.0, closes=_CLOSES)
     step4_profit_taking(ctx, broker)
     assert len(ctx.profit_taking_sells) == 1, ctx.profit_taking_sells
     t = ctx.profit_taking_sells[0]
     assert t.symbol == "RISE"
     assert t.realized_profit_dollars == (105.0 - 50.0) * 10.0  # profit_sell_percentage=50% of 20
-    print(f"[zscore-sell-allows-rise] FIFO realized ${t.realized_profit_dollars:.2f} — fires as expected")
+    print(f"[selling-price-allows-rise] FIFO realized ${t.realized_profit_dollars:.2f} — fires as expected")
 
 
 def test_insufficient_history_fails_closed() -> None:
-    """No price history at all (empty closes) -> both Z-scores are None -> guard fails closed
+    """No price history at all (empty closes) -> close_yesterday is None -> guard fails closed
     (blocks the sale) even though the percent gate and FIFO dollars both clear."""
     ctx, broker = _ctx_and_broker("NOHIST", price=80.0, closes=[])
     step4_profit_taking(ctx, broker)
     assert ctx.profit_taking_sells == [], ctx.profit_taking_sells
     reasons = [s.reason for s in ctx.skipped if s.symbol == "NOHIST"]
-    assert any("z_score_sell_points guard active" in r for r in reasons), reasons
-    print("[zscore-sell-fails-closed] empty price history -> guard blocks rather than assuming a pass")
+    assert any("selling_price_change guard active" in r for r in reasons), reasons
+    print("[selling-price-fails-closed] empty price history -> guard blocks rather than assuming a pass")
 
 
 def test_sharp_drop_blocks_mrt() -> None:
     """Same sharp-drop setup, routed through Momentum Reversal Trim instead: downtrend confirmed
     (Momentum_Score <= momentum_reversal_threshold) and the margin gate clears, but the
-    z_score_sell_points guard still blocks it."""
+    selling_price_change guard still blocks it."""
     from bot.models import MomentumScore
 
     ctx, broker = _ctx_and_broker(
-        "MRTDROP", price=80.0, closes=_RISING_CLOSES,
+        "MRTDROP", price=80.0, closes=_CLOSES,
         meta_overrides={"materialize_profit_percentage": 1e9},  # keep GTP out of the way
     )
     ctx.momentum_scores = {"MRTDROP": MomentumScore(
@@ -140,8 +144,18 @@ def test_sharp_drop_blocks_mrt() -> None:
     step4_profit_taking(ctx, broker)
     assert ctx.profit_taking_sells == [], ctx.profit_taking_sells
     reasons = [s.reason for s in ctx.skipped if s.symbol == "MRTDROP"]
-    assert any("z_score_sell_points guard active" in r for r in reasons), reasons
-    print(f"[zscore-sell-blocks-mrt] {reasons[0]}")
+    assert any("selling_price_change guard active" in r for r in reasons), reasons
+    print(f"[selling-price-blocks-mrt] {reasons[0]}")
+
+
+def test_small_drop_under_threshold_still_allows() -> None:
+    """A small drop that stays UNDER selling_price_change (1.0) should still clear the guard —
+    not just a flat/rising price. Yesterday's close 100.0, price 99.5 -> sell_price_change =
+    (100 - 99.5) * 100 / 99.5 = +0.503%, comfortably under the 1.0 threshold -> GTP fires."""
+    ctx, broker = _ctx_and_broker("SMALLDROP", price=99.5, closes=_CLOSES)
+    step4_profit_taking(ctx, broker)
+    assert len(ctx.profit_taking_sells) == 1, ctx.profit_taking_sells
+    print("[selling-price-small-drop-allows] +0.50% drop (< 1.0% threshold) -> GTP still fires — OK")
 
 
 def main() -> None:
@@ -149,7 +163,8 @@ def main() -> None:
     test_flat_or_rising_price_allows_gtp()
     test_insufficient_history_fails_closed()
     test_sharp_drop_blocks_mrt()
-    print("\nSMOKE TEST (z_score_sell_points guard) PASSED")
+    test_small_drop_under_threshold_still_allows()
+    print("\nSMOKE TEST (selling_price_change guard) PASSED")
 
 
 if __name__ == "__main__":
