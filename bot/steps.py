@@ -391,7 +391,11 @@ def step3_alpha_leader(ctx: RunContext, broker: BrokerClient) -> Dict[str, float
     sizes real sells to cover exactly this shortfall (CLAUDE.md Step 3/4).
 
     Underweight allocation is weighted by normalized Momentum_Score, NOT gap size or pro-rata:
-    see `min_momentum_score_to_fill_underweight` and `_momentum_weighted_split` below.
+    see `min_momentum_score_to_fill_underweight` and `_momentum_weighted_split` below. Every
+    candidate (Alpha AND Underweight alike) is also capped by `_headroom()` — the asset's own
+    `max_allocation_percent` override if set, else the global `max_portfolio_percentage` — so a
+    symbol's total planned allocation can never push its market value past that cap, even when
+    it's the sole (or dominant) qualifier for an otherwise much larger leftover cash pool.
 
     Finally, every allocation (Alpha AND Underweight alike) is subject to `max_sector_percentage`
     — see the sector-cap pass at the end of this function — so a single correlated theme
@@ -444,7 +448,14 @@ def step3_alpha_leader(ctx: RunContext, broker: BrokerClient) -> Dict[str, float
             break
 
     def _headroom(sym: str) -> float:
-        cap_dollars = cfg.meta.max_portfolio_percentage / 100 * ctx.account_balance
+        """Dollar room left before `sym`'s market value (existing holdings + this cycle's
+        planned buy) would exceed its per-asset concentration cap — the asset's own
+        `max_allocation_percent` override if set in portfolio_targets.json, else the global
+        `max_portfolio_percentage` default (`cfg.max_allocation_percentage`). Applied to the
+        Alpha Leader allocation below AND to every Underweight candidate inside
+        `_momentum_weighted_split` — a single symbol's total planned allocation can never push
+        it past this cap, regardless of which pot (Alpha or Underweight) funded it."""
+        cap_dollars = cfg.max_allocation_percentage(sym) / 100 * ctx.account_balance
         current_mv = ctx.drift_results[sym].market_value
         return max(0.0, cap_dollars - current_mv)
 
@@ -509,9 +520,20 @@ def step3_alpha_leader(ctx: RunContext, broker: BrokerClient) -> Dict[str, float
         at the pro-rata share its own portfolio_targets.json `weight` field would give it among
         the qualifying set — so a name with genuinely negative momentum never gets a
         momentum-boosted allocation, only ever the same modest weight-proportional share it would
-        get regardless of momentum. Capped-away dollars are NOT redistributed to other
-        candidates — same "no re-allocation" principle CLAUDE.md already applies when a
-        downstream gate (e.g. buy_price_diff_limit) drops a candidate after Step 3 has sized it."""
+        get regardless of momentum.
+
+        Every candidate's share is ALSO capped at its own `_headroom()` — the per-asset
+        `max_allocation_percent` (else the global `max_portfolio_percentage`) — so a candidate
+        that happens to be the only (or dominant) qualifier for a large leftover cash pool can't
+        be driven past its own concentration cap just because nobody else was eligible to absorb
+        the rest of the pool. This is what keeps a single Underweight symbol from swallowing the
+        entire `remaining_for_underweight` pool the way the Alpha Leader's allocation was already
+        capped — the sector-concentration pass at the end of this function is a separate,
+        additional check on top of this per-asset one, not a substitute for it.
+
+        Capped-away dollars (from either cap) are NOT redistributed to other candidates — same
+        "no re-allocation" principle CLAUDE.md already applies when a downstream gate (e.g.
+        buy_price_diff_limit) drops a candidate after Step 3 has sized it."""
         if not candidates or pool_dollars <= 0:
             return {}
         scores = {s: ctx.momentum_scores[s].score for s in candidates}
@@ -533,6 +555,7 @@ def step3_alpha_leader(ctx: RunContext, broker: BrokerClient) -> Dict[str, float
             if scores[s] < 0 and weight_field_sum > 0:
                 cap = pool_dollars * (cfg.targets[s].weight / weight_field_sum)
                 share = min(share, cap)
+            share = min(share, _headroom(s))
             result[s] = share
         return result
 

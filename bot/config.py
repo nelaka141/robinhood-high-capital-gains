@@ -13,6 +13,8 @@ class AssetTarget:
     symbol: str
     weight: float
     drift: Optional[float] = None  # per-asset drift override, weight units; None -> global default
+    max_allocation_percent: Optional[float] = None  # per-asset cap override, percent of
+        # account_balance; None -> global max_portfolio_percentage default
 
 
 @dataclass(frozen=True)
@@ -113,6 +115,15 @@ class PortfolioConfig:
         override = self.targets[symbol].drift
         return override if override is not None else self.meta.global_drift_tolerance
 
+    def max_allocation_percentage(self, symbol: str) -> float:
+        """Effective per-asset concentration cap, as a percent of account_balance: the asset's
+        own `max_allocation_percent` override if present, else the global
+        `max_portfolio_percentage`. Used by step3_alpha_leader's `_headroom()` to trim BOTH the
+        Alpha Leader allocation and the Underweight momentum-weighted split so a single symbol's
+        market value (existing holdings + this cycle's planned buy) never exceeds this cap."""
+        override = self.targets[symbol].max_allocation_percent
+        return override if override is not None else self.meta.max_portfolio_percentage
+
     def force_sell_active(self, symbol: str, current_price: float) -> bool:
         """Whether forceSell's override (bypassing the profit-margin/lock-in/blocked-freeze
         gates) is currently in effect for `symbol`. Not listed in forceSell at all -> False.
@@ -185,7 +196,10 @@ def load_portfolio_config(path: str | Path = "portfolio_targets.json") -> Portfo
     meta = PortfolioMetadata(**meta_fields)
 
     targets = {
-        sym: AssetTarget(symbol=sym, weight=t["weight"], drift=t.get("drift"))
+        sym: AssetTarget(
+            symbol=sym, weight=t["weight"], drift=t.get("drift"),
+            max_allocation_percent=t.get("max_allocation_percent"),
+        )
         for sym, t in data["targets"].items()
     }
 
