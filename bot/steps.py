@@ -49,6 +49,24 @@ def _is_loss(ctx: RunContext, sym: str) -> bool:
     return ctx.quotes[sym].last_trade_price < pos.avg_cost_basis
 
 
+def _sell_price_target_blocked(ctx: RunContext, sym: str, price: float, mechanism: str) -> bool:
+    """target_price_to_sell (CLAUDE.md): blocks a sale that would otherwise fire, by ANY
+    mechanism — including the emergency stop-losses (Drawdown Audit, Fresh Alpha Leader Stop) and
+    a blocked+forceSell liquidation, not just the routine profit-taking/trim paths — until
+    `price` crosses (reaches or exceeds) the configured floor. Only call this once the caller has
+    already determined the mechanism WOULD otherwise fire, so a SkippedTrade is only logged when
+    it actually changes the outcome, not for every symbol that merely has a configured target."""
+    if not ctx.config.sell_price_target_blocks(sym, price):
+        return False
+    target = ctx.config.target_price_to_sell[sym]
+    ctx.skipped.append(SkippedTrade(
+        sym,
+        f"target_price_to_sell (${target:,.2f}) not yet crossed (current price ${price:,.2f})",
+        mechanism,
+    ))
+    return True
+
+
 # ============================================================================================
 # Step 1 — Fetch State & Track Trailing Drawdowns
 # ============================================================================================
@@ -95,7 +113,15 @@ def step1_fetch_state(ctx: RunContext, broker: BrokerClient, repo_dir: str = "."
         pos = ctx.positions.get(sym)
         held = pos is not None and pos.quantity > 0
         price = ctx.quotes[sym].last_trade_price
-        if held and cfg.force_sell_active(sym, price):
+        if held and cfg.force_sell_active(sym, price) and cfg.sell_price_target_blocks(sym, price):
+            # target_price_to_sell overrides even forceSell+blocked — "by any means" — so this
+            # liquidation stays frozen instead of firing until price crosses the floor.
+            target = cfg.target_price_to_sell[sym]
+            ctx.blocked_symbols[sym] = (
+                f"blocked + forceSell active, but target_price_to_sell (${target:,.2f}) not yet "
+                f"crossed (currently ${price:,.2f}) — staying frozen this cycle"
+            )
+        elif held and cfg.force_sell_active(sym, price):
             ctx.blocked_symbols[sym] = "blocked, but forceSell + currently held — liquidating full position instead of freezing"
             ctx.blocked_liquidations.append(sym)
             if _is_loss(ctx, sym):
@@ -126,6 +152,8 @@ def step1_fetch_state(ctx: RunContext, broker: BrokerClient, repo_dir: str = "."
         drop_vs_peak = (peak - price) / peak * 100 if peak else 0.0
         drop_vs_cost = (pos.avg_cost_basis - price) / pos.avg_cost_basis * 100
         if drop_vs_peak >= drawdown_pct and drop_vs_cost >= drawdown_pct:
+            if _sell_price_target_blocked(ctx, sym, price, "Drawdown Audit liquidation"):
+                continue  # target_price_to_sell overrides even this emergency stop — "any means"
             ctx.drawdown_liquidations.append(sym)  # overrides target weights + lock_in_period
             ctx.loss_sale_symbols.append(sym)  # drop_vs_cost >= drawdown_pct guarantees a loss
 
@@ -154,6 +182,8 @@ def step1_fetch_state(ctx: RunContext, broker: BrokerClient, repo_dir: str = "."
         price = ctx.quotes[sym].last_trade_price
         drop_vs_alpha_buy = (st.lastAlphaLeaderBuyPrice - price) / st.lastAlphaLeaderBuyPrice * 100
         if drop_vs_alpha_buy >= fresh_drawdown_pct:
+            if _sell_price_target_blocked(ctx, sym, price, "Fresh Alpha Leader Stop liquidation"):
+                continue  # target_price_to_sell overrides even this emergency stop — "any means"
             ctx.fresh_alpha_leader_liquidations.append(sym)  # overrides target weights + lock_in_period
             # Measured against avg_cost_basis, not lastAlphaLeaderBuyPrice: a large drop from the
             # fresh injection price doesn't always mean the WHOLE position is underwater (e.g. an
@@ -365,6 +395,21 @@ def step2_guardrails(ctx: RunContext, broker: BrokerClient) -> None:
                 )
                 ctx.buy_guarded_symbols.setdefault(sym, []).append(reason)
                 ctx.alpha_buy_guarded_symbols.setdefault(sym, []).append(reason)
+
+        # Buy price target gate (target_price_to_buy): blocks a NEW BUY of this symbol — an
+        # Underweight allocation, the Alpha Multiplier allocation, or a profit-sell repurchase
+        # alike ("by any means") — while `price` is still above the configured ceiling. Also
+        # populates alpha_buy_guarded_symbols (unlike the buy-timing guard above, which
+        # deliberately doesn't) so the symbol is removed from Alpha Leader candidacy entirely,
+        # irrespective of how high its Momentum_Score is, until price drops to/below the target.
+        if cfg.buy_price_target_blocks(sym, price):
+            target = cfg.target_price_to_buy[sym]
+            reason = (
+                f"target_price_to_buy (${target:,.2f}) not yet met (current price ${price:,.2f}) "
+                f"— blocked from any buy and from Alpha Leader candidacy"
+            )
+            ctx.buy_guarded_symbols.setdefault(sym, []).append(reason)
+            ctx.alpha_buy_guarded_symbols.setdefault(sym, []).append(reason)
 
         # Overweight sell profit-margin / lock-in checks are evaluated per-candidate in Step 4,
         # since they only matter for symbols actually being considered for a trim.
@@ -823,6 +868,8 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
                              f"but selling_price_change guard active (price hasn't turned back up)",
                         "partial profit-take sale",
                     ))
+                elif _sell_price_target_blocked(ctx, sym, price, "partial profit-take sale"):
+                    pass  # target_price_to_sell overrides GTP too — "any means" — already logged
                 else:
                     # Extra dollar-profit floor when the candidate is the CURRENT Alpha Leader —
                     # protects it from being sold too cheaply just because a routine sell gate
@@ -902,6 +949,8 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
                              f"(price hasn't turned back up)",
                         "partial profit-take sale",
                     ))
+                elif _sell_price_target_blocked(ctx, sym, price, "partial profit-take sale"):
+                    pass  # target_price_to_sell overrides MRT too — "any means" — already logged
                 else:
                     alpha_leader_guard_blocks = (
                         sym == ctx.alpha_leader
@@ -935,11 +984,20 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
 
     # --- Overweight High-Beta ranking (routine, non-mandatory trim source) ---
     already_sold = {t.symbol for t in ctx.profit_taking_sells}
-    candidates = [
-        sym for sym, dr in ctx.drift_results.items()
-        if sym in cfg.targets and dr.breached and dr.is_overweight and sym not in already_sold
-        and sym not in ctx.blocked_symbols
-    ]
+    candidates = []
+    for sym, dr in ctx.drift_results.items():
+        if not (
+            sym in cfg.targets and dr.breached and dr.is_overweight
+            and sym not in already_sold and sym not in ctx.blocked_symbols
+        ):
+            continue
+        # target_price_to_sell filters candidates out BEFORE forceSell is even considered below —
+        # "by any means" includes a forceSell-driven trim, not just a routine one.
+        if _sell_price_target_blocked(
+            ctx, sym, ctx.quotes[sym].last_trade_price, "Overweight trim to fund Underweight/Multiplier"
+        ):
+            continue
+        candidates.append(sym)
 
     bench = cfg.meta.beta_benchmark_symbol
     lb = cfg.meta.beta_calculation_lookback_days

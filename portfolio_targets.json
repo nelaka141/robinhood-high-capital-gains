@@ -119,5 +119,16 @@
     "utilities": {"members": ["SO", "DUK", "NEE"], "maxPercentage": 8.0},
     "reits": {"members": ["PLD", "AMT", "EQIX"], "maxPercentage": 12.0},
     "materials": {"members": ["LIN", "FCX", "SHW"], "maxPercentage": 12.0}
+  },
+  "target_price_to_sell": {
+    "FCX": 70.5,
+    "BRK.B": 533.0
+  },
+  "target_price_to_buy": {
+    "FCX": 67.5,
+    "BRK.B": 520.0,
+    "TQQQ": 68.0,
+    "PLTR": 160,
+    "SPCX": 132
   }
 }
