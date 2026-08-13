@@ -10,3 +10,5 @@ __pycache__/
 /snapshot.json
 /plan_result*.json
 /finalize_result.json
+/price_fetch_plan.json
+/price_cache_result.json
