@@ -1,7 +1,7 @@
 {
 	"TQQQ": {
-		"peakPrice": 77.275,
-		"peakDate": "2026-07-10",
+		"peakPrice": 77.405,
+		"peakDate": "2026-08-13",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 76.6899,
@@ -26,8 +26,8 @@
 		"lastLossSaleDate": null
 	},
 	"PLTR": {
-		"peakPrice": 176.21,
-		"peakDate": "2026-08-10",
+		"peakPrice": 178.835,
+		"peakDate": "2026-08-13",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 175.3224,
@@ -71,7 +71,7 @@
 		"liquidatedDate": null,
 		"profitSellPrice": 103.555,
 		"profitSellDate": "2026-08-07",
-		"lastPurchaseDate": "2026-07-24",
+		"lastPurchaseDate": "2026-08-13",
 		"lastAlphaLeaderBuyPrice": null,
 		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
@@ -104,7 +104,7 @@
 		"lastLossSaleDate": null
 	},
 	"SMCI": {
-		"peakPrice": 39.7,
+		"peakPrice": 39.8,
 		"peakDate": "2026-08-13",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -351,7 +351,7 @@
 		"lastLossSaleDate": null
 	},
 	"NFLX": {
-		"peakPrice": 76.91,
+		"peakPrice": 77.75,
 		"peakDate": "2026-08-13",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -433,8 +433,8 @@
 		"peakDate": "2026-08-12",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
-		"profitSellPrice": 365.73,
-		"profitSellDate": "2026-08-12",
+		"profitSellPrice": 363.54,
+		"profitSellDate": "2026-08-13",
 		"lastPurchaseDate": "2026-08-07",
 		"lastAlphaLeaderBuyPrice": null,
 		"lastAlphaLeaderBuyDate": null,
@@ -494,7 +494,7 @@
 		"lastLossSaleDate": null
 	},
 	"UNP": {
-		"peakPrice": 296.11,
+		"peakPrice": 298.03,
 		"peakDate": "2026-08-13",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -533,7 +533,7 @@
 		"lastLossSaleDate": null
 	},
 	"COST": {
-		"peakPrice": 952.84,
+		"peakPrice": 958.57,
 		"peakDate": "2026-08-13",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -559,8 +559,8 @@
 		"lastLossSaleDate": null
 	},
 	"CVX": {
-		"peakPrice": 196.7,
-		"peakDate": "2026-08-12",
+		"peakPrice": 197.53,
+		"peakDate": "2026-08-13",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 196.32,
@@ -615,8 +615,8 @@
 		"peakDate": "2026-08-04",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
-		"profitSellPrice": null,
-		"profitSellDate": null,
+		"profitSellPrice": 174.97,
+		"profitSellDate": "2026-08-13",
 		"lastPurchaseDate": "2026-08-05",
 		"lastAlphaLeaderBuyPrice": null,
 		"lastAlphaLeaderBuyDate": null,
