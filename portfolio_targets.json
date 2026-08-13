@@ -13,6 +13,7 @@
     "seek_approval_value": 25000,
     "sell_price_diff_limit": 5,
     "buy_price_diff_limit": 5,
+    "52_week_high_guard": 95,
     "no_of_days_for_price_compare": 3,
     "cap_on_total_cash_balance_to_use": 150000,
     "cool_down_period_after_lquidation": 6,

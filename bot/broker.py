@@ -34,6 +34,12 @@ class BrokerClient(Protocol):
         """Ascending-date (low, high) tuples, for the Step 5 pump/dump price-limit checks."""
         ...
 
+    def get_fifty_two_week_high(self, symbol: str) -> Optional[float]:
+        """52-week high price, for the Step 5 `52_week_high_guard` chasing check. None if
+        unavailable — callers fail OPEN (allow the buy) on a missing value, same posture as the
+        rest of Step 5's price-limit checks when historical data is missing."""
+        ...
+
     def get_tax_lots(self, account_number: str, symbol: str) -> List[TaxLot]:
         """All open tax lots for `symbol`, any order — fifo.py sorts by open_date itself."""
         ...
@@ -109,6 +115,12 @@ class RobinStocksBroker:
             (float(b["low_price"]), float(b["high_price"])) for b in bars
             if start.isoformat() <= b["begins_at"][:10] <= end.isoformat()
         ]
+
+    def get_fifty_two_week_high(self, symbol: str) -> Optional[float]:
+        fundamentals = self._rh.stocks.get_fundamentals(symbol, info="high_52_weeks")
+        if not fundamentals or fundamentals[0] in (None, ""):
+            return None
+        return float(fundamentals[0])
 
     def get_tax_lots(self, account_number: str, symbol: str) -> List[TaxLot]:
         raise NotImplementedError(

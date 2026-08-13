@@ -1181,7 +1181,9 @@ def _size_overweight_trims(
 def step5_price_limits(ctx: RunContext, broker: BrokerClient, buy_candidates: Dict[str, float]) -> Dict[str, float]:
     """sell_price_diff_limit only exempts ROUTINE Overweight drift-selling (not the mandatory
     GET THE PROFITS / Momentum Reversal Trim sales, already placed into ctx.profit_taking_sells
-    and untouched here). buy_price_diff_limit applies to every planned buy."""
+    and untouched here). buy_price_diff_limit and 52_week_high_guard both apply to every planned
+    buy (Underweight AND Alpha allocation alike — this dict is the merged Step 3 output, so
+    there's no symbol-type-specific logic needed here, same as buy_price_diff_limit)."""
     cfg = ctx.config
     n_days = cfg.meta.no_of_days_for_price_compare
     end = ctx.current_date - timedelta(days=1)
@@ -1189,21 +1191,37 @@ def step5_price_limits(ctx: RunContext, broker: BrokerClient, buy_candidates: Di
 
     filtered_buys: Dict[str, float] = {}
     for sym, dollars in buy_candidates.items():
-        bars = broker.get_daily_lows_highs(sym, start, end)[-n_days:]
         price = ctx.quotes[sym].last_trade_price
-        if not bars:
-            filtered_buys[sym] = dollars
-            continue
-        low_n = min(l for l, _ in bars)
-        pump_pct = (price - low_n) / low_n * 100
-        if pump_pct > cfg.meta.buy_price_diff_limit:
-            ctx.skipped.append(SkippedTrade(
-                sym, f"buy_price_diff_limit: +{pump_pct:.2f}% vs. {n_days}-day low "
-                     f"(limit {cfg.meta.buy_price_diff_limit}%)",
-                "Underweight/Alpha buy",
-            ))
-        else:
-            filtered_buys[sym] = dollars
+
+        bars = broker.get_daily_lows_highs(sym, start, end)[-n_days:]
+        if bars:
+            low_n = min(l for l, _ in bars)
+            pump_pct = (price - low_n) / low_n * 100
+            if pump_pct > cfg.meta.buy_price_diff_limit:
+                ctx.skipped.append(SkippedTrade(
+                    sym, f"buy_price_diff_limit: +{pump_pct:.2f}% vs. {n_days}-day low "
+                         f"(limit {cfg.meta.buy_price_diff_limit}%)",
+                    "Underweight/Alpha buy",
+                ))
+                continue
+
+        # 52_week_high_guard: blocks chasing a symbol already trading near its 52-week high, by
+        # ANY means (Underweight or Alpha allocation alike, since this is the same merged buy
+        # dict). Missing 52-week-high data fails OPEN (allows the buy) — same posture as the
+        # buy_price_diff_limit/sell_price_diff_limit checks in this function when historical
+        # data is unavailable.
+        high_52w = broker.get_fifty_two_week_high(sym)
+        if high_52w:
+            pct_of_high = price / high_52w * 100
+            if pct_of_high > cfg.meta.fifty_two_week_high_guard:
+                ctx.skipped.append(SkippedTrade(
+                    sym, f"52_week_high_guard: price ${price:,.2f} is {pct_of_high:.2f}% of "
+                         f"52-week high ${high_52w:,.2f} (limit {cfg.meta.fifty_two_week_high_guard}%)",
+                    "Underweight/Alpha buy",
+                ))
+                continue
+
+        filtered_buys[sym] = dollars
 
     kept_trims: List[TradeIntent] = []
     for intent in ctx.overweight_trims:
