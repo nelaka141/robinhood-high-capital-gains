@@ -87,6 +87,13 @@ class PortfolioConfig:
         # for max_sector_percentage; a symbol not listed in any group has no sector cap. Defaults
         # to empty (no cap) so existing PortfolioConfig(...) call sites (mostly test fixtures)
         # don't need updating just to opt out of this feature.
+    target_price_to_sell: Dict[str, float] = field(default_factory=dict)  # symbol -> price floor;
+        # a listed symbol may not be sold by ANY mechanism (incl. the emergency stop-losses) while
+        # current_price is below its floor. A symbol not listed here is entirely unaffected.
+    target_price_to_buy: Dict[str, float] = field(default_factory=dict)  # symbol -> price ceiling;
+        # a listed symbol may not be bought by ANY mechanism, and is excluded from Alpha Leader
+        # candidacy entirely, while current_price is above its ceiling. A symbol not listed here
+        # is entirely unaffected.
 
     @property
     def sum_of_weights(self) -> float:
@@ -123,6 +130,26 @@ class PortfolioConfig:
         market value (existing holdings + this cycle's planned buy) never exceeds this cap."""
         override = self.targets[symbol].max_allocation_percent
         return override if override is not None else self.meta.max_portfolio_percentage
+
+    def sell_price_target_blocks(self, symbol: str, current_price: float) -> bool:
+        """target_price_to_sell: True while `symbol` has a configured sell-price floor and
+        `current_price` hasn't yet crossed (reached/exceeded) it. Blocks a sale by ANY mechanism —
+        Drawdown Audit, Fresh Alpha Leader Stop, blocked+forceSell liquidation, GET THE PROFITS,
+        Momentum Reversal Trim, and routine/forceSell-driven Overweight trims alike — until price
+        recovers to at least the target. A symbol not listed in `target_price_to_sell` is never
+        affected (always returns False)."""
+        target = self.target_price_to_sell.get(symbol)
+        return target is not None and current_price < target
+
+    def buy_price_target_blocks(self, symbol: str, current_price: float) -> bool:
+        """target_price_to_buy: True while `symbol` has a configured buy-price ceiling and
+        `current_price` is still above it. Blocks a buy by ANY mechanism — an Underweight
+        allocation, the Alpha Multiplier allocation, or a profit-sell repurchase — AND removes the
+        symbol from Alpha Leader candidacy entirely (irrespective of its Momentum_Score), until
+        price drops to at least the target. A symbol not listed in `target_price_to_buy` is never
+        affected (always returns False)."""
+        target = self.target_price_to_buy.get(symbol)
+        return target is not None and current_price > target
 
     def force_sell_active(self, symbol: str, current_price: float) -> bool:
         """Whether forceSell's override (bypassing the profit-margin/lock-in/blocked-freeze
@@ -220,4 +247,6 @@ def load_portfolio_config(path: str | Path = "portfolio_targets.json") -> Portfo
         force_sell=_parse_force_sell(data.get("forceSell", [])),
         blocked=list(data.get("blocked", [])),
         sector_groups=_parse_sector_groups(data.get("sector_groups", {})),
+        target_price_to_sell={sym: float(p) for sym, p in data.get("target_price_to_sell", {}).items()},
+        target_price_to_buy={sym: float(p) for sym, p in data.get("target_price_to_buy", {}).items()},
     )
