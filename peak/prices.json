@@ -7,8 +7,6 @@
 		"profitSellPrice": 76.6899,
 		"profitSellDate": "2026-08-13",
 		"lastPurchaseDate": "2026-07-16",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -20,8 +18,6 @@
 		"profitSellPrice": null,
 		"profitSellDate": null,
 		"lastPurchaseDate": "2026-07-27",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -33,8 +29,6 @@
 		"profitSellPrice": 175.3224,
 		"profitSellDate": "2026-08-11",
 		"lastPurchaseDate": "2026-07-30",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -46,8 +40,6 @@
 		"profitSellPrice": 925.47,
 		"profitSellDate": "2026-08-12",
 		"lastPurchaseDate": "2026-07-27",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -59,8 +51,6 @@
 		"profitSellPrice": null,
 		"profitSellDate": null,
 		"lastPurchaseDate": "2026-07-15",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -72,8 +62,6 @@
 		"profitSellPrice": 103.555,
 		"profitSellDate": "2026-08-07",
 		"lastPurchaseDate": "2026-08-13",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -85,8 +73,6 @@
 		"profitSellPrice": 175.7001,
 		"profitSellDate": "2026-07-21",
 		"lastPurchaseDate": "2026-07-31",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -98,8 +84,6 @@
 		"profitSellPrice": 282.4199,
 		"profitSellDate": "2026-08-13",
 		"lastPurchaseDate": "2026-08-11",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -111,8 +95,6 @@
 		"profitSellPrice": 32.73,
 		"profitSellDate": "2026-08-10",
 		"lastPurchaseDate": "2026-07-29",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -124,8 +106,6 @@
 		"profitSellPrice": null,
 		"profitSellDate": null,
 		"lastPurchaseDate": null,
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -137,8 +117,6 @@
 		"profitSellPrice": null,
 		"profitSellDate": null,
 		"lastPurchaseDate": "2026-07-14",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -150,8 +128,6 @@
 		"profitSellPrice": 271.44,
 		"profitSellDate": "2026-08-12",
 		"lastPurchaseDate": "2026-08-13",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -163,21 +139,17 @@
 		"profitSellPrice": 324.92,
 		"profitSellDate": "2026-08-04",
 		"lastPurchaseDate": "2026-07-27",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
 	"NVDA": {
-		"peakPrice": 225.72,
-		"peakDate": "2026-08-13",
+		"peakPrice": 226.4501,
+		"peakDate": "2026-08-14",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 222.77,
 		"profitSellDate": "2026-08-12",
 		"lastPurchaseDate": "2026-08-11",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -189,8 +161,6 @@
 		"profitSellPrice": null,
 		"profitSellDate": null,
 		"lastPurchaseDate": "2026-07-16",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -202,8 +172,6 @@
 		"profitSellPrice": 377.07,
 		"profitSellDate": "2026-08-05",
 		"lastPurchaseDate": "2026-08-07",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -215,8 +183,6 @@
 		"profitSellPrice": 503.03,
 		"profitSellDate": "2026-08-11",
 		"lastPurchaseDate": "2026-08-13",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -228,8 +194,6 @@
 		"profitSellPrice": null,
 		"profitSellDate": null,
 		"lastPurchaseDate": "2026-07-16",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -241,8 +205,6 @@
 		"profitSellPrice": 99.5005,
 		"profitSellDate": "2026-08-13",
 		"lastPurchaseDate": "2026-07-29",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -254,8 +216,6 @@
 		"profitSellPrice": 333.4801,
 		"profitSellDate": "2026-07-17",
 		"lastPurchaseDate": "2026-07-31",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -267,8 +227,6 @@
 		"profitSellPrice": 494.02,
 		"profitSellDate": "2026-08-13",
 		"lastPurchaseDate": "2026-08-07",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -280,8 +238,6 @@
 		"profitSellPrice": null,
 		"profitSellDate": null,
 		"lastPurchaseDate": "2026-08-07",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -293,8 +249,6 @@
 		"profitSellPrice": 296.415,
 		"profitSellDate": "2026-08-12",
 		"lastPurchaseDate": "2026-08-07",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -306,8 +260,6 @@
 		"profitSellPrice": 422.59,
 		"profitSellDate": "2026-08-05",
 		"lastPurchaseDate": "2026-08-12",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -319,8 +271,6 @@
 		"profitSellPrice": 16.06,
 		"profitSellDate": "2026-07-29",
 		"lastPurchaseDate": "2026-07-31",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -332,8 +282,6 @@
 		"profitSellPrice": 89.55,
 		"profitSellDate": "2026-08-05",
 		"lastPurchaseDate": "2026-07-30",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -345,21 +293,17 @@
 		"profitSellPrice": 234.735,
 		"profitSellDate": "2026-08-05",
 		"lastPurchaseDate": "2026-07-30",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
 	"NFLX": {
-		"peakPrice": 77.75,
-		"peakDate": "2026-08-13",
+		"peakPrice": 78.065,
+		"peakDate": "2026-08-14",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
-		"profitSellPrice": 76.7203,
-		"profitSellDate": "2026-08-11",
+		"profitSellPrice": 78.065,
+		"profitSellDate": "2026-08-14",
 		"lastPurchaseDate": "2026-08-13",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -371,8 +315,6 @@
 		"profitSellPrice": null,
 		"profitSellDate": null,
 		"lastPurchaseDate": "2026-08-07",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -384,8 +326,6 @@
 		"profitSellPrice": 382.1775,
 		"profitSellDate": "2026-08-05",
 		"lastPurchaseDate": "2026-08-07",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -397,8 +337,6 @@
 		"profitSellPrice": null,
 		"profitSellDate": null,
 		"lastPurchaseDate": null,
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -410,8 +348,6 @@
 		"profitSellPrice": 1196.43,
 		"profitSellDate": "2026-08-06",
 		"lastPurchaseDate": "2026-08-04",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -423,8 +359,6 @@
 		"profitSellPrice": 260.84,
 		"profitSellDate": "2026-08-12",
 		"lastPurchaseDate": "2026-08-07",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -436,8 +370,6 @@
 		"profitSellPrice": 363.54,
 		"profitSellDate": "2026-08-13",
 		"lastPurchaseDate": "2026-08-07",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -449,8 +381,6 @@
 		"profitSellPrice": null,
 		"profitSellDate": null,
 		"lastPurchaseDate": "2026-08-10",
-		"lastAlphaLeaderBuyPrice": 536.23,
-		"lastAlphaLeaderBuyDate": "2026-08-10",
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -462,8 +392,6 @@
 		"profitSellPrice": null,
 		"profitSellDate": null,
 		"lastPurchaseDate": "2026-08-07",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -475,8 +403,6 @@
 		"profitSellPrice": null,
 		"profitSellDate": null,
 		"lastPurchaseDate": "2026-08-06",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -488,21 +414,17 @@
 		"profitSellPrice": 865.73,
 		"profitSellDate": "2026-08-12",
 		"lastPurchaseDate": "2026-08-07",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
 	"UNP": {
-		"peakPrice": 298.03,
-		"peakDate": "2026-08-13",
+		"peakPrice": 299.71,
+		"peakDate": "2026-08-14",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
-		"profitSellPrice": null,
-		"profitSellDate": null,
+		"profitSellPrice": 299.71,
+		"profitSellDate": "2026-08-14",
 		"lastPurchaseDate": "2026-08-07",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -514,8 +436,6 @@
 		"profitSellPrice": 114.06,
 		"profitSellDate": "2026-08-12",
 		"lastPurchaseDate": "2026-08-07",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -527,47 +447,39 @@
 		"profitSellPrice": null,
 		"profitSellDate": null,
 		"lastPurchaseDate": "2026-08-07",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
 	"COST": {
-		"peakPrice": 958.57,
-		"peakDate": "2026-08-13",
+		"peakPrice": 959.84,
+		"peakDate": "2026-08-14",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": null,
 		"profitSellDate": null,
 		"lastPurchaseDate": "2026-08-07",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
 	"XOM": {
-		"peakPrice": 160.3,
-		"peakDate": "2026-08-11",
+		"peakPrice": 160.57,
+		"peakDate": "2026-08-14",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 159.73,
 		"profitSellDate": "2026-08-11",
 		"lastPurchaseDate": "2026-08-07",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
 	"CVX": {
-		"peakPrice": 197.53,
-		"peakDate": "2026-08-13",
+		"peakPrice": 200.4451,
+		"peakDate": "2026-08-14",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 196.32,
 		"profitSellDate": "2026-08-11",
 		"lastPurchaseDate": "2026-08-07",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -579,8 +491,6 @@
 		"profitSellPrice": 125.6775,
 		"profitSellDate": "2026-08-11",
 		"lastPurchaseDate": "2026-08-07",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -592,8 +502,6 @@
 		"profitSellPrice": null,
 		"profitSellDate": null,
 		"lastPurchaseDate": "2026-08-07",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -605,34 +513,28 @@
 		"profitSellPrice": 141.89,
 		"profitSellDate": "2026-08-13",
 		"lastPurchaseDate": "2026-08-07",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
 	"AMT": {
-		"peakPrice": 175.3799,
-		"peakDate": "2026-08-04",
+		"peakPrice": 175.9,
+		"peakDate": "2026-08-14",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 174.97,
 		"profitSellDate": "2026-08-13",
 		"lastPurchaseDate": "2026-08-05",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
 	"EQIX": {
-		"peakPrice": 1074.79,
-		"peakDate": "2026-08-13",
+		"peakPrice": 1086.12,
+		"peakDate": "2026-08-14",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
-		"profitSellPrice": 1074.79,
-		"profitSellDate": "2026-08-13",
+		"profitSellPrice": 1086.12,
+		"profitSellDate": "2026-08-14",
 		"lastPurchaseDate": "2026-08-07",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -644,8 +546,6 @@
 		"profitSellPrice": null,
 		"profitSellDate": null,
 		"lastPurchaseDate": "2026-08-06",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -657,8 +557,6 @@
 		"profitSellPrice": null,
 		"profitSellDate": null,
 		"lastPurchaseDate": "2026-08-11",
-		"lastAlphaLeaderBuyPrice": 69.73,
-		"lastAlphaLeaderBuyDate": "2026-08-11",
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -670,8 +568,6 @@
 		"profitSellPrice": null,
 		"profitSellDate": null,
 		"lastPurchaseDate": "2026-08-06",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -683,8 +579,6 @@
 		"profitSellPrice": null,
 		"profitSellDate": null,
 		"lastPurchaseDate": "2026-08-07",
-		"lastAlphaLeaderBuyPrice": null,
-		"lastAlphaLeaderBuyDate": null,
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	}
