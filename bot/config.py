@@ -34,9 +34,7 @@ class PortfolioMetadata:
     global_drift_tolerance: float
     max_trailing_drawdown_percentage: float
     min_recovery_price_percentage: float
-    reinvestment_multiplier_factor: float
     max_portfolio_percentage: float
-    alpha_cash_allocation_percentage: float
     min_cash_absolute: float
     min_cash_target: float
     seek_approval_value: float
@@ -52,11 +50,10 @@ class PortfolioMetadata:
     leg1_price_change: float  # JSON key: 1st_leg_price_change
     leg2_price_change: float  # JSON key: 2nd_leg_price_change
     leg3_price_change: float  # JSON key: 3rd_leg_price_change
-    lock_in_period: int
-    overweight_sell_minimum_profit_margin_percent: float
-    overweight_sell_minimum_profit_margin_dollars: float
-    momentum_reversal_minimum_profit_margin_percent: float
-    momentum_reversal_minimum_profit_dollars: float
+    lock_in_period: int  # retained but inert: the only routine sell (GET THE PROFITS) and the
+        # emergency liquidations all override it — no remaining sell path consults it
+    overweight_sell_minimum_profit_margin_percent: float  # retained but inert: Overweight trims
+    overweight_sell_minimum_profit_margin_dollars: float  # no longer exist as a sell mechanism
     profit_resell_cooldown_days: int
     selling_price_change: float
     sell_or_buy_value_limit: float
@@ -66,13 +63,7 @@ class PortfolioMetadata:
     materialize_profit_in_dollars: float
     keep_aside_profits_for_tax_percent: float
     momentum_lookback_days: int
-    momentum_reversal_threshold: float
-    minimum_alpha_leader_sell_profit: float
-    alpha_leader_least_momentum_score: float
-    alpha_rank_reduction_percent: float
     min_momentum_score_to_fill_underweight: float
-    alpha_leader_fresh_position_days: int
-    alpha_leader_fresh_drawdown_percentage: float
     max_sector_percentage: float
     wash_sale_lookback_days: int
     dormant_asset_days: int  # Step 7 reporting only — never gates a buy/sell decision
@@ -92,8 +83,8 @@ class PortfolioConfig:
         # a listed symbol may not be sold by ANY mechanism (incl. the emergency stop-losses) while
         # current_price is below its floor. A symbol not listed here is entirely unaffected.
     target_price_to_buy: Dict[str, float] = field(default_factory=dict)  # symbol -> price ceiling;
-        # a listed symbol may not be bought by ANY mechanism, and is excluded from Alpha Leader
-        # candidacy entirely, while current_price is above its ceiling. A symbol not listed here
+        # a listed symbol may not be bought by ANY mechanism
+        # while current_price is above its ceiling. A symbol not listed here
         # is entirely unaffected.
 
     @property
@@ -126,8 +117,8 @@ class PortfolioConfig:
     def max_allocation_percentage(self, symbol: str) -> float:
         """Effective per-asset concentration cap, as a percent of account_balance: the asset's
         own `max_allocation_percent` override if present, else the global
-        `max_portfolio_percentage`. Used by step3_alpha_leader's `_headroom()` to trim BOTH the
-        Alpha Leader allocation and the Underweight momentum-weighted split so a single symbol's
+        `max_portfolio_percentage`. Used by step3_underweight_buys's `_headroom()` to cap each
+        Underweight fill so a single symbol's
         market value (existing holdings + this cycle's planned buy) never exceeds this cap."""
         override = self.targets[symbol].max_allocation_percent
         return override if override is not None else self.meta.max_portfolio_percentage
@@ -135,8 +126,7 @@ class PortfolioConfig:
     def sell_price_target_blocks(self, symbol: str, current_price: float) -> bool:
         """target_price_to_sell: True while `symbol` has a configured sell-price floor and
         `current_price` hasn't yet crossed (reached/exceeded) it. Blocks a sale by ANY mechanism —
-        Drawdown Audit, Fresh Alpha Leader Stop, blocked+forceSell liquidation, GET THE PROFITS,
-        Momentum Reversal Trim, and routine/forceSell-driven Overweight trims alike — until price
+        Drawdown Audit, blocked+forceSell liquidation, and GET THE PROFITS alike — until price
         recovers to at least the target. A symbol not listed in `target_price_to_sell` is never
         affected (always returns False)."""
         target = self.target_price_to_sell.get(symbol)
@@ -145,8 +135,7 @@ class PortfolioConfig:
     def buy_price_target_blocks(self, symbol: str, current_price: float) -> bool:
         """target_price_to_buy: True while `symbol` has a configured buy-price ceiling and
         `current_price` is still above it. Blocks a buy by ANY mechanism — an Underweight
-        allocation, the Alpha Multiplier allocation, or a profit-sell repurchase — AND removes the
-        symbol from Alpha Leader candidacy entirely (irrespective of its Momentum_Score), until
+        allocation or a profit-sell repurchase — until
         price drops to at least the target. A symbol not listed in `target_price_to_buy` is never
         affected (always returns False)."""
         target = self.target_price_to_buy.get(symbol)

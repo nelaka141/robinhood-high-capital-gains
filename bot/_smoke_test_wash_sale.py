@@ -4,16 +4,13 @@
    `wash_sale_lookback_days` days after ANY sell that realized a loss (peak/prices.json's
    lastLossSalePrice/lastLossSaleDate) — independent of, and stacks with, the existing
    profit-sell buy-guard.
-2. Backward sell-guard (Step 4, _size_overweight_trims): the ONE deliberate-but-not-urgent path
-   that can realize a loss is a forceSell-driven Overweight trim (routine trims/GTP/MRT are all
-   profit-gated by construction). If ANY tax lot of that symbol was opened within
-   `wash_sale_lookback_days` days, the loss sale is skipped entirely rather than locking in a
-   disallowed loss.
-3. Emergency stops (Drawdown Audit, Fresh Alpha Leader Stop, blocked+forceSell liquidation)
+2. Emergency stops (Drawdown Audit, blocked+forceSell liquidation)
    remain UNCONDITIONAL — wash sale only defers tax recognition, it doesn't forfeit it, so a
    stop-loss must never be blocked on wash-sale grounds. This is a design absence, not a
-   guard: Step 1 has no backward-looking check at all for these liquidations.
-4. Step 7 state-writing (cli._update_peak_prices / main._update_price_state) stamps
+   guard: Step 1 has no backward-looking check at all for these liquidations. (GET THE PROFITS,
+   the only routine sell, is structurally profit-gated and can never realize a loss, so no
+   backward sell-guard exists anywhere anymore.)
+3. Step 7 state-writing (cli._update_peak_prices / main._update_price_state) stamps
    lastLossSalePrice/lastLossSaleDate for every symbol in ctx.loss_sale_symbols, which is what
    arms guard #1 on a future cycle.
 
@@ -24,9 +21,9 @@ from __future__ import annotations
 from datetime import date
 
 from bot.cli import _update_peak_prices
-from bot.config import AssetTarget, ForceSellEntry, PortfolioConfig, PortfolioMetadata
+from bot.config import AssetTarget, PortfolioConfig, PortfolioMetadata
 from bot.main import _update_price_state
-from bot.models import DriftResult, Position, Quote, RunContext, TaxLot
+from bot.models import Position, Quote, RunContext
 from bot.state import AssetPriceState
 from bot import steps
 
@@ -34,8 +31,8 @@ from bot import steps
 def _meta(**overrides) -> PortfolioMetadata:
     base = dict(
         global_drift_tolerance=1.0, max_trailing_drawdown_percentage=35,
-        min_recovery_price_percentage=5.0, reinvestment_multiplier_factor=1.25,
-        max_portfolio_percentage=90.0, alpha_cash_allocation_percentage=0.0,
+        min_recovery_price_percentage=5.0,
+        max_portfolio_percentage=90.0,
         min_cash_absolute=0, min_cash_target=500, seek_approval_value=1_000_000,
         sell_price_diff_limit=5, buy_price_diff_limit=5, fifty_two_week_high_guard=1000.0, no_of_days_for_price_compare=3,
         cap_on_total_cash_balance_to_use=30000, cool_down_period_after_lquidation=6,
@@ -48,17 +45,12 @@ def _meta(**overrides) -> PortfolioMetadata:
         sold_asset_repurchase_days=2, leg1_price_change=-999.0, leg2_price_change=-999.0, leg3_price_change=-999.0,
         lock_in_period=2, overweight_sell_minimum_profit_margin_percent=1.0,
         overweight_sell_minimum_profit_margin_dollars=0.0,
-        momentum_reversal_minimum_profit_margin_percent=1.0,
-        momentum_reversal_minimum_profit_dollars=0.0,
         profit_resell_cooldown_days=15,
         selling_price_change=0.1,
         sell_or_buy_value_limit=10, min_value_of_trade=0,
         materialize_profit_percentage=2.0, profit_sell_percentage=50.0,
         materialize_profit_in_dollars=0.0, keep_aside_profits_for_tax_percent=35.0,
-        momentum_lookback_days=5, momentum_reversal_threshold=-10.0,
-        minimum_alpha_leader_sell_profit=0.0, alpha_leader_least_momentum_score=-1000.0,
-        alpha_rank_reduction_percent=0.0, min_momentum_score_to_fill_underweight=-1000.0,
-        alpha_leader_fresh_position_days=3, alpha_leader_fresh_drawdown_percentage=15.0,
+        momentum_lookback_days=5, min_momentum_score_to_fill_underweight=-1000.0,
         max_sector_percentage=0.0,
         wash_sale_lookback_days=30,
         dormant_asset_days=5,
@@ -124,16 +116,11 @@ def _step2_ctx(loss_sale_date: str, current_date: date, **meta_overrides) -> Run
 
 
 def test_forward_guard_blocks_buy_within_window() -> None:
-    """Loss-sold 10 days ago, wash_sale_lookback_days=30 -> still inside the window -> buy-guarded.
-    Unlike the buy-timing guard (see _smoke_test_alpha_reserve.py's
-    test_buy_timing_guard_does_not_block_alpha_leader), the wash-sale guard is a tax-compliance
-    rule, not a momentum filter — it also populates alpha_buy_guarded_symbols, so it DOES block
-    the Alpha Leader too."""
+    """Loss-sold 10 days ago, wash_sale_lookback_days=30 -> still inside the window -> buy-guarded."""
     ctx = _step2_ctx(loss_sale_date="2026-07-28", current_date=date(2026, 8, 7))
     assert "SYM" in ctx.buy_guarded_symbols, ctx.buy_guarded_symbols
     assert any("wash-sale" in r.lower() for r in ctx.buy_guarded_symbols["SYM"])
-    assert "SYM" in ctx.alpha_buy_guarded_symbols, ctx.alpha_buy_guarded_symbols
-    print(f"[wash-forward-blocks] {ctx.buy_guarded_symbols['SYM']} (also gates Alpha Leader)")
+    print(f"[wash-forward-blocks] {ctx.buy_guarded_symbols['SYM']}")
 
 
 def test_forward_guard_clears_outside_window() -> None:
@@ -151,60 +138,7 @@ def test_forward_guard_no_prior_loss_sale() -> None:
 
 
 # ------------------------------------------------------------------------------------------
-# 2. Backward sell-guard (Step 4, forceSell-driven Overweight trim)
-# ------------------------------------------------------------------------------------------
-
-def _step4_ctx(lot_open_date: date, current_date=date(2026, 8, 7), **meta_overrides) -> RunContext:
-    """AAPL: overweight, underwater vs. avg_cost_basis (a loss), forceSell-listed with no
-    triggerPrice (override always active) so it reaches the ranking/sizing stage despite being
-    underwater — the only path capable of a loss sale."""
-    cfg = PortfolioConfig(
-        meta=_meta(**meta_overrides),
-        targets={"AAPL": AssetTarget("AAPL", weight=1.0)},
-        force_sell={"AAPL": ForceSellEntry(asset="AAPL")}, blocked=[],
-    )
-    ctx = RunContext(current_date=current_date, config=cfg, account_number="TEST")
-    ctx.positions = {"AAPL": Position(symbol="AAPL", quantity=10.0, avg_cost_basis=300.0)}
-    ctx.quotes = {"AAPL": Quote(symbol="AAPL", last_trade_price=260.0)}
-    ctx.price_state = {"AAPL": AssetPriceState()}
-    ctx.account_balance = 10_000.0
-    ctx.drift_results = {
-        "AAPL": DriftResult(
-            symbol="AAPL", current_percentage=90.0, actual_weight=5.0, target_weight=1.1,
-            target_percentage=10.0, drift=3.9, asset_drift_tolerance=0.5, market_value=2600.0,
-        ),
-    }
-    ctx.harvest_needed_dollars = 500.0
-    lots = {"AAPL": [
-        TaxLot(open_lot_id="AAPL-lot1", quantity=10.0, cost_per_share=300.0,
-               open_date=lot_open_date, is_selectable=True),
-    ]}
-    broker = _Broker(positions=ctx.positions, quotes=ctx.quotes, lots=lots)
-    steps.step4_profit_taking(ctx, broker)
-    return ctx
-
-
-def test_backward_guard_blocks_loss_sale_with_recent_lot() -> None:
-    """The only lot was opened 5 days ago (well within wash_sale_lookback_days=30) -> the loss
-    sale is skipped entirely, not placed under a disallowed loss."""
-    ctx = _step4_ctx(lot_open_date=date(2026, 8, 2))  # 5 days before current_date
-    assert all(t.symbol != "AAPL" for t in ctx.overweight_trims), ctx.overweight_trims
-    assert any(s.symbol == "AAPL" and "wash sale" in s.reason.lower() for s in ctx.skipped), ctx.skipped
-    assert "AAPL" not in ctx.loss_sale_symbols, "skipped sale must not arm the forward buy-guard"
-    print("[wash-backward-blocks] recent lot (5d old) -> loss sale skipped, wash-sale guard fired — OK")
-
-
-def test_backward_guard_allows_loss_sale_with_old_lot() -> None:
-    """The only lot was opened 60 days ago (outside the 30-day window) -> no wash-sale risk ->
-    the loss sale proceeds normally and arms loss_sale_symbols for the forward buy-guard."""
-    ctx = _step4_ctx(lot_open_date=date(2026, 6, 8))  # 60 days before current_date
-    assert any(t.symbol == "AAPL" for t in ctx.overweight_trims), ctx.overweight_trims
-    assert "AAPL" in ctx.loss_sale_symbols, ctx.loss_sale_symbols
-    print("[wash-backward-allows] old lot (60d, outside 30d window) -> loss sale proceeds, arms forward guard — OK")
-
-
-# ------------------------------------------------------------------------------------------
-# 3. Emergency stops remain unconditional (no backward-looking wash-sale check in Step 1)
+# 2. Emergency stops remain unconditional (no backward-looking wash-sale check in Step 1)
 # ------------------------------------------------------------------------------------------
 
 class _Step1Broker:
@@ -251,7 +185,7 @@ def test_drawdown_stop_unconditional_despite_wash_sale_risk() -> None:
 
 
 # ------------------------------------------------------------------------------------------
-# 4. Step 7 state writes stamp lastLossSalePrice/Date
+# 3. Step 7 state writes stamp lastLossSalePrice/Date
 # ------------------------------------------------------------------------------------------
 
 def test_cli_stamps_loss_sale_state() -> None:
@@ -264,7 +198,6 @@ def test_cli_stamps_loss_sale_state() -> None:
     ctx.loss_sale_symbols = ["SYM"]
     ctx.drawdown_liquidations = []
     ctx.blocked_liquidations = []
-    ctx.fresh_alpha_leader_liquidations = []
     _update_peak_prices(ctx)
     assert ctx.price_state["SYM"].lastLossSalePrice == 42.0
     assert ctx.price_state["SYM"].lastLossSaleDate == "2026-08-07"
@@ -284,7 +217,6 @@ def test_main_stamps_loss_sale_state() -> None:
     ctx.loss_sale_symbols = ["SYM"]
     ctx.drawdown_liquidations = []
     ctx.blocked_liquidations = []
-    ctx.fresh_alpha_leader_liquidations = []
     _update_price_state(ctx)
     assert ctx.price_state["SYM"].lastLossSalePrice == 42.0
     assert ctx.price_state["SYM"].lastLossSaleDate == "2026-08-07"
@@ -295,8 +227,6 @@ def main() -> None:
     test_forward_guard_blocks_buy_within_window()
     test_forward_guard_clears_outside_window()
     test_forward_guard_no_prior_loss_sale()
-    test_backward_guard_blocks_loss_sale_with_recent_lot()
-    test_backward_guard_allows_loss_sale_with_old_lot()
     test_drawdown_stop_unconditional_despite_wash_sale_risk()
     test_cli_stamps_loss_sale_state()
     test_main_stamps_loss_sale_state()

@@ -31,7 +31,6 @@ from .state import (
     AssetPriceState,
     load_price_state,
     load_tax_by_year,
-    save_alpha_leader_reserve,
     save_price_state,
     save_tax_by_year,
 )
@@ -62,7 +61,7 @@ def run_cycle(account_number: str, repo_dir: str, broker: BrokerClient, dry_run:
     steps.step2_guardrails(ctx, broker)
 
     # ---- Step 3 ----
-    planned_buys = steps.step3_alpha_leader(ctx, broker)
+    planned_buys = steps.step3_underweight_buys(ctx, broker)
 
     # ---- Step 4 ----
     steps.step4_profit_taking(ctx, broker)
@@ -82,11 +81,7 @@ def _update_price_state(ctx: RunContext) -> None:
     today = ctx.current_date.isoformat()
     bought = {t.symbol for t in ctx.buys}
     sold_for_profit = {t.symbol for t in ctx.profit_taking_sells}
-    liquidated = (
-        set(ctx.drawdown_liquidations)
-        | set(ctx.blocked_liquidations)
-        | set(ctx.fresh_alpha_leader_liquidations)
-    )
+    liquidated = set(ctx.drawdown_liquidations) | set(ctx.blocked_liquidations)
 
     for sym in ctx.config.targets:
         st = ctx.price_state.setdefault(sym, AssetPriceState())
@@ -108,11 +103,6 @@ def _update_price_state(ctx: RunContext) -> None:
 
         if sym in bought:
             st.lastPurchaseDate = today
-            if sym == ctx.alpha_leader:
-                # Fresh Alpha Leader Stop (Step 1) basis — see cli.py's
-                # _update_profit_sell_and_purchase_dates for the identical rationale.
-                st.lastAlphaLeaderBuyPrice = price
-                st.lastAlphaLeaderBuyDate = today
             if st.profitSellDate and (sym not in sold_for_profit):
                 # Repurchased after a FULL-exit profit-sell -> fresh peak at the purchase price.
                 # A partial-sell remainder always leaves nonzero shares, so this only fires for
@@ -131,10 +121,6 @@ def _update_price_state(ctx: RunContext) -> None:
 def _finalize_step7(ctx: RunContext, repo_dir: str, dry_run: bool) -> None:
     _update_price_state(ctx)
     save_price_state(ctx.price_state, f"{repo_dir}/peak/prices.json")
-    alpha_reserve = steps.resolve_alpha_leader_reserve(ctx)
-    ctx.alpha_leader_reserve_cash = alpha_reserve.reserve_cash if alpha_reserve is not None else 0.0
-    if alpha_reserve is not None:
-        save_alpha_leader_reserve(alpha_reserve, f"{repo_dir}/alpha_reserve.json")
 
     ctx.tax_by_year[str(ctx.current_date.year)] = max(
         0.0, ctx.net_realized_gains_ytd_effective if ctx.net_realized_gains_ytd_effective is not None else 0.0
@@ -150,8 +136,7 @@ def _finalize_step7(ctx: RunContext, repo_dir: str, dry_run: bool) -> None:
 
     branch = gitops.commit_and_push_cycle(
         repo_dir,
-        changed_paths=["peak/prices.json", "tax/realized_gains_by_year.json",
-                        "alpha_reserve.json", "logs/"],
+        changed_paths=["peak/prices.json", "tax/realized_gains_by_year.json", "logs/"],
         commit_message=f"Scheduled rebalance {ctx.current_date.isoformat()}",
     )
     gitops.open_and_merge_pr(

@@ -29,7 +29,7 @@ from .serialize import ctx_from_jsonable, ctx_to_jsonable, dump_json
 from .snapshot_broker import SnapshotBroker
 from .state import (
     AssetPriceState, load_price_state, load_tax_by_year,
-    save_alpha_leader_reserve, save_price_state, save_tax_by_year,
+    save_price_state, save_tax_by_year,
 )
 
 
@@ -79,7 +79,7 @@ def cmd_plan(args: argparse.Namespace) -> None:
         return
 
     steps.step2_guardrails(ctx, broker)
-    planned_buys = steps.step3_alpha_leader(ctx, broker)
+    planned_buys = steps.step3_underweight_buys(ctx, broker)
     steps.step4_profit_taking(ctx, broker)
     planned_buys = steps.step5_price_limits(ctx, broker, planned_buys)
     sells_to_place, halted, halt_reason = steps.step6a_prepare_sells(ctx, planned_buys)
@@ -125,27 +125,18 @@ def cmd_finalize(args: argparse.Namespace) -> None:
     save_price_state(ctx.price_state, f"{repo_dir}/peak/prices.json")
     ctx.tax_by_year[str(ctx.current_date.year)] = max(0.0, ctx.net_realized_gains_ytd_effective or 0.0)
     save_tax_by_year(ctx.tax_by_year, f"{repo_dir}/tax/realized_gains_by_year.json")
-    alpha_reserve = steps.resolve_alpha_leader_reserve(ctx)
-    ctx.alpha_leader_reserve_cash = alpha_reserve.reserve_cash if alpha_reserve is not None else 0.0
-    if alpha_reserve is not None:
-        save_alpha_leader_reserve(alpha_reserve, f"{repo_dir}/alpha_reserve.json")
 
     ctx.dormant_assets = steps.compute_dormant_assets(ctx)
     entry_md = journal.render_entry(ctx)
     journal.prepend_entry(entry_md, f"{repo_dir}/logs")
 
     files_changed = ["peak/prices.json", "tax/realized_gains_by_year.json", "logs/trade_journal.md"]
-    if alpha_reserve is not None:
-        files_changed.insert(2, "alpha_reserve.json")
 
     result = {
         "buys_to_place": [_intent_to_dict(t) for t in buys_to_place],
         "tax_reserve": ctx.tax_reserve,
         "net_realized_gains_ytd_effective": ctx.net_realized_gains_ytd_effective,
         "total_high_beta_gains_realized": ctx.total_high_beta_gains_realized,
-        "top_momentum_symbol": ctx.top_momentum_symbol,
-        "alpha_leader": ctx.alpha_leader,
-        "alpha_leader_reserve_cash": alpha_reserve.reserve_cash if alpha_reserve is not None else 0.0,
         "journal_entry_markdown": entry_md,
         "email_summary": journal.render_email_summary(ctx),
         "files_changed": files_changed,
@@ -161,11 +152,7 @@ def _update_peak_prices(ctx: RunContext) -> None:
         price = ctx.quotes[sym].last_trade_price
         if st.peakPrice is None or price > st.peakPrice:
             st.peakPrice, st.peakDate = price, today
-        if (
-            sym in ctx.drawdown_liquidations
-            or sym in ctx.blocked_liquidations
-            or sym in ctx.fresh_alpha_leader_liquidations
-        ):
+        if sym in ctx.drawdown_liquidations or sym in ctx.blocked_liquidations:
             st.liquidatedPrice, st.liquidatedDate = price, today
         if sym in ctx.loss_sale_symbols:
             # Wash-sale buy-guard (Step 2) basis: arms wash_sale_lookback_days regardless of
@@ -182,12 +169,6 @@ def _update_profit_sell_and_purchase_dates(ctx: RunContext) -> None:
     for t in ctx.buys:
         st = ctx.price_state[t.symbol]
         st.lastPurchaseDate = today
-        if t.symbol == ctx.alpha_leader:
-            # Fresh Alpha Leader Stop (Step 1) basis: the price of THIS buy, not avg_cost_basis
-            # or the portfolio-wide peak — reset every time this symbol acts as Alpha Leader
-            # again, so the tighter window always tracks the most recent injection.
-            st.lastAlphaLeaderBuyPrice = ctx.quotes[t.symbol].last_trade_price
-            st.lastAlphaLeaderBuyDate = today
         # Repurchase after a FULL-exit profit-sell (Step 6): reset the peak to the purchase
         # price. Detected by: this symbol carries a profitSellDate AND held zero shares going
         # into this buy (a partial-sell remainder always leaves nonzero shares, so this only

@@ -17,8 +17,8 @@ from bot.steps import step6a_prepare_sells, step6b_finalize_buys
 def _minimal_ctx(seek_approval_value: float = 1000.0) -> RunContext:
     meta = PortfolioMetadata(
         global_drift_tolerance=1.0, max_trailing_drawdown_percentage=35,
-        min_recovery_price_percentage=5.0, reinvestment_multiplier_factor=1.25,
-        max_portfolio_percentage=35.0, alpha_cash_allocation_percentage=35.0,
+        min_recovery_price_percentage=5.0,
+        max_portfolio_percentage=35.0,
         min_cash_absolute=250, min_cash_target=500, seek_approval_value=seek_approval_value,
         sell_price_diff_limit=5, buy_price_diff_limit=5, fifty_two_week_high_guard=1000.0, no_of_days_for_price_compare=3,
         cap_on_total_cash_balance_to_use=30000, cool_down_period_after_lquidation=6,
@@ -26,18 +26,13 @@ def _minimal_ctx(seek_approval_value: float = 1000.0) -> RunContext:
         sold_asset_repurchase_days=2, leg2_price_change=0.5, leg3_price_change=0.1, leg1_price_change=0.5,
         lock_in_period=2, overweight_sell_minimum_profit_margin_percent=1.0,
         overweight_sell_minimum_profit_margin_dollars=12.5,
-        momentum_reversal_minimum_profit_margin_percent=1.0,
-        momentum_reversal_minimum_profit_dollars=12.5,
         profit_resell_cooldown_days=15,
         selling_price_change=0.1,
         sell_or_buy_value_limit=10, min_value_of_trade=60,
         materialize_profit_percentage=4.0, profit_sell_percentage=50.0,
         materialize_profit_in_dollars=12.5, keep_aside_profits_for_tax_percent=30.0,
-        momentum_lookback_days=5, momentum_reversal_threshold=-10.0,
-        minimum_alpha_leader_sell_profit=5.0, alpha_leader_least_momentum_score=-1000.0,
-        alpha_rank_reduction_percent=10.0,
+        momentum_lookback_days=5,
         min_momentum_score_to_fill_underweight=-1000.0,
-        alpha_leader_fresh_position_days=3, alpha_leader_fresh_drawdown_percentage=15.0,
         max_sector_percentage=0.0,
         wash_sale_lookback_days=0,
         dormant_asset_days=5,
@@ -92,46 +87,27 @@ def test_excluded_buy_does_not_falsely_halt() -> None:
     not halt either."""
     ctx = _minimal_ctx(seek_approval_value=1000.0)
     ctx.quotes = {"Y": Quote(symbol="Y", last_trade_price=5.0)}
-    ctx.overweight_trims = [TradeIntent(symbol="Y", side="sell", quantity=10.0, reason="Overweight trim")]  # $50
+    ctx.profit_taking_sells = [TradeIntent(symbol="Y", side="sell", quantity=10.0, reason="GET THE PROFITS")]  # $50
     sells, halted, reason = step6a_prepare_sells(ctx, planned_buys={"Y": 1500.0})
     assert not halted, f"a buy excluded by same-cycle sell should never reach the halt check, got: {reason}"
     assert len(sells) == 1 and sells[0].symbol == "Y"
     print("[excluded-buy-same-symbol-sell] $1,500 phantom buy for a symbol also selling -> no halt — OK")
 
 
-def test_excluded_buy_fresh_alpha_leader_liquidation_does_not_falsely_halt() -> None:
-    """Regression test: a symbol flagged for the Fresh Alpha Leader Stop (Step 1's tighter,
-    faster-acting liquidation — CLAUDE.md Step 1) is ALSO selling this cycle, exactly like an
-    overweight trim or drawdown liquidation. `_selling_symbols()` previously unioned
-    profit_taking_sells/overweight_trims/drawdown_liquidations/blocked_liquidations but omitted
-    ctx.fresh_alpha_leader_liquidations, so a same-cycle buy of a fresh-alpha-liquidated symbol
-    could slip through the same-cycle buy/sell exclusivity rule undetected."""
-    ctx = _minimal_ctx(seek_approval_value=1000.0)
-    ctx.quotes = {"W": Quote(symbol="W", last_trade_price=5.0)}
-    ctx.fresh_alpha_leader_liquidations = ["W"]
-    ctx.positions = {"W": Position(symbol="W", quantity=10.0, avg_cost_basis=6.0)}
-    sells, halted, reason = step6a_prepare_sells(ctx, planned_buys={"W": 1500.0})
-    assert not halted, f"a buy excluded by a same-cycle Fresh Alpha Leader Stop sell should never reach the halt check, got: {reason}"
-    assert len(sells) == 1 and sells[0].symbol == "W"
-    print("[excluded-buy-fresh-alpha-leader-liquidation] $1,500 phantom buy for a symbol also "
-          "liquidated via Fresh Alpha Leader Stop -> no halt — OK")
-
-
-def test_fresh_alpha_leader_liquidation_symbol_excluded_from_final_buys() -> None:
-    """Same regression, exercised through step6b_finalize_buys (the function that actually
-    produces buys_to_place) rather than just the seek_approval_value halt check: a symbol
-    liquidated via the Fresh Alpha Leader Stop must never appear in the final buy list, even if
-    it was independently planned as an Underweight/Alpha buy earlier in the cycle."""
+def test_liquidated_symbol_excluded_from_final_buys() -> None:
+    """A symbol liquidated this cycle (Drawdown Audit) must never appear in the final buy list,
+    even if it was independently planned as an Underweight buy earlier in the cycle
+    (same-cycle buy/sell exclusivity, exercised through step6b_finalize_buys)."""
     ctx = _minimal_ctx(seek_approval_value=100000.0)
     ctx.quotes = {"W": Quote(symbol="W", last_trade_price=100.0)}
-    ctx.fresh_alpha_leader_liquidations = ["W"]
+    ctx.drawdown_liquidations = ["W"]
     buys = step6b_finalize_buys(
         ctx, planned_buys={"W": 500.0}, net_realized_gains_ytd_effective=0.0, buying_power_now=10000.0
     )
     assert not any(b.symbol == "W" for b in buys), (
-        f"W was liquidated via Fresh Alpha Leader Stop this cycle and must not also be bought, got: {buys}"
+        f"W was liquidated this cycle and must not also be bought, got: {buys}"
     )
-    print("[final-buys-exclude-fresh-alpha-leader-liquidation] W correctly dropped from buys_to_place — OK")
+    print("[final-buys-exclude-liquidation] W correctly dropped from buys_to_place — OK")
 
 
 def test_blocked_buy_does_not_falsely_halt() -> None:
@@ -162,8 +138,7 @@ def main() -> None:
     test_single_oversized_sell_halts()
     test_single_oversized_buy_halts_with_no_sells()
     test_excluded_buy_does_not_falsely_halt()
-    test_excluded_buy_fresh_alpha_leader_liquidation_does_not_falsely_halt()
-    test_fresh_alpha_leader_liquidation_symbol_excluded_from_final_buys()
+    test_liquidated_symbol_excluded_from_final_buys()
     test_blocked_buy_does_not_falsely_halt()
     test_mixed_small_sells_and_one_big_buy_halts_on_the_buy()
     print("\nSMOKE TEST (per-trade seek_approval_value) PASSED")

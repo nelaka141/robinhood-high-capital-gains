@@ -120,19 +120,18 @@ def main() -> None:
         steps.step2_guardrails(ctx, broker)
         print(f"[Step 2] excluded={list(ctx.excluded_symbols)} buy_guarded={list(ctx.buy_guarded_symbols)}")
 
-        planned_buys = steps.step3_alpha_leader(ctx, broker)
-        print(f"[Step 3] alpha_leader={ctx.alpha_leader} planned_buys={ {k: round(v,2) for k,v in planned_buys.items()} }")
-        # v2.71.0: the buy-timing guard (three-leg price-change dip-then-turn confirmation) is now
-        # universal — it can legitimately leave NO candidate eligible this cycle (alpha_leader
-        # stays None) against random synthetic price data and the real, tight production
-        # thresholds. When a leader IS chosen, it must still be a genuinely scored candidate.
-        assert ctx.alpha_leader is None or ctx.alpha_leader in ctx.momentum_scores
+        planned_buys = steps.step3_underweight_buys(ctx, broker)
+        print(f"[Step 3] planned_buys={ {k: round(v,2) for k,v in planned_buys.items()} }")
+        # The buy-timing guard (three-leg price-change dip-then-turn confirmation) is universal —
+        # it can legitimately leave NO candidate eligible this cycle against random synthetic
+        # price data and the real, tight production thresholds. Every allocated symbol must be a
+        # genuinely scored candidate.
+        assert all(s in ctx.momentum_scores for s in planned_buys)
         for m in ctx.momentum_scores.values():
             assert not math.isnan(m.score)
 
         steps.step4_profit_taking(ctx, broker)
-        print(f"[Step 4] profit_taking_sells={[t.symbol for t in ctx.profit_taking_sells]} "
-              f"overweight_trims={[t.symbol for t in ctx.overweight_trims]}")
+        print(f"[Step 4] profit_taking_sells={[t.symbol for t in ctx.profit_taking_sells]}")
 
         planned_buys = steps.step5_price_limits(ctx, broker, planned_buys)
         print(f"[Step 5] planned_buys after pump-guard={ {k: round(v,2) for k,v in planned_buys.items()} }")

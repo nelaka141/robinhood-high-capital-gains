@@ -1,13 +1,11 @@
 {
   "portfolio_metadata": {
-    "version": "2.59.0",
-    "last_updated": "2026-08-11",
+    "version": "2.60.0",
+    "last_updated": "2026-08-14",
     "global_drift_tolerance": 1.0,
     "max_trailing_drawdown_percentage": 35,
     "min_recovery_price_percentage": 5.0,
-    "reinvestment_multiplier_factor": 1.05,
     "max_portfolio_percentage": 7.5,
-    "alpha_cash_allocation_percentage": 5.0,
     "min_cash_absolute": 250,
     "min_cash_target": 500,
     "seek_approval_value": 25000,
@@ -19,15 +17,13 @@
     "cool_down_period_after_lquidation": 6,
     "beta_benchmark_symbol": "SPY",
     "beta_calculation_lookback_days": 30,
-    "sold_asset_repurchase_days" : 1,
+    "sold_asset_repurchase_days": 1,
     "1st_leg_price_change": 0.25,
     "2nd_leg_price_change": 0.15,
     "3rd_leg_price_change": 0.15,
     "lock_in_period": 0,
     "overweight_sell_minimum_profit_margin_percent": 1.5,
     "overweight_sell_minimum_profit_margin_dollars": 30.0,
-    "momentum_reversal_minimum_profit_margin_percent": 1.5,
-    "momentum_reversal_minimum_profit_dollars": 30.0,
     "profit_resell_cooldown_days": 1,
     "selling_price_change": 1,
     "sell_or_buy_value_limit": 50,
@@ -37,89 +33,351 @@
     "materialize_profit_in_dollars": 30.0,
     "keep_aside_profits_for_tax_percent": 35.0,
     "momentum_lookback_days": 5,
-    "momentum_reversal_threshold": -10.0,
-    "minimum_alpha_leader_sell_profit": 250,
-    "alpha_leader_least_momentum_score": 20,
-    "alpha_rank_reduction_percent": 10,
     "min_momentum_score_to_fill_underweight": -12.0,
-    "alpha_leader_fresh_position_days": 3,
-    "alpha_leader_fresh_drawdown_percentage": 20.0,
     "max_sector_percentage": 40.0,
     "wash_sale_lookback_days": 30,
     "dormant_asset_days": 5
   },
   "targets": {
-    "TQQQ": { "weight": 1.7, "drift": 0.8 },
-    "INTC": { "weight": 1.1, "drift": 0.5 },
-    "PLTR": { "weight": 2.7, "drift": 1.0 },
-    "MU": { "weight": 2.7, "drift": 1.0},
-    "SOXL": { "weight": 1.1, "drift": 0.5 },
-    "MSTR": { "weight": 1.1, "drift": 0.5 },
-    "COIN": { "weight": 1.1, "drift": 0.5 },
-    "ARM": { "weight": 1.1, "drift": 0.5 },
-    "SMCI": { "weight": 1.1, "drift": 0.5 },
-    "IONQ": { "weight": 1.1, "drift": 0.5 },
-    "SPCX": { "weight": 1.1, "drift": 0.5 },
-    "AMZN": { "weight": 2.7, "drift": 1.0 },
-    "TSLA": { "weight": 2.7, "drift": 1.0 },
-    "NVDA": { "weight": 2.7, "drift": 1.0 },
-    "ORCL": { "weight": 1.1, "drift": 0.5 },
-    "GOOG": { "weight": 2.7, "drift": 1.0 },
-    "MSFT": { "weight": 2.7, "drift": 1.0 },
-    "HOOD": { "weight": 1.1, "drift": 0.5 },
-    "AAPL": { "weight": 1.1, "drift": 0.5 },
-    "META": { "weight": 1.1, "drift": 0.5 },
-    "AMD": { "weight": 1.1, "drift": 0.5 },
-    "NEE": { "weight": 1.1, "drift": 0.5 },
-    "VRT": { "weight": 1.1, "drift": 0.5 },
-    "AVGO": { "weight": 1.1, "drift": 0.5 },
-    "F": { "weight": 1.7, "drift": 0.8 },
-    "GM": { "weight": 1.7, "drift": 0.8 },
-    "IBM": { "weight": 1.1, "drift": 0.5 },
-    "NFLX": { "weight": 1.1, "drift": 0.5 },
-    "UNH": { "weight": 1.1, "drift": 0.5 },
-    "GE": { "weight": 1.1, "drift": 0.5 },
-    "LTRN": { "weight": 0.5, "drift": 0.3 },
- "LLY": { "weight": 1.1, "drift": 0.5 },
-"JNJ": { "weight": 1.1, "drift": 0.5 },
-"JPM": { "weight": 1.1, "drift": 0.5 },
-"BRK.B": { "weight": 1.1, "drift": 0.5 },
-"V": { "weight": 1.1, "drift": 0.5 },
-"HD": { "weight": 1.1, "drift": 0.5 },
-"CAT": { "weight": 1.1, "drift": 0.5 },
-"UNP": { "weight": 1.1, "drift": 0.5 },
-"WMT": { "weight": 1.1, "drift": 0.5 },
-"PG": { "weight": 1.1, "drift": 0.5 },
-"COST": { "weight": 1.1, "drift": 0.5 },
-"XOM": { "weight": 1.1, "drift": 0.5 },
-"CVX": { "weight": 1.1, "drift": 0.5 },
-"COP": { "weight": 1.1, "drift": 0.5 },
-"SO": { "weight": 1.1, "drift": 0.5 },
-"PLD": { "weight": 1.1, "drift": 0.5 },
-"AMT": { "weight": 1.1, "drift": 0.5 },
-"EQIX": { "weight": 1.1, "drift": 0.5 },
-"LIN": { "weight": 1.1, "drift": 0.5 },
-"FCX": { "weight": 1.1, "drift": 0.5 },
-"SHW": { "weight": 1.1, "drift": 0.5 },
-"DUK": { "weight": 1.1, "drift": 0.5 }
-},
-  "forceSell": [{"asset": "LTRN", "triggerPrice": 4.5}],
-  "blocked": ["LTRN"],
+    "TQQQ": {
+      "weight": 1.7,
+      "drift": 0.8
+    },
+    "INTC": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "PLTR": {
+      "weight": 2.7,
+      "drift": 1.0
+    },
+    "MU": {
+      "weight": 2.7,
+      "drift": 1.0
+    },
+    "SOXL": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "MSTR": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "COIN": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "ARM": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "SMCI": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "IONQ": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "SPCX": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "AMZN": {
+      "weight": 2.7,
+      "drift": 1.0
+    },
+    "TSLA": {
+      "weight": 2.7,
+      "drift": 1.0
+    },
+    "NVDA": {
+      "weight": 2.7,
+      "drift": 1.0
+    },
+    "ORCL": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "GOOG": {
+      "weight": 2.7,
+      "drift": 1.0
+    },
+    "MSFT": {
+      "weight": 2.7,
+      "drift": 1.0
+    },
+    "HOOD": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "AAPL": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "META": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "AMD": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "NEE": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "VRT": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "AVGO": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "F": {
+      "weight": 1.7,
+      "drift": 0.8
+    },
+    "GM": {
+      "weight": 1.7,
+      "drift": 0.8
+    },
+    "IBM": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "NFLX": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "UNH": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "GE": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "LTRN": {
+      "weight": 0.5,
+      "drift": 0.3
+    },
+    "LLY": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "JNJ": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "JPM": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "BRK.B": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "V": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "HD": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "CAT": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "UNP": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "WMT": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "PG": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "COST": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "XOM": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "CVX": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "COP": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "SO": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "PLD": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "AMT": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "EQIX": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "LIN": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "FCX": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "SHW": {
+      "weight": 1.1,
+      "drift": 0.5
+    },
+    "DUK": {
+      "weight": 1.1,
+      "drift": 0.5
+    }
+  },
+  "forceSell": [
+    {
+      "asset": "LTRN",
+      "triggerPrice": 4.5
+    }
+  ],
+  "blocked": [
+    "LTRN"
+  ],
   "sector_groups": {
-    "leveraged_etf": {"members": ["TQQQ", "SOXL"], "maxPercentage": 10.0},
-    "semis_ai_infra": ["NVDA", "AMD", "INTC", "MU", "AVGO", "ARM", "SMCI", "VRT"],
-    "crypto_adjacent": {"members": ["MSTR", "COIN", "HOOD"], "maxPercentage": 7.0},
-    "megacap_tech": ["AAPL", "MSFT", "GOOG", "META", "AMZN", "NFLX", "ORCL", "PLTR", "IBM"],
-    "ev_auto": {"members": ["TSLA", "F", "GM"], "maxPercentage": 15.0},
-    "quantum_space": {"members": ["IONQ", "SPCX"], "maxPercentage": 15.0},
-    "healthcare": {"members": ["UNH", "LLY", "JNJ"], "maxPercentage": 12.0},
-    "financials": {"members": ["JPM", "BRK.B", "V"], "maxPercentage": 10.0},
-    "industrials": {"members": ["CAT", "UNP", "GE"], "maxPercentage": 10.0},
-    "consumer": {"members": ["WMT", "PG", "COST", "HD"], "maxPercentage": 12.0},
-    "energy": {"members": ["XOM", "CVX", "COP"], "maxPercentage": 15.0},
-    "utilities": {"members": ["SO", "DUK", "NEE"], "maxPercentage": 8.0},
-    "reits": {"members": ["PLD", "AMT", "EQIX"], "maxPercentage": 12.0},
-    "materials": {"members": ["LIN", "FCX", "SHW"], "maxPercentage": 12.0}
+    "leveraged_etf": {
+      "members": [
+        "TQQQ",
+        "SOXL"
+      ],
+      "maxPercentage": 10.0
+    },
+    "semis_ai_infra": [
+      "NVDA",
+      "AMD",
+      "INTC",
+      "MU",
+      "AVGO",
+      "ARM",
+      "SMCI",
+      "VRT"
+    ],
+    "crypto_adjacent": {
+      "members": [
+        "MSTR",
+        "COIN",
+        "HOOD"
+      ],
+      "maxPercentage": 7.0
+    },
+    "megacap_tech": [
+      "AAPL",
+      "MSFT",
+      "GOOG",
+      "META",
+      "AMZN",
+      "NFLX",
+      "ORCL",
+      "PLTR",
+      "IBM"
+    ],
+    "ev_auto": {
+      "members": [
+        "TSLA",
+        "F",
+        "GM"
+      ],
+      "maxPercentage": 15.0
+    },
+    "quantum_space": {
+      "members": [
+        "IONQ",
+        "SPCX"
+      ],
+      "maxPercentage": 15.0
+    },
+    "healthcare": {
+      "members": [
+        "UNH",
+        "LLY",
+        "JNJ"
+      ],
+      "maxPercentage": 12.0
+    },
+    "financials": {
+      "members": [
+        "JPM",
+        "BRK.B",
+        "V"
+      ],
+      "maxPercentage": 10.0
+    },
+    "industrials": {
+      "members": [
+        "CAT",
+        "UNP",
+        "GE"
+      ],
+      "maxPercentage": 10.0
+    },
+    "consumer": {
+      "members": [
+        "WMT",
+        "PG",
+        "COST",
+        "HD"
+      ],
+      "maxPercentage": 12.0
+    },
+    "energy": {
+      "members": [
+        "XOM",
+        "CVX",
+        "COP"
+      ],
+      "maxPercentage": 15.0
+    },
+    "utilities": {
+      "members": [
+        "SO",
+        "DUK",
+        "NEE"
+      ],
+      "maxPercentage": 8.0
+    },
+    "reits": {
+      "members": [
+        "PLD",
+        "AMT",
+        "EQIX"
+      ],
+      "maxPercentage": 12.0
+    },
+    "materials": {
+      "members": [
+        "LIN",
+        "FCX",
+        "SHW"
+      ],
+      "maxPercentage": 12.0
+    }
   },
   "target_price_to_sell": {
     "FCX": 70.5,

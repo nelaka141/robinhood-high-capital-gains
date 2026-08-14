@@ -139,52 +139,22 @@ class RunContext:
                                                                           # one reason string per guard mechanism
                                                                           # active for that symbol (a symbol can be
                                                                           # caught by more than one at once). Gates
-                                                                          # Underweight buys and profit-sell
-                                                                          # repurchases; the Alpha Leader cascade
-                                                                          # does NOT consult this — see below.
-    alpha_buy_guarded_symbols: Dict[str, List[str]] = field(default_factory=dict)  # SUBSET of the guard
-                                                                          # reasons above that also block the Alpha
-                                                                          # Leader specifically (currently: the
-                                                                          # wash-sale guard only). The buy-timing
-                                                                          # guard (three-leg price-change dip-then-turn +
-                                                                          # its cooldown) deliberately does NOT
-                                                                          # populate this — the Alpha Leader is
-                                                                          # chosen from the strongest-momentum
-                                                                          # candidates, which routinely won't show a
-                                                                          # recent pullback, so requiring one would
-                                                                          # gut the cascade's whole purpose.
+                                                                          # every new buy: Underweight fills and
+                                                                          # profit-sell repurchases alike.
     blocked_symbols: Dict[str, str] = field(default_factory=dict)       # `blocked` list — exempt from ALL buy/sell
-                                                                          # this cycle (drawdown, GTP/MRT, Overweight
-                                                                          # trims, Underweight/Alpha buys), including
+                                                                          # this cycle (drawdown, GET THE PROFITS,
+                                                                          # Underweight buys), including
                                                                           # any symbol liquidated via blocked_liquidations
 
-    momentum_scores: Dict[str, MomentumScore] = field(default_factory=dict)
-    top_momentum_symbol: Optional[str] = None  # highest Momentum_Score in-play symbol, regardless
-                                                # of whether it's buy-guarded (see alpha_leader below)
-    alpha_leader: Optional[str] = None  # the ACTING Alpha Leader this cycle — the first candidate
-                                         # in the buy-guard cascade (starting at top_momentum_symbol)
-                                         # that isn't buy-guarded; None if nobody down to
-                                         # alpha_leader_least_momentum_score qualifies
-    alpha_leader_reserve_target: float = 0.0  # what top_momentum_symbol would receive if bought
-                                               # this cycle (raw target + multiplier, capped by its
-                                               # own headroom) — computed fresh every cycle
-    alpha_leader_reserve_cash: float = 0.0  # alpha_leader_reserve_target minus whatever actually
-                                             # got spent buying the Alpha Leader this cycle (see
-                                             # steps.resolve_alpha_leader_reserve, called after
-                                             # step6b once the real buy amount is known)
-    harvest_needed_dollars: float = 0.0  # cash shortfall (multiplier injection + fully-closing
-                                          # Underweight gaps) that step4's Overweight-trim sizing
-                                          # must harvest via real sells (see step3_alpha_leader)
+    momentum_scores: Dict[str, MomentumScore] = field(default_factory=dict)  # ranks the
+                                                                          # Underweight fill order (Step 3)
 
     blocked_liquidations: List[str] = field(default_factory=list)  # blocked AND forceSell AND held -> liquidate 100%
     drawdown_liquidations: List[str] = field(default_factory=list)
-    fresh_alpha_leader_liquidations: List[str] = field(default_factory=list)  # Fresh Alpha Leader
-                                                                                # Stop (Step 1) -> liquidate 100%
     loss_sale_symbols: List[str] = field(default_factory=list)  # any sell this cycle (any
         # mechanism) that realized a loss -> Step 7 stamps lastLossSaleDate/Price, arming the
         # wash-sale buy-guard (Step 2) for wash_sale_lookback_days
-    profit_taking_sells: List[TradeIntent] = field(default_factory=list)  # GET THE PROFITS + Momentum Reversal Trim
-    overweight_trims: List[TradeIntent] = field(default_factory=list)
+    profit_taking_sells: List[TradeIntent] = field(default_factory=list)  # GET THE PROFITS
     buys: List[TradeIntent] = field(default_factory=list)
 
     skipped: List[SkippedTrade] = field(default_factory=list)

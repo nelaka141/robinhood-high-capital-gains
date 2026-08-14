@@ -142,7 +142,7 @@ def main() -> None:
         finalize_result = json.loads(finalize_out.read_text())
         print(f"[finalize] buys_to_place={[b['symbol'] for b in finalize_result['buys_to_place']]} "
               f"tax_reserve={finalize_result['tax_reserve']:.2f} "
-              f"alpha_leader={finalize_result['alpha_leader']}")
+             )
 
         assert (tmp / "logs" / "trade_journal.md").exists()
         assert (tmp / "peak" / "prices.json").exists()
