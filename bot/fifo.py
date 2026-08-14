@@ -33,7 +33,42 @@ def round_sell_quantity(desired_quantity: float, available_quantity: float) -> f
     return max(0.0, min(round(desired_quantity), math.floor(available_quantity)))
 
 
-def fifo_realized_profit(lots: List[TaxLot], sell_quantity: float, current_price: float) -> FifoSaleResult:
+def priced_lot_quantity(lots: List[TaxLot]) -> float:
+    """Total quantity across lots that carry a usable cost basis (selectable + priced).
+
+    This is the ceiling on what `fifo_realized_profit` can cover at all. A sale target above it
+    means some shares' basis is still syncing/pending, which is CLAUDE.md's Fail-Closed case —
+    distinct from (and checked before) the loss-lot exclusion below, so that a pending-basis
+    shortfall still fails closed instead of being silently downsized.
+    """
+    return sum(
+        lot.quantity for lot in lots
+        if lot.is_selectable and lot.cost_per_share is not None
+    )
+
+
+def profitable_lot_quantity(lots: List[TaxLot], current_price: float) -> float:
+    """Total quantity across lots that would realize a STRICT gain at `current_price`.
+
+    The capacity available to a sale once `exclude_loss_lots` is on (CLAUDE.md Step 4's
+    "Loss-lot sell guard"). Mirrors `fifo_realized_profit`'s own filter exactly, so a sale capped
+    at this figure is always `fully_covered` by profitable lots. Exact-breakeven lots
+    (cost_per_share == current_price) are excluded too: they consume sale quantity while adding
+    $0, so including them could only dilute the realized total.
+    """
+    return sum(
+        lot.quantity for lot in lots
+        if lot.is_selectable and lot.cost_per_share is not None
+        and lot.cost_per_share < current_price
+    )
+
+
+def fifo_realized_profit(
+    lots: List[TaxLot],
+    sell_quantity: float,
+    current_price: float,
+    exclude_loss_lots: bool = False,
+) -> FifoSaleResult:
     """Walk tax lots oldest-open_date-first, consuming exactly `sell_quantity` shares, and
     compute the FIFO-matched realized dollar profit for that sale.
 
@@ -41,9 +76,19 @@ def fifo_realized_profit(lots: List[TaxLot], sell_quantity: float, current_price
     that leaves insufficient priced+selectable quantity to cover `sell_quantity`,
     `fully_covered` is False — per CLAUDE.md's Fail-Closed rule, the caller must then treat
     every cost-basis-dependent gate for this sale as NOT satisfied this cycle.
+
+    `exclude_loss_lots` (CLAUDE.md Step 4's "Loss-lot sell guard") additionally skips every lot
+    that would NOT realize a strict gain at `current_price`, so a multi-lot sale never disposes
+    of an underwater lot just because it happens to be next in FIFO order. Callers must size
+    `sell_quantity` against `profitable_lot_quantity` first — otherwise the excluded lots simply
+    leave the walk short and `fully_covered` comes back False.
     """
     usable = sorted(
-        (lot for lot in lots if lot.is_selectable and lot.cost_per_share is not None),
+        (
+            lot for lot in lots
+            if lot.is_selectable and lot.cost_per_share is not None
+            and not (exclude_loss_lots and lot.cost_per_share >= current_price)
+        ),
         key=lambda lot: lot.open_date,
     )
 
