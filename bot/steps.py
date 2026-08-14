@@ -14,7 +14,12 @@ from typing import Dict, List, Optional
 
 from .broker import BrokerClient
 from .cost_basis import resolve_avg_cost_basis
-from .fifo import fifo_realized_profit, round_sell_quantity
+from .fifo import (
+    fifo_realized_profit,
+    priced_lot_quantity,
+    profitable_lot_quantity,
+    round_sell_quantity,
+)
 from .indicators import ema_series, rsi_series
 from .models import DormantAsset, DriftResult, MomentumScore, RunContext, SkippedTrade, TradeIntent
 from .state import AssetPriceState, load_transferred_basis
@@ -598,11 +603,50 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
             ))
             continue
 
+        # --- Loss-lot sell guard (v2.75.0) ---
+        # A multi-lot sale walks lots in FIFO order, so a position built at rising cost can hand
+        # an underwater lot to the order purely because it is next in line — realizing a loss on
+        # that lot even though the sale as a whole clears the profit gates. Exclude any lot that
+        # would not realize a strict gain at today's price and proceed on the profitable ones.
+        #
+        # Ordering matters here. The pending-basis check comes FIRST and is left alone: if the
+        # target exceeds the priced+selectable quantity, some shares' basis is still syncing, and
+        # CLAUDE.md's Fail-Closed rule requires the sale to be skipped outright — NOT silently
+        # downsized to whatever happens to be priced. Only when basis is fully available does the
+        # loss-lot cap apply, so the two rules stay independent.
+        lots = broker.get_tax_lots(ctx.account_number, sym)
+        loss_excluded_qty = 0.0
+        if sell_qty <= priced_lot_quantity(lots) + 1e-9:
+            capped_qty = min(sell_qty, profitable_lot_quantity(lots, price))
+            if not fractional_position:
+                # A specified-lot order still needs a whole-share TOTAL (round_sell_quantity's
+                # docstring), and the cap can only ever move the quantity down, so floor rather
+                # than round — rounding up could re-admit an excluded loss lot.
+                capped_qty = math.floor(capped_qty + 1e-9)
+            if capped_qty < sell_qty - 1e-9:
+                loss_excluded_qty = sell_qty - capped_qty
+                sell_qty = capped_qty
+
+        if sell_qty <= 0:
+            ctx.skipped.append(SkippedTrade(
+                sym,
+                f"loss-lot sell guard: every sellable lot is at or above the current price "
+                f"(${price:.2f}) — nothing can be sold at a gain",
+                "partial profit-take sale",
+            ))
+            continue
+
         if min_trade_value > 0 and sell_qty * price < min_trade_value:
-            held_desc = (
-                f"all {pos.quantity:.4f} fractional share(s) held" if fractional_position
-                else f"all {whole_shares_held} whole share(s) held"
-            )
+            if loss_excluded_qty > 0:
+                held_desc = (
+                    f"all {sell_qty:.4f} profitable share(s) "
+                    f"({loss_excluded_qty:.4f} excluded by the loss-lot sell guard)"
+                )
+            else:
+                held_desc = (
+                    f"all {pos.quantity:.4f} fractional share(s) held" if fractional_position
+                    else f"all {whole_shares_held} whole share(s) held"
+                )
             ctx.skipped.append(SkippedTrade(
                 sym, f"even selling {held_desc} (${sell_qty * price:.2f}) falls short of "
                      f"min_value_of_trade (${min_trade_value:.2f})",
@@ -645,7 +689,7 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
         # which leg passed, so it's computed unconditionally here rather than only after the
         # percentage gate clears (as it was under the old AND semantics).
         if not already_today:
-            fifo = fifo_realized_profit(broker.get_tax_lots(ctx.account_number, sym), sell_qty, price)
+            fifo = fifo_realized_profit(lots, sell_qty, price, exclude_loss_lots=True)
             percent_gate_passes = raw_gain_pct > cfg.meta.materialize_profit_percentage
             dollar_gate_passes = fifo.fully_covered and fifo.realized_profit_dollars > cfg.meta.materialize_profit_in_dollars
             if percent_gate_passes or dollar_gate_passes:
@@ -668,27 +712,30 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
                 elif fifo.realized_profit_dollars <= 0:
                     ctx.skipped.append(SkippedTrade(
                         sym,
-                        f"GTP gate clears on blended-average (+{raw_gain_pct:.2f}%) but the FIFO-matched "
+                        f"GTP gate clears on blended-average ({raw_gain_pct:+.2f}%) but the FIFO-matched "
                         f"lots actually being sold would realize ${fifo.realized_profit_dollars:.2f} "
                         f"(not a real profit) — refusing to sell at a loss",
                         "partial profit-take sale",
                     ))
                 elif cooldown_blocks:
                     ctx.skipped.append(SkippedTrade(
-                        sym, f"GTP gate clears (+{raw_gain_pct:.2f}% / FIFO ${fifo.realized_profit_dollars:.2f}) "
+                        sym, f"GTP gate clears ({raw_gain_pct:+.2f}% / FIFO ${fifo.realized_profit_dollars:.2f}) "
                              f"but profit_resell_cooldown_days active",
                         "partial profit-take sale",
                     ))
                 elif sell_price_guard_blocks:
                     ctx.skipped.append(SkippedTrade(
-                        sym, f"GTP gate clears (+{raw_gain_pct:.2f}% / FIFO ${fifo.realized_profit_dollars:.2f}) "
+                        sym, f"GTP gate clears ({raw_gain_pct:+.2f}% / FIFO ${fifo.realized_profit_dollars:.2f}) "
                              f"but selling_price_change guard active (price hasn't turned back up)",
                         "partial profit-take sale",
                     ))
                 elif _sell_price_target_blocked(ctx, sym, price, "partial profit-take sale"):
                     pass  # target_price_to_sell overrides GTP too — "any means" — already logged
                 else:
-                    reason = f"GET THE PROFITS: +{raw_gain_pct:.2f}%, FIFO ${fifo.realized_profit_dollars:.2f}"
+                    reason = f"GET THE PROFITS: {raw_gain_pct:+.2f}%, FIFO ${fifo.realized_profit_dollars:.2f}"
+                    if loss_excluded_qty > 0:
+                        reason += (f" (loss-lot sell guard: {loss_excluded_qty:.4f} share(s) held back — "
+                                   f"their lots are underwater at ${price:.2f})")
                     if fractional_position:
                         reason += (" (ordinary order — sub-whole-share position, Robinhood "
                                     "default lot matching; FIFO figure is an estimate)")

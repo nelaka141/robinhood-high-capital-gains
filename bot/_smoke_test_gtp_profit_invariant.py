@@ -1,27 +1,34 @@
-"""Regression coverage for the v2.66.0 fix: GET THE PROFITS and Momentum Reversal Trim must
-never realize an actual FIFO-matched dollar loss, even when the percent/margin gate — which is
-based on avg_cost_basis, a whole-position BLENDED average — passes on paper.
+"""Regression coverage for the FIFO-vs-blended-average profit invariant in GET THE PROFITS, and
+for the v2.75.0 loss-lot sell guard that now enforces it lot-by-lot.
 
-The gap this closes: a position built at DECREASING cost over time (expensive shares bought
-first, cheaper shares bought later) can show a positive raw_gain_pct against the blended average
-while FIFO — which always disposes of the OLDEST lots first — actually sells the expensive shares
-first, realizing a real dollar loss on the specific lots consumed. Before this fix, GTP fired
-in that case (the percent gate alone was enough via the OR-gate semantics, with no check that the
-FIFO-matched dollars were actually positive). Both mechanisms now require
-`fifo.fully_covered and fifo.realized_profit_dollars > 0` unconditionally, on top of whichever
-gate (percent/margin or dollar) actually passed.
+The gap being closed: a position built at DECREASING cost over time (expensive shares bought
+first, cheaper shares bought later) can show a positive raw_gain_pct against `avg_cost_basis` — a
+whole-position BLENDED average — while FIFO, which always disposes of the OLDEST lots first,
+actually reaches for the expensive shares and realizes a real dollar loss on them.
+
+Two generations of fix, both covered here:
+
+* **v2.66.0** required `fifo.fully_covered and fifo.realized_profit_dollars > 0` unconditionally,
+  on top of whichever gate (percent or dollar) passed — an all-or-nothing check that refused the
+  whole sale whenever the FIFO-matched total came out ≤ 0.
+* **v2.75.0** (the loss-lot sell guard) goes finer-grained: instead of refusing the entire sale,
+  it EXCLUDES the individual lots that would not realize a strict gain and proceeds on the
+  profitable remainder. So the decreasing-cost case that v2.66.0 refused outright now fires — but
+  only over the profitable lots, and downsized to their quantity. The v2.66.0 total check is
+  retained as a backstop and is now structurally unreachable in normal operation (every consumed
+  lot is individually profitable, so the total cannot be ≤ 0).
 
 Pure logic tests against step4_profit_taking directly, no snapshot/CLI plumbing needed (same
 style as bot/_smoke_test_min_trade_value.py).
 
-Run: PYTHONPATH=. python3 bot/_smoke_test_gtp_mrt_profit_invariant.py
+Run: PYTHONPATH=. python3 bot/_smoke_test_gtp_profit_invariant.py
 """
 from __future__ import annotations
 
 from datetime import date
 
 from bot.config import AssetTarget, PortfolioConfig, PortfolioMetadata
-from bot.models import MomentumScore, Position, Quote, RunContext, TaxLot
+from bot.models import Position, Quote, RunContext, TaxLot
 from bot.steps import step4_profit_taking
 
 
@@ -55,8 +62,7 @@ def _meta(**overrides) -> PortfolioMetadata:
 
 class _Broker:
     """Minimal BrokerClient stub: only get_tax_lots (FIFO dollar-gate) and get_daily_closes
-    (unconditionally called once for the beta benchmark in step4's Overweight-ranking tail) are
-    needed."""
+    (the selling_price_change guard) are needed."""
 
     def __init__(self, lots: dict):
         self._lots = lots
@@ -65,88 +71,140 @@ class _Broker:
         return self._lots.get(symbol, [])
 
     def get_daily_closes(self, symbol: str, start, end):
-        # Mildly oscillating series well below every test's sell price (all $80 or $100 vs. a
-        # ~$60 basis) so the selling_price_change guard ((close_yesterday - price)*100/price <
-        # threshold) passes trivially: price is far above close_yesterday, giving a strongly
-        # negative percentage change.
+        # Mildly oscillating series well below every test's sell price so the
+        # selling_price_change guard ((close_yesterday - price)*100/price < threshold) passes
+        # trivially: price is far above close_yesterday, giving a strongly negative change.
         return [58.0, 58.5, 59.0, 59.5, 60.0]
 
 
-def _decreasing_cost_position(sym: str, price: float, meta_overrides: dict | None = None) -> tuple:
-    """Position built at DECREASING cost: 10 old shares @ $100 (bought first, so FIFO-oldest),
-    10 new shares @ $50 (bought later). Blended avg_cost_basis = $75 — the setup that exposes the
-    gap between the percent gate (blended average) and the true FIFO-matched dollars."""
+def _position(sym: str, price: float, quantity: float, avg_cost: float, lots: list,
+              meta_overrides: dict | None = None) -> tuple:
     targets = {sym: AssetTarget(symbol=sym, weight=1.0)}
     cfg = PortfolioConfig(meta=_meta(**(meta_overrides or {})), targets=targets, force_sell={}, blocked=[])
     ctx = RunContext(current_date=date(2026, 8, 11), config=cfg, account_number="TEST")
-    ctx.positions = {sym: Position(symbol=sym, quantity=20.0, avg_cost_basis=75.0)}
+    ctx.positions = {sym: Position(symbol=sym, quantity=quantity, avg_cost_basis=avg_cost)}
     ctx.quotes = {sym: Quote(symbol=sym, last_trade_price=price)}
-    lots = {sym: [
+    return ctx, _Broker({sym: lots})
+
+
+def test_loss_lot_excluded_sale_proceeds_on_profitable_lot() -> None:
+    """The classic decreasing-cost trap: 10 old shares @ $100 (FIFO-oldest, underwater at $80)
+    and 10 newer @ $50. v2.66.0 refused this sale outright. v2.75.0 must instead skip the $100
+    lot and sell the profitable $50 lot — the sale fires, and the underwater lot is NOT shipped
+    to the order."""
+    ctx, broker = _position("XYZ", price=80.0, quantity=20.0, avg_cost=75.0, lots=[
         TaxLot(open_lot_id="old", quantity=10.0, cost_per_share=100.0, open_date=date(2026, 1, 1), is_selectable=True),
         TaxLot(open_lot_id="new", quantity=10.0, cost_per_share=50.0, open_date=date(2026, 6, 1), is_selectable=True),
-    ]}
-    return ctx, _Broker(lots)
-
-
-def test_gtp_refuses_to_sell_at_fifo_loss() -> None:
-    """price=$80 -> raw_gain_pct=+6.67% clears materialize_profit_percentage (2.5%) on the
-    blended average, but FIFO sells the $100 lot first at $80 -> realized $-200. Must NOT fire."""
-    ctx, broker = _decreasing_cost_position("XYZ", price=80.0)
+    ])
     step4_profit_taking(ctx, broker)
+
+    assert len(ctx.profit_taking_sells) == 1, ctx.profit_taking_sells
+    t = ctx.profit_taking_sells[0]
+    # profit_sell_percentage=50% of 20 shares = 10, fully covered by the profitable lot alone.
+    assert t.quantity == 10, t.quantity
+    assert t.realized_profit_dollars == 300.0, t.realized_profit_dollars  # (80-50)*10
+    shipped = {l["open_lot_id"] for l in t.tax_lots}
+    assert shipped == {"new"}, shipped  # the underwater "old" lot must never reach the order
+    assert ctx.loss_sale_symbols == [], ctx.loss_sale_symbols
+    print(f"[loss-lot-excluded] underwater $100 lot skipped; sold 10 sh from the $50 lot for "
+          f"${t.realized_profit_dollars:.2f}")
+
+
+def test_loss_lot_exclusion_downsizes_the_sale() -> None:
+    """When the profitable lots cannot cover the full profit_sell_percentage target, the sale is
+    capped at the profitable quantity and proceeds downsized — rather than reaching into the
+    underwater lots to make up the difference."""
+    ctx, broker = _position("DOWN", price=80.0, quantity=20.0, avg_cost=75.0, lots=[
+        TaxLot(open_lot_id="old", quantity=15.0, cost_per_share=100.0, open_date=date(2026, 1, 1), is_selectable=True),
+        TaxLot(open_lot_id="new", quantity=5.0, cost_per_share=50.0, open_date=date(2026, 6, 1), is_selectable=True),
+    ])
+    step4_profit_taking(ctx, broker)
+
+    assert len(ctx.profit_taking_sells) == 1, ctx.profit_taking_sells
+    t = ctx.profit_taking_sells[0]
+    # Target was 10 shares (50% of 20); only 5 profitable shares exist -> capped to 5.
+    assert t.quantity == 5, t.quantity
+    assert t.realized_profit_dollars == 150.0, t.realized_profit_dollars  # (80-50)*5
+    assert {l["open_lot_id"] for l in t.tax_lots} == {"new"}
+    assert "loss-lot sell guard" in t.reason, t.reason
+    print(f"[loss-lot-downsize] target 10 sh capped to {t.quantity} profitable sh "
+          f"(${t.realized_profit_dollars:.2f}); reason records the held-back shares")
+
+
+def test_all_lots_underwater_skips_entirely() -> None:
+    """If EVERY sellable lot is at or above the current price there is nothing to sell at a gain,
+    so the sale is skipped outright — the v2.66.0 refusal outcome, now reached via the loss-lot
+    guard rather than the total-dollars check."""
+    ctx, broker = _position("UNDER", price=80.0, quantity=20.0, avg_cost=75.0, lots=[
+        TaxLot(open_lot_id="a", quantity=10.0, cost_per_share=100.0, open_date=date(2026, 1, 1), is_selectable=True),
+        TaxLot(open_lot_id="b", quantity=10.0, cost_per_share=95.0, open_date=date(2026, 6, 1), is_selectable=True),
+    ])
+    step4_profit_taking(ctx, broker)
+
     assert ctx.profit_taking_sells == [], ctx.profit_taking_sells
-    assert ctx.loss_sale_symbols == [], ctx.loss_sale_symbols  # never armed -> nothing to arm
-    reasons = [s.reason for s in ctx.skipped if s.symbol == "XYZ"]
-    assert any("not a real profit" in r and "refusing to sell at a loss" in r for r in reasons), reasons
-    print("[gtp-refuses-fifo-loss] percent gate passes on blended average (+6.67%) but FIFO would "
-          "realize $-200 -> correctly refused, no sale placed")
+    assert ctx.loss_sale_symbols == [], ctx.loss_sale_symbols
+    reasons = [s.reason for s in ctx.skipped if s.symbol == "UNDER"]
+    assert any("loss-lot sell guard" in r for r in reasons), reasons
+    print("[all-underwater] every lot above the current price -> sale correctly skipped")
+
+
+def test_exact_breakeven_lot_is_excluded() -> None:
+    """A lot priced exactly at today's price realizes $0 while consuming sale quantity, so it is
+    excluded alongside true loss lots. With only such a lot held, nothing is sellable at a gain."""
+    ctx, broker = _position("FLAT", price=80.0, quantity=20.0, avg_cost=75.0, lots=[
+        TaxLot(open_lot_id="breakeven", quantity=20.0, cost_per_share=80.0, open_date=date(2026, 1, 1), is_selectable=True),
+    ])
+    step4_profit_taking(ctx, broker)
+
+    assert ctx.profit_taking_sells == [], ctx.profit_taking_sells
+    reasons = [s.reason for s in ctx.skipped if s.symbol == "FLAT"]
+    assert any("loss-lot sell guard" in r for r in reasons), reasons
+    print("[breakeven-excluded] exact-breakeven lot contributes $0 -> excluded, sale skipped")
+
+
+def test_pending_basis_still_fails_closed() -> None:
+    """Ordering rule: the Fail-Closed pending-basis check runs BEFORE the loss-lot cap. A target
+    that exceeds the priced+selectable quantity must still be skipped outright, NOT quietly
+    downsized to 'sell only the lots that happen to be priced'."""
+    ctx, broker = _position("PEND", price=80.0, quantity=20.0, avg_cost=75.0, lots=[
+        TaxLot(open_lot_id="priced", quantity=5.0, cost_per_share=50.0, open_date=date(2026, 1, 1), is_selectable=True),
+        TaxLot(open_lot_id="pending", quantity=15.0, cost_per_share=None, open_date=date(2026, 6, 1), is_selectable=True),
+    ])
+    step4_profit_taking(ctx, broker)
+
+    assert ctx.profit_taking_sells == [], ctx.profit_taking_sells
+    reasons = [s.reason for s in ctx.skipped if s.symbol == "PEND"]
+    assert any("cost basis pending transfer" in r for r in reasons), reasons
+    print("[pending-basis-fail-closed] 10 sh target vs. 5 priced sh -> fail-closed skip, "
+          "not a silent downsize")
 
 
 def test_gtp_still_fires_when_fifo_is_genuinely_profitable() -> None:
-    """Sanity check the fix didn't over-tighten anything: a position built at INCREASING cost
-    (cheap shares first, expensive later) has FIFO consume the CHEAP lot first, so the realized
-    dollars are unambiguously positive and the sale should still fire normally."""
-    targets = {"INC": AssetTarget(symbol="INC", weight=1.0)}
-    cfg = PortfolioConfig(meta=_meta(), targets=targets, force_sell={}, blocked=[])
-    ctx = RunContext(current_date=date(2026, 8, 11), config=cfg, account_number="TEST")
-    ctx.positions = {"INC": Position(symbol="INC", quantity=20.0, avg_cost_basis=75.0)}
-    ctx.quotes = {"INC": Quote(symbol="INC", last_trade_price=80.0)}
-    lots = {"INC": [
+    """Sanity check nothing over-tightened: a position built at INCREASING cost (cheap first) has
+    FIFO consume the cheap lot first, so the sale fires normally and the guard is a no-op."""
+    ctx, broker = _position("INC", price=80.0, quantity=20.0, avg_cost=75.0, lots=[
         TaxLot(open_lot_id="cheap", quantity=10.0, cost_per_share=50.0, open_date=date(2026, 1, 1), is_selectable=True),
         TaxLot(open_lot_id="expensive", quantity=10.0, cost_per_share=100.0, open_date=date(2026, 6, 1), is_selectable=True),
-    ]}
-    broker = _Broker(lots)
+    ])
     step4_profit_taking(ctx, broker)
+
     assert len(ctx.profit_taking_sells) == 1, ctx.profit_taking_sells
     t = ctx.profit_taking_sells[0]
-    assert t.realized_profit_dollars == 300.0, t.realized_profit_dollars  # (80-50)*10 from the FIFO-first cheap lot
-    print(f"[gtp-still-fires-genuine-profit] FIFO realized ${t.realized_profit_dollars:.2f} — fires as expected")
-
-
-def test_gtp_refuses_at_exact_breakeven() -> None:
-    """FIFO-matched realized profit of exactly $0.00 (breakeven) must also be refused — the guard
-    is `> 0`, not `>= 0`, since a breakeven sale is not a real profit either."""
-    targets = {"FLAT": AssetTarget(symbol="FLAT", weight=1.0)}
-    cfg = PortfolioConfig(meta=_meta(), targets=targets, force_sell={}, blocked=[])
-    ctx = RunContext(current_date=date(2026, 8, 11), config=cfg, account_number="TEST")
-    # avg_cost_basis=75 (blended) but the single lot actually held costs exactly today's price
-    ctx.positions = {"FLAT": Position(symbol="FLAT", quantity=20.0, avg_cost_basis=75.0)}
-    ctx.quotes = {"FLAT": Quote(symbol="FLAT", last_trade_price=80.0)}
-    lots = {"FLAT": [
-        TaxLot(open_lot_id="breakeven", quantity=20.0, cost_per_share=80.0, open_date=date(2026, 1, 1), is_selectable=True),
-    ]}
-    broker = _Broker(lots)
-    step4_profit_taking(ctx, broker)
-    assert ctx.profit_taking_sells == [], ctx.profit_taking_sells
-    reasons = [s.reason for s in ctx.skipped if s.symbol == "FLAT"]
-    assert any("not a real profit" in r for r in reasons), reasons
-    print("[gtp-refuses-breakeven] FIFO realized exactly $0.00 -> correctly refused (not > 0)")
+    assert t.quantity == 10, t.quantity
+    assert t.realized_profit_dollars == 300.0, t.realized_profit_dollars  # (80-50)*10
+    assert "loss-lot sell guard" not in t.reason, t.reason  # guard was a no-op here
+    print(f"[genuine-profit-unchanged] FIFO realized ${t.realized_profit_dollars:.2f} — fires as "
+          f"before, guard is a no-op")
 
 
 def main() -> None:
-    test_gtp_refuses_to_sell_at_fifo_loss()
+    test_loss_lot_excluded_sale_proceeds_on_profitable_lot()
+    test_loss_lot_exclusion_downsizes_the_sale()
+    test_all_lots_underwater_skips_entirely()
+    test_exact_breakeven_lot_is_excluded()
+    test_pending_basis_still_fails_closed()
     test_gtp_still_fires_when_fifo_is_genuinely_profitable()
-    test_gtp_refuses_at_exact_breakeven()
-    print("\nSMOKE TEST (GTP FIFO-vs-blended-average profit invariant) PASSED")
+    print("\nSMOKE TEST (GTP FIFO profit invariant + v2.75.0 loss-lot sell guard) PASSED")
 
 
 if __name__ == "__main__":
