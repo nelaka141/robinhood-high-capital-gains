@@ -61,6 +61,12 @@ class PortfolioMetadata:
     materialize_profit_percentage: float
     profit_sell_percentage: float
     materialize_profit_in_dollars: float
+    min_raw_gain_percent_to_sell: float  # v2.77.0: floor on the position's OVERALL
+        # blended-average raw_gain_pct required for GET THE PROFITS to fire at all — on top of,
+        # not instead of, the percent/dollar OR-gate and the per-sold-lot profit check. Closes
+        # the gap the v2.75.0 loss-lot sell guard opened: without this, GTP can cherry-pick a
+        # losing position's few profitable lots and fire even while the position as a whole is
+        # underwater or only marginally ahead.
     keep_aside_profits_for_tax_percent: float
     momentum_lookback_days: int
     min_momentum_score_to_fill_underweight: float

@@ -37,6 +37,7 @@ def _meta(**overrides) -> PortfolioMetadata:
         sell_or_buy_value_limit=1, min_value_of_trade=1,
         materialize_profit_percentage=2.5, profit_sell_percentage=50.0,
         materialize_profit_in_dollars=1e9,
+        min_raw_gain_percent_to_sell=-1e9,  # disabled -> not what this file tests
         keep_aside_profits_for_tax_percent=30.0,
         momentum_lookback_days=5,
         min_momentum_score_to_fill_underweight=-1000.0,
