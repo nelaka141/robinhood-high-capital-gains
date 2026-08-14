@@ -268,8 +268,8 @@
 		"peakDate": "2026-07-29",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
-		"profitSellPrice": 16.06,
-		"profitSellDate": "2026-07-29",
+		"profitSellPrice": 14.4276,
+		"profitSellDate": "2026-08-14",
 		"lastPurchaseDate": "2026-07-31",
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
@@ -297,7 +297,7 @@
 		"lastLossSaleDate": null
 	},
 	"NFLX": {
-		"peakPrice": 78.065,
+		"peakPrice": 78.12,
 		"peakDate": "2026-08-14",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -451,7 +451,7 @@
 		"lastLossSaleDate": null
 	},
 	"COST": {
-		"peakPrice": 959.84,
+		"peakPrice": 961.855,
 		"peakDate": "2026-08-14",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -495,8 +495,8 @@
 		"lastLossSaleDate": null
 	},
 	"SO": {
-		"peakPrice": 93.17,
-		"peakDate": "2026-08-04",
+		"peakPrice": 93.26,
+		"peakDate": "2026-08-14",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": null,
@@ -528,7 +528,7 @@
 		"lastLossSaleDate": null
 	},
 	"EQIX": {
-		"peakPrice": 1086.12,
+		"peakPrice": 1102.145,
 		"peakDate": "2026-08-14",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
