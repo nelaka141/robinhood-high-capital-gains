@@ -112,6 +112,36 @@ class DormantAsset:
 
 
 @dataclass
+class LossOnlyAsset:
+    """A currently-held target asset whose EVERY sellable lot is underwater at today's price —
+    Step 7 reporting only, never influences any buy/sell decision.
+
+    This is the population the v2.75.0 loss-lot sell guard can never sell any part of: with no
+    profitable lot to fall back on, GET THE PROFITS is structurally unable to fire, so the
+    position can only leave the portfolio via an emergency stop or a manual/off-platform action.
+    Computed AFTER this cycle's buys are sized, so a symbol bought this cycle is excluded — its
+    fresh at-market lot means it no longer holds only losing lots.
+
+    Unrealized figures are on the LOT basis (summed over the actual lots), not the broker's
+    blended `avg_cost_basis`, so they can never contradict this list's own membership test. The
+    two disagree in practice — e.g. a position whose `average_buy_price` reads below the current
+    price while every real lot sits above it — so `basis_mismatch` flags that divergence rather
+    than silently presenting one number as the other."""
+    symbol: str
+    quantity: float
+    avg_cost_basis: float       # broker's blended average, for reference
+    lot_weighted_cost: float    # Σ(qty × cost) / Σ(qty) over the priced lots — the basis used below
+    current_price: float
+    market_value: float
+    unrealized_dollars: float   # lot basis
+    unrealized_pct: float       # lot basis
+    lot_count: int              # sellable+priced lots, all of them underwater
+    worst_lot_cost: float       # highest cost_per_share held (furthest underwater)
+    best_lot_cost: float        # lowest cost_per_share held (closest to breakeven)
+    basis_mismatch: bool        # broker avg_cost_basis materially disagrees with lot_weighted_cost
+
+
+@dataclass
 class RunContext:
     """Accumulates state across Step 1..7; passed through the pipeline in strict order."""
     current_date: date
@@ -164,3 +194,4 @@ class RunContext:
     high_beta_gain_rows: List[dict] = field(default_factory=list)
 
     dormant_assets: List["DormantAsset"] = field(default_factory=list)  # Step 7 reporting only
+    loss_only_assets: List["LossOnlyAsset"] = field(default_factory=list)  # Step 7 reporting only

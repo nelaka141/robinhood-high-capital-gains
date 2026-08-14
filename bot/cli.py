@@ -64,6 +64,8 @@ def cmd_plan(args: argparse.Namespace) -> None:
         ctx.tax_by_year[str(ctx.current_date.year)] = max(0.0, ctx.net_realized_gains_ytd_pretrade)
         save_tax_by_year(ctx.tax_by_year, f"{repo_dir}/tax/realized_gains_by_year.json")
         ctx.dormant_assets = steps.compute_dormant_assets(ctx)
+        # No buys happen on a NO TRADES cycle, so the candidate list is already final.
+        ctx.loss_only_assets = steps.compute_loss_only_assets(ctx, broker)
         entry_md = journal.render_no_trades_entry(ctx)
         journal.prepend_entry(entry_md, f"{repo_dir}/logs")
         dump_json({
@@ -71,7 +73,8 @@ def cmd_plan(args: argparse.Namespace) -> None:
             "journal_entry_markdown": entry_md,
             "email_summary": (
                 f"No trades this cycle — all {len(ctx.drift_results)} assets within tolerance. "
-                f"Dormant assets (no activity > {cfg.meta.dormant_asset_days}d): {len(ctx.dormant_assets)}."
+                f"Dormant assets (no activity > {cfg.meta.dormant_asset_days}d): {len(ctx.dormant_assets)}. "
+                f"Loss-only-lot assets: {len(ctx.loss_only_assets)}."
             ),
             "files_changed": ["peak/prices.json", "tax/realized_gains_by_year.json", "logs/trade_journal.md"],
         }, args.out)
@@ -83,6 +86,8 @@ def cmd_plan(args: argparse.Namespace) -> None:
     steps.step4_profit_taking(ctx, broker)
     planned_buys = steps.step5_price_limits(ctx, broker, planned_buys)
     sells_to_place, halted, halt_reason = steps.step6a_prepare_sells(ctx, planned_buys)
+    # Gathered here because tax lots need the broker; finalize filters it by this cycle's buys.
+    ctx.loss_only_assets = steps.compute_loss_only_assets(ctx, broker)
 
     result = {
         "no_trades": False,
@@ -127,6 +132,7 @@ def cmd_finalize(args: argparse.Namespace) -> None:
     save_tax_by_year(ctx.tax_by_year, f"{repo_dir}/tax/realized_gains_by_year.json")
 
     ctx.dormant_assets = steps.compute_dormant_assets(ctx)
+    ctx.loss_only_assets = steps.drop_bought_symbols(ctx.loss_only_assets, ctx)
     entry_md = journal.render_entry(ctx)
     journal.prepend_entry(entry_md, f"{repo_dir}/logs")
 

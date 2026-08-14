@@ -16,7 +16,8 @@ from typing import Any, Dict
 
 from .config import PortfolioConfig
 from .models import (
-    DriftResult, MomentumScore, Position, Quote, RunContext, SkippedTrade, TradeIntent,
+    DriftResult, LossOnlyAsset, MomentumScore, Position, Quote, RunContext, SkippedTrade,
+    TradeIntent,
 )
 from .state import AssetPriceState
 
@@ -54,6 +55,10 @@ def ctx_to_jsonable(ctx: RunContext) -> Dict[str, Any]:
         "loss_sale_symbols": ctx.loss_sale_symbols,
         "profit_taking_sells": [asdict(t) for t in ctx.profit_taking_sells],
         "skipped": [asdict(s) for s in ctx.skipped],
+        # Candidate loss-only assets, gathered in `plan` where the broker (and therefore tax-lot
+        # data) is available. finalize has no broker, so it filters this list down by this
+        # cycle's buys rather than recomputing it.
+        "loss_only_assets": [asdict(a) for a in ctx.loss_only_assets],
         "total_high_beta_gains_realized": ctx.total_high_beta_gains_realized,
     }
 
@@ -84,6 +89,7 @@ def ctx_from_jsonable(data: Dict[str, Any], cfg: PortfolioConfig) -> RunContext:
     ctx.loss_sale_symbols = data.get("loss_sale_symbols", [])
     ctx.profit_taking_sells = [TradeIntent(**t) for t in data["profit_taking_sells"]]
     ctx.skipped = [SkippedTrade(**s) for s in data["skipped"]]
+    ctx.loss_only_assets = [LossOnlyAsset(**a) for a in data.get("loss_only_assets", [])]
     ctx.total_high_beta_gains_realized = data["total_high_beta_gains_realized"]
     return ctx
 

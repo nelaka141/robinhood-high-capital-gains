@@ -21,7 +21,15 @@ from .fifo import (
     round_sell_quantity,
 )
 from .indicators import ema_series, rsi_series
-from .models import DormantAsset, DriftResult, MomentumScore, RunContext, SkippedTrade, TradeIntent
+from .models import (
+    DormantAsset,
+    DriftResult,
+    LossOnlyAsset,
+    MomentumScore,
+    RunContext,
+    SkippedTrade,
+    TradeIntent,
+)
 from .state import AssetPriceState, load_transferred_basis
 
 # Lookback for the leg1/leg2/leg3_price_change buy-guard and selling_price_change resell-guard
@@ -995,6 +1003,74 @@ def compute_dormant_assets(ctx: RunContext) -> List[DormantAsset]:
 
     out.sort(key=lambda d: d.days_since_activity if d.days_since_activity is not None else float("inf"), reverse=True)
     return out
+
+
+def compute_loss_only_assets(ctx: RunContext, broker: BrokerClient) -> List[LossOnlyAsset]:
+    """CLAUDE.md Step 7's Loss-Only Lot Assets report — purely observational, never influences any
+    buy/sell decision.
+
+    Lists every currently-held target asset for which EVERY sellable, priced lot is at or above
+    today's price, i.e. the position holds no lot that could be sold at a gain. This is exactly
+    the population the v2.75.0 loss-lot sell guard can never sell any part of: GET THE PROFITS is
+    structurally unable to fire on them, so short of an emergency stop they can only leave the
+    portfolio by a manual/off-platform action (the broker exposes no transfer API to this agent).
+
+    Returns CANDIDATES: tax-lot data is only reachable while the broker is in hand (the `plan`
+    command), but the buys aren't sized until `finalize`, which has no broker. So `plan` calls
+    this and `finalize` filters the result down with `drop_bought_symbols` — a symbol bought this
+    cycle gains a fresh lot at ~today's price and is no longer loss-only.
+
+    Omits assets whose cost basis hasn't fully reconciled (Step 1's Fail-Closed rule) and assets
+    with no priced+selectable lots at all — in both cases "every lot is underwater" cannot be
+    established, and this report never guesses. Sorted worst unrealized percentage first."""
+    out: List[LossOnlyAsset] = []
+    for sym, pos in ctx.positions.items():
+        if sym not in ctx.config.targets or pos.quantity <= 0 or pos.avg_cost_basis is None:
+            continue
+
+        price = ctx.quotes[sym].last_trade_price
+        lots = [
+            lot for lot in broker.get_tax_lots(ctx.account_number, sym)
+            if lot.is_selectable and lot.cost_per_share is not None
+        ]
+        if not lots:
+            continue  # nothing priced/selectable to judge -> can't establish the claim
+        lot_qty = sum(lot.quantity for lot in lots)
+        if lot_qty < pos.quantity - 1e-6:
+            continue  # priced lots don't cover the whole position -> claim unprovable for the rest
+        if profitable_lot_quantity(lots, price) > 0:
+            continue  # at least one lot could still be sold at a gain
+
+        costs = [lot.cost_per_share for lot in lots]
+        # Unrealized on the LOT basis, so it can never contradict this list's membership test.
+        # The broker's blended avg_cost_basis is kept for reference and flagged when it disagrees.
+        lot_weighted_cost = sum(lot.quantity * lot.cost_per_share for lot in lots) / lot_qty
+        out.append(LossOnlyAsset(
+            symbol=sym,
+            quantity=pos.quantity,
+            avg_cost_basis=pos.avg_cost_basis,
+            lot_weighted_cost=lot_weighted_cost,
+            current_price=price,
+            market_value=price * pos.quantity,
+            unrealized_dollars=sum((price - lot.cost_per_share) * lot.quantity for lot in lots),
+            unrealized_pct=(price - lot_weighted_cost) / lot_weighted_cost * 100,
+            lot_count=len(lots),
+            worst_lot_cost=max(costs),
+            best_lot_cost=min(costs),
+            basis_mismatch=abs(lot_weighted_cost - pos.avg_cost_basis) > 0.005 * pos.avg_cost_basis,
+        ))
+
+    out.sort(key=lambda a: a.unrealized_pct)
+    return out
+
+
+def drop_bought_symbols(assets: List[LossOnlyAsset], ctx: RunContext) -> List[LossOnlyAsset]:
+    """Final leg of the Loss-Only Lot Assets report: drop any symbol this cycle bought. The buy
+    adds a lot at ~today's price, so that position no longer holds only losing lots. Split out
+    from compute_loss_only_assets because the buys are only known in `finalize`, which has no
+    broker to re-read tax lots with."""
+    bought = {t.symbol for t in ctx.buys}
+    return [a for a in assets if a.symbol not in bought]
 
 
 def _enforce_min_trade_value_buys(
