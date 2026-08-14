@@ -30,7 +30,7 @@
     "min_value_of_trade": 250,
     "materialize_profit_percentage": 2.5,
     "profit_sell_percentage": 100.0,
-    "materialize_profit_in_dollars": 30.0,
+    "materialize_profit_in_dollars": 50.0,
     "min_raw_gain_percent_to_sell": 0.5,
     "keep_aside_profits_for_tax_percent": 35.0,
     "momentum_lookback_days": 5,
