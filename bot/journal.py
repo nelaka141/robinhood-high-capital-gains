@@ -78,6 +78,7 @@ def render_no_trades_entry(ctx: RunContext) -> str:
     for sym, dr in sorted(ctx.drift_results.items()):
         lines.append(f"| {sym} | {dr.drift:.3f} | {dr.asset_drift_tolerance:.3f} |")
     lines += _render_dormant_assets_section(ctx)
+    lines += _render_loss_only_assets_section(ctx)
     return "\n".join(lines) + "\n"
 
 
@@ -171,6 +172,7 @@ def render_entry(ctx: RunContext) -> str:
         lines.append(f"| {s.symbol} | {s.reason} | {s.would_be_action} |")
 
     lines += _render_dormant_assets_section(ctx)
+    lines += _render_loss_only_assets_section(ctx)
 
     lines += [
         "",
@@ -203,6 +205,56 @@ def _render_dormant_assets_section(ctx: RunContext) -> List[str]:
     return lines
 
 
+def _render_loss_only_assets_section(ctx: RunContext) -> List[str]:
+    """CLAUDE.md Step 7's Loss-Only Lot Assets report — purely observational, shared by both
+    render_entry and render_no_trades_entry. Computed after this cycle's buys are sized."""
+    lines = [
+        "",
+        "## Loss-Only Lot Assets (every sellable lot underwater)",
+    ]
+    if not ctx.loss_only_assets:
+        lines.append("- none — every held asset still has at least one lot that could be sold at a gain")
+        return lines
+
+    total = sum(a.unrealized_dollars for a in ctx.loss_only_assets)
+    mv = sum(a.market_value for a in ctx.loss_only_assets)
+    lines += [
+        f"{len(ctx.loss_only_assets)} asset(s), ${mv:,.2f} market value, "
+        f"${total:,.2f} total unrealized. GET THE PROFITS is structurally unable to fire on these "
+        "(the loss-lot sell guard leaves no sellable lot), so they can only exit via an emergency "
+        "stop or a manual action.",
+        "",
+        "Unrealized figures are on the LOT basis (summed over the actual lots), not the broker's "
+        "blended `avg_cost_basis` — so they can never contradict this list's own membership test.",
+        "",
+        "| Symbol | Qty | Lot Cost | Price | Market Value | Unrealized $ | Unrealized % | Lots | Best/Worst Lot Cost |",
+        "|---|---|---|---|---|---|---|---|---|",
+    ]
+    for a in ctx.loss_only_assets:
+        flag = " ⚠" if a.basis_mismatch else ""
+        lines.append(
+            f"| {a.symbol}{flag} | {a.quantity:.4f} | ${a.lot_weighted_cost:,.2f} | ${a.current_price:,.2f} | "
+            f"${a.market_value:,.2f} | ${a.unrealized_dollars:,.2f} | {a.unrealized_pct:+.2f}% | "
+            f"{a.lot_count} | ${a.best_lot_cost:,.2f} / ${a.worst_lot_cost:,.2f} |"
+        )
+
+    mismatched = [a for a in ctx.loss_only_assets if a.basis_mismatch]
+    if mismatched:
+        lines += [
+            "",
+            "⚠ = the broker's blended `avg_cost_basis` materially disagrees with the cost of the "
+            "actual lots, so the two views of this position tell different stories:",
+        ]
+        for a in mismatched:
+            lines.append(
+                f"- **{a.symbol}**: `avg_cost_basis` ${a.avg_cost_basis:,.2f} vs. lot-weighted "
+                f"${a.lot_weighted_cost:,.2f} (price ${a.current_price:,.2f}) — the blended average "
+                f"implies {(a.current_price - a.avg_cost_basis) / a.avg_cost_basis * 100:+.2f}%, "
+                f"the lots imply {a.unrealized_pct:+.2f}%"
+            )
+    return lines
+
+
 def render_email_summary(ctx: RunContext) -> str:
     n_sells = (
         len(ctx.drawdown_liquidations) + len(ctx.blocked_liquidations)
@@ -215,5 +267,6 @@ def render_email_summary(ctx: RunContext) -> str:
         f"Total_High_Beta_Gains_Realized: ${ctx.total_high_beta_gains_realized:,.2f}. "
         f"Final buying_power: ${ctx.account_cash:,.2f}. "
         f"Dormant assets (no activity > {ctx.config.meta.dormant_asset_days}d): {len(ctx.dormant_assets)}. "
+        f"Loss-only-lot assets (no lot sellable at a gain): {len(ctx.loss_only_assets)}. "
         "See attached journal entry for full detail."
     )
