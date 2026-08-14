@@ -4,7 +4,7 @@ These are the files CLAUDE.md Step 7 commits every cycle (whichever changed)."""
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields as dataclass_fields
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -19,18 +19,24 @@ class AssetPriceState:
     profitSellPrice: Optional[float] = None
     profitSellDate: Optional[str] = None
     lastPurchaseDate: Optional[str] = None
-    lastAlphaLeaderBuyPrice: Optional[float] = None  # price of the most recent buy fired while
-    lastAlphaLeaderBuyDate: Optional[str] = None     # this symbol was the acting Alpha Leader —
-                                                      # basis for the Fresh Alpha Leader Stop (Step 1)
     lastLossSalePrice: Optional[float] = None  # price of the most recent sale that realized a
     lastLossSaleDate: Optional[str] = None     # loss (any mechanism) — basis for the wash-sale
                                                 # buy-guard (Step 2): blocks repurchase for
                                                 # wash_sale_lookback_days after ANY loss sale
 
 
+_PRICE_STATE_FIELDS = {f.name for f in dataclass_fields(AssetPriceState)}
+
+
 def load_price_state(path: str | Path = "peak/prices.json") -> Dict[str, AssetPriceState]:
+    """Unknown keys in the file (e.g. the retired lastAlphaLeaderBuyPrice/Date fields written by
+    pre-removal versions of this bot) are silently dropped on load — and therefore disappear from
+    the file on the next save — rather than crashing the pipeline."""
     raw = json.loads(Path(path).read_text())
-    return {sym: AssetPriceState(**fields) for sym, fields in raw.items()}
+    return {
+        sym: AssetPriceState(**{k: v for k, v in fields.items() if k in _PRICE_STATE_FIELDS})
+        for sym, fields in raw.items()
+    }
 
 
 def save_price_state(state: Dict[str, AssetPriceState], path: str | Path = "peak/prices.json") -> None:
@@ -56,24 +62,3 @@ def load_transferred_basis(path: str | Path = "transferred_basis.json") -> Dict[
     if not p.exists():
         return {}
     return json.loads(p.read_text())
-
-
-@dataclass
-class AlphaLeaderReserve:
-    """alpha_reserve.json — a per-cycle AUDIT RECORD of Step 3's Alpha Leader buy-guard cascade
-    and the resulting reserve: how much of the Top Momentum Symbol's would-be allocation is
-    sitting aside (unspent, not redirected to Underweight targets) because it was buy-guarded
-    and either no fallback qualified, or a fallback qualified but didn't need the full amount.
-    Recalculated FROM SCRATCH every cycle (CLAUDE.md Step 3, "Alpha Leader Reserve") — unlike
-    the pre-cascade design, nothing here is ever read back in to influence a future cycle's
-    calculation; this file exists purely for the trade journal / audit trail."""
-    date: Optional[str] = None
-    top_momentum_symbol: Optional[str] = None
-    alpha_leader_symbol: Optional[str] = None  # the acting Alpha Leader this cycle, if any
-    reserve_cash: float = 0.0
-
-
-def save_alpha_leader_reserve(
-    reserve: AlphaLeaderReserve, path: str | Path = "alpha_reserve.json"
-) -> None:
-    Path(path).write_text(json.dumps(asdict(reserve), indent=2) + "\n")

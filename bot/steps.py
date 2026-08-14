@@ -8,7 +8,6 @@ own structure section-by-section, so you can read a step's code next to its CLAU
 from __future__ import annotations
 
 import math
-import statistics
 import time
 from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional
@@ -16,9 +15,9 @@ from typing import Dict, List, Optional
 from .broker import BrokerClient
 from .cost_basis import resolve_avg_cost_basis
 from .fifo import fifo_realized_profit, round_sell_quantity
-from .indicators import beta, daily_returns, ema_series, rsi_series
+from .indicators import ema_series, rsi_series
 from .models import DormantAsset, DriftResult, MomentumScore, RunContext, SkippedTrade, TradeIntent
-from .state import AlphaLeaderReserve, AssetPriceState, load_transferred_basis
+from .state import AssetPriceState, load_transferred_basis
 
 # Lookback for the leg1/leg2/leg3_price_change buy-guard and selling_price_change resell-guard
 # (Step 2/4) — matches price_history/daily_bars.json's rolling ~90-day cache, so this reads
@@ -51,8 +50,8 @@ def _is_loss(ctx: RunContext, sym: str) -> bool:
 
 def _sell_price_target_blocked(ctx: RunContext, sym: str, price: float, mechanism: str) -> bool:
     """target_price_to_sell (CLAUDE.md): blocks a sale that would otherwise fire, by ANY
-    mechanism — including the emergency stop-losses (Drawdown Audit, Fresh Alpha Leader Stop) and
-    a blocked+forceSell liquidation, not just the routine profit-taking/trim paths — until
+    mechanism — including the emergency Drawdown Audit stop-loss and
+    a blocked+forceSell liquidation, not just the routine profit-taking path — until
     `price` crosses (reaches or exceeds) the configured floor. Only call this once the caller has
     already determined the mechanism WOULD otherwise fire, so a SkippedTrade is only logged when
     it actually changes the outcome, not for every symbol that merely has a configured target."""
@@ -157,41 +156,6 @@ def step1_fetch_state(ctx: RunContext, broker: BrokerClient, repo_dir: str = "."
             ctx.drawdown_liquidations.append(sym)  # overrides target weights + lock_in_period
             ctx.loss_sale_symbols.append(sym)  # drop_vs_cost >= drawdown_pct guarantees a loss
 
-    # --- Fresh Alpha Leader Stop: a tighter, faster-acting stop-loss scoped to a position bought
-    # AS the Alpha Leader within the last alpha_leader_fresh_position_days days, measured against
-    # the price of THAT specific buy (peak/prices.json's lastAlphaLeaderBuyPrice/Date) rather than
-    # the portfolio-wide peak/cost-basis pair the main Drawdown Audit uses. Exists because the
-    # main audit's 35%-from-peak-AND-cost-basis bar is deliberately high and only checked once per
-    # scheduled cycle — a large fresh Alpha Leader injection that drops sharply (but not
-    # catastrophically) the next day or two wouldn't trip it, yet still represents concentrated
-    # risk from a single oversized bet. Independent of who the CURRENT Alpha Leader is.
-    fresh_days = cfg.meta.alpha_leader_fresh_position_days
-    fresh_drawdown_pct = cfg.meta.alpha_leader_fresh_drawdown_percentage
-    for sym in symbols:
-        if sym in ctx.blocked_symbols or sym in ctx.drawdown_liquidations:
-            continue  # blocked, or already caught by the main Drawdown Audit -> don't double-sell
-        pos = ctx.positions.get(sym)
-        if not pos or pos.quantity <= 0:
-            continue
-        st = ctx.price_state.get(sym, AssetPriceState())
-        if st.lastAlphaLeaderBuyPrice is None or not st.lastAlphaLeaderBuyDate:
-            continue
-        buy_date = _parse_date(st.lastAlphaLeaderBuyDate)
-        if buy_date is None or (ctx.current_date - buy_date).days > fresh_days:
-            continue
-        price = ctx.quotes[sym].last_trade_price
-        drop_vs_alpha_buy = (st.lastAlphaLeaderBuyPrice - price) / st.lastAlphaLeaderBuyPrice * 100
-        if drop_vs_alpha_buy >= fresh_drawdown_pct:
-            if _sell_price_target_blocked(ctx, sym, price, "Fresh Alpha Leader Stop liquidation"):
-                continue  # target_price_to_sell overrides even this emergency stop — "any means"
-            ctx.fresh_alpha_leader_liquidations.append(sym)  # overrides target weights + lock_in_period
-            # Measured against avg_cost_basis, not lastAlphaLeaderBuyPrice: a large drop from the
-            # fresh injection price doesn't always mean the WHOLE position is underwater (e.g. an
-            # add-on to an older, cheaper position) — only arm the wash-sale guard if it's a
-            # genuine loss on the position as a whole.
-            if _is_loss(ctx, sym):
-                ctx.loss_sale_symbols.append(sym)
-
     # --- Per-asset drift (weight units) ---
     for sym in symbols:
         pos = ctx.positions.get(sym)
@@ -229,7 +193,6 @@ def has_any_breach(ctx: RunContext) -> bool:
     return (
         bool(ctx.drawdown_liquidations)
         or bool(ctx.blocked_liquidations)
-        or bool(ctx.fresh_alpha_leader_liquidations)
         or any(d.breached for d in ctx.drift_results.values())
     )
 
@@ -246,7 +209,7 @@ def step2_guardrails(ctx: RunContext, broker: BrokerClient) -> None:
         st = ctx.price_state.get(sym, AssetPriceState())
         price = ctx.quotes[sym].last_trade_price
 
-        # Liquidation recovery gate — excludes the symbol from ALL drift/Alpha-Leader play.
+        # Liquidation recovery gate — excludes the symbol from ALL drift/rebalance play.
         # Only applies while NOT currently held: once repurchased (quantity > 0), the position
         # is back in normal play regardless of a stale liquidatedPrice/liquidatedDate left over
         # from before the repurchase — peak/prices.json has no field that clears these on
@@ -273,8 +236,8 @@ def step2_guardrails(ctx: RunContext, broker: BrokerClient) -> None:
                 continue  # nothing more to check — fully excluded
 
         # Buy-timing guard (v2.71.0: UNIVERSAL — applies to every in-play symbol before ANY buy
-        # this cycle, not just a profit-sell repurchase: the Alpha Leader allocation, an
-        # Underweight allocation, and a profit-sell repurchase are all gated by the same
+        # this cycle, not just a profit-sell repurchase: an
+        # Underweight allocation and a profit-sell repurchase are both gated by the same
         # three-leg dip-then-turn confirmation. v2.41.0: the profit-sell-specific cooldown
         # (sold_asset_repurchase_days) still applies uniformly to partial AND full profit-sells,
         # but only when the symbol actually HAS a recorded profit-sell — it's meaningless without
@@ -360,11 +323,8 @@ def step2_guardrails(ctx: RunContext, broker: BrokerClient) -> None:
             else:
                 prefix = "Buy-timing guard"
             reason = f"{prefix} — blocked because: {'; '.join(unmet)}"
-            # Deliberately NOT added to ctx.alpha_buy_guarded_symbols: the Alpha Leader is chosen
-            # from the strongest-momentum in-play candidates, which routinely won't show a recent
-            # pullback-then-turn — requiring one here would gut the buy-guard cascade's purpose
-            # (walking to a fallback specifically so SOME candidate can still act). This guard
-            # still gates Underweight allocations and a same-symbol profit-sell repurchase.
+            # Gates every new buy of this symbol this cycle — an Underweight allocation and a
+            # same-symbol profit-sell repurchase alike.
             ctx.buy_guarded_symbols.setdefault(sym, []).append(reason)
             if is_full_exit:
                 # Zero position AND buy-guarded on a recorded profit-sell => fully out of play,
@@ -373,17 +333,14 @@ def step2_guardrails(ctx: RunContext, broker: BrokerClient) -> None:
                 ctx.excluded_symbols[sym] = reason
 
         # Wash-sale buy-guard: blocks a NEW BUY of this symbol for wash_sale_lookback_days after
-        # ANY sell that realized a loss (Drawdown Audit, Fresh Alpha Leader Stop, blocked+
-        # forceSell liquidation, or a forceSell-driven Overweight trim — see ctx.loss_sale_symbols
-        # in Step 1/4) — independent of, and can stack with, the buy-timing guard above (a
-        # symbol could carry both an old profitSellDate and a newer lastLossSaleDate). Deliberately
-        # date-only (no price-change/recovery condition, unlike the buy-timing guard) — the IRS
-        # wash-sale rule is a flat calendar window, not a momentum/price test. Does NOT block the
-        # emergency stops themselves from firing (Drawdown Audit and Fresh Alpha Leader Stop stay
-        # unconditional, CLAUDE.md Step 1) — it only blocks the REPURCHASE afterward, which is
-        # where the actual wash-sale risk lives for an active trading bot. Unlike the buy-timing
-        # guard, this DOES also gate the Alpha Leader — it's a tax-compliance rule, not a momentum
-        # filter, so there's no "let the strongest candidate through anyway" case for it.
+        # ANY sell that realized a loss (Drawdown Audit or blocked+forceSell liquidation — see
+        # ctx.loss_sale_symbols in Step 1) — independent of, and can stack with, the buy-timing
+        # guard above (a symbol could carry both an old profitSellDate and a newer
+        # lastLossSaleDate). Deliberately date-only (no price-change/recovery condition, unlike
+        # the buy-timing guard) — the IRS wash-sale rule is a flat calendar window, not a
+        # momentum/price test. Does NOT block the emergency stop itself from firing (the Drawdown
+        # Audit stays unconditional, CLAUDE.md Step 1) — it only blocks the REPURCHASE afterward,
+        # which is where the actual wash-sale risk lives for an active trading bot.
         if st.lastLossSaleDate:
             sell_date = _parse_date(st.lastLossSaleDate)
             days_since = (ctx.current_date - sell_date).days if sell_date else 0
@@ -394,25 +351,17 @@ def step2_guardrails(ctx: RunContext, broker: BrokerClient) -> None:
                     f"({days_since}d so far)"
                 )
                 ctx.buy_guarded_symbols.setdefault(sym, []).append(reason)
-                ctx.alpha_buy_guarded_symbols.setdefault(sym, []).append(reason)
 
         # Buy price target gate (target_price_to_buy): blocks a NEW BUY of this symbol — an
-        # Underweight allocation, the Alpha Multiplier allocation, or a profit-sell repurchase
-        # alike ("by any means") — while `price` is still above the configured ceiling. Also
-        # populates alpha_buy_guarded_symbols (unlike the buy-timing guard above, which
-        # deliberately doesn't) so the symbol is removed from Alpha Leader candidacy entirely,
-        # irrespective of how high its Momentum_Score is, until price drops to/below the target.
+        # Underweight allocation or a profit-sell repurchase alike ("by any means") — while
+        # `price` is still above the configured ceiling.
         if cfg.buy_price_target_blocks(sym, price):
             target = cfg.target_price_to_buy[sym]
             reason = (
                 f"target_price_to_buy (${target:,.2f}) not yet met (current price ${price:,.2f}) "
-                f"— blocked from any buy and from Alpha Leader candidacy"
+                f"— blocked from any buy"
             )
             ctx.buy_guarded_symbols.setdefault(sym, []).append(reason)
-            ctx.alpha_buy_guarded_symbols.setdefault(sym, []).append(reason)
-
-        # Overweight sell profit-margin / lock-in checks are evaluated per-candidate in Step 4,
-        # since they only matter for symbols actually being considered for a trim.
 
 
 def in_play_symbols(ctx: RunContext) -> List[str]:
@@ -420,45 +369,35 @@ def in_play_symbols(ctx: RunContext) -> List[str]:
 
 
 # ============================================================================================
-# Step 3 — Calculate Alpha Leader & Apply Re-investment Multiplier
+# Step 3 — Rank Underweight Targets by Momentum_Score & Size Buys (top-down full fills)
 # ============================================================================================
 
-def step3_alpha_leader(ctx: RunContext, broker: BrokerClient) -> Dict[str, float]:
-    """Computes Momentum_Score for every in-play symbol, then runs the buy-guard cascade
-    (CLAUDE.md Step 3, "Alpha Leader selection — buy-guard cascade"): rank in-play symbols by
-    Momentum_Score descending; the top symbol is the `top_momentum_symbol`; walk the ranking
-    while score >= `alpha_leader_least_momentum_score`, and the first candidate that isn't
-    buy-guarded (Step 2's wash-sale check) becomes the (acting) `alpha_leader`. Returns the
-    PLANNED buy-dollar allocation {symbol: dollars} — Step 6 does the actual placing.
+def step3_underweight_buys(ctx: RunContext, broker: BrokerClient) -> Dict[str, float]:
+    """Computes Momentum_Score for every in-play symbol, then sizes this cycle's buys: the
+    qualifying Underweight candidates are ranked by Momentum_Score descending and filled
+    TOP-DOWN, each to its FULL drift gap (target_percentage/100 * account_balance − market
+    value) — NOT pro-rated or momentum-weighted — until `base_deployable_cash` runs out.
+    Returns the PLANNED buy-dollar allocation {symbol: dollars} — Step 6 does the actual placing.
 
-    If `alpha_leader` is a fallback (not `top_momentum_symbol`), its fully-capped allocation is
-    further scaled by `Rank_Multiplier = max(0, 1 - (rank - 1) * alpha_rank_reduction_percent /
-    100)`, where `rank` is its 1-indexed position in the full momentum ranking (rank 1 = the Top
-    Momentum Symbol, never reduced). See CLAUDE.md's `alpha_rank_reduction_percent`.
+    A candidate must be in-play, drift-breached, Underweight, not buy-guarded (every Step 2 buy
+    guard applies to every buy — buy-timing legs, sold_asset_repurchase_days, wash-sale window,
+    target_price_to_buy), and clear `min_momentum_score_to_fill_underweight` on its
+    Momentum_Score. A candidate below that floor — or with no computable score — is fully
+    excluded this cycle (logged SKIPPED).
 
-    Sets `ctx.alpha_leader_reserve_target` — what `top_momentum_symbol` would have received this
-    cycle (its own raw target + multiplier, capped by its own headroom), computed fresh every
-    cycle regardless of whether it actually ends up buying. `resolve_alpha_leader_reserve`
-    (called after Step 6b, once the real buy amount is known) subtracts the actual dollars spent
-    on `alpha_leader` from this to get the final `alpha_leader_reserve_cash` for `alpha_reserve.json`.
+    Each fill is capped by `_headroom()` — the asset's own `max_allocation_percent` override if
+    set, else the global `max_portfolio_percentage` — so a symbol's total planned allocation can
+    never push its market value past its per-asset concentration cap. A lower-ranked candidate
+    is only funded from whatever cash the higher-ranked fills left over; once cash is exhausted,
+    every remaining candidate is logged SKIPPED. Buys are funded from deployable cash only —
+    there is no Overweight-trim harvesting to raise extra cash (sells are GET THE PROFITS only).
 
-    Sets `ctx.harvest_needed_dollars` — the cash shortfall between this cycle's FULL asks (the
-    Alpha Leader's multiplier injection, plus fully closing every Underweight target's drift gap)
-    and what `base_deployable_cash` alone can fund. `step4_profit_taking`'s Overweight-trim tail
-    sizes real sells to cover exactly this shortfall (CLAUDE.md Step 3/4).
-
-    Underweight allocation is weighted by normalized Momentum_Score, NOT gap size or pro-rata:
-    see `min_momentum_score_to_fill_underweight` and `_momentum_weighted_split` below. Every
-    candidate (Alpha AND Underweight alike) is also capped by `_headroom()` — the asset's own
-    `max_allocation_percent` override if set, else the global `max_portfolio_percentage` — so a
-    symbol's total planned allocation can never push its market value past that cap, even when
-    it's the sole (or dominant) qualifier for an otherwise much larger leftover cash pool.
-
-    Finally, every allocation (Alpha AND Underweight alike) is subject to `max_sector_percentage`
-    — see the sector-cap pass at the end of this function — so a single correlated theme
-    (`sector_groups` in portfolio_targets.json, e.g. leveraged ETFs or AI/semis) can't be
-    over-concentrated across several simultaneously-funded symbols even when each individually
-    clears `max_portfolio_percentage`."""
+    Finally, every allocation is subject to `max_sector_percentage` — see the sector-cap pass at
+    the end of this function — so a single correlated theme (`sector_groups` in
+    portfolio_targets.json) can't be over-concentrated across several simultaneously-funded
+    symbols even when each individually clears `max_portfolio_percentage`. Dollars removed by
+    the sector cap are NOT redistributed to other candidates (same "no re-allocation" principle
+    as every downstream gate)."""
     cfg = ctx.config
 
     lookback_days = max(30, cfg.meta.momentum_lookback_days + 25)
@@ -487,68 +426,30 @@ def step3_alpha_leader(ctx: RunContext, broker: BrokerClient) -> Dict[str, float
     if not ctx.momentum_scores:
         return {}
 
-    ranked = sorted(ctx.momentum_scores, key=lambda s: ctx.momentum_scores[s].score, reverse=True)
-    ctx.top_momentum_symbol = ranked[0]
-
-    # Buy-guard cascade: walk the ranking while score >= floor, stop at the first candidate
-    # that isn't buy-guarded (CLAUDE.md Step 3, "Alpha Leader selection — buy-guard cascade").
-    # Deliberately checks alpha_buy_guarded_symbols, NOT the full buy_guarded_symbols — the
-    # buy-timing guard (three-leg price-change dip-then-turn + its cooldown) does not gate the Alpha
-    # Leader (see Step 2); only the wash-sale guard still applies here.
-    floor = cfg.meta.alpha_leader_least_momentum_score
-    ctx.alpha_leader = None
-    for sym in ranked:
-        if ctx.momentum_scores[sym].score < floor:
-            break
-        if sym not in ctx.alpha_buy_guarded_symbols:
-            ctx.alpha_leader = sym
-            break
-
     def _headroom(sym: str) -> float:
         """Dollar room left before `sym`'s market value (existing holdings + this cycle's
         planned buy) would exceed its per-asset concentration cap — the asset's own
         `max_allocation_percent` override if set in portfolio_targets.json, else the global
-        `max_portfolio_percentage` default (`cfg.max_allocation_percentage`). Applied to the
-        Alpha Leader allocation below AND to every Underweight candidate inside
-        `_momentum_weighted_split` — a single symbol's total planned allocation can never push
-        it past this cap, regardless of which pot (Alpha or Underweight) funded it."""
+        `max_portfolio_percentage` default (`cfg.max_allocation_percentage`)."""
         cap_dollars = cfg.max_allocation_percentage(sym) / 100 * ctx.account_balance
         current_mv = ctx.drift_results[sym].market_value
         return max(0.0, cap_dollars - current_mv)
 
     base_deployable_cash = max(0.0, ctx.current_cash - cfg.meta.min_cash_absolute - ctx.tax_reserve)
     if base_deployable_cash <= 0:
-        ctx.alpha_leader_reserve_target = 0.0
-        ctx.harvest_needed_dollars = 0.0
         return {}
 
-    raw_alpha_target = base_deployable_cash * cfg.meta.alpha_cash_allocation_percentage / 100
-    multiplier_cash = base_deployable_cash * (cfg.meta.reinvestment_multiplier_factor - 1.0)
-    # alpha_leader_reserve_target: what the Top Momentum Symbol would receive if bought this
-    # cycle — always computed fresh, regardless of whether it (or anyone) actually buys.
-    ctx.alpha_leader_reserve_target = min(
-        raw_alpha_target + multiplier_cash, _headroom(ctx.top_momentum_symbol)
-    )
-    # The FULL reserve target — not just the raw Alpha target — is carved out of
-    # base_deployable_cash for the Top Momentum Symbol's benefit: whatever isn't actually spent
-    # this cycle (buy-guarded fallback, rank haircut, headroom cap, ...) stays held in the Alpha
-    # Leader Reserve rather than being handed to Underweight targets as if it were free cash —
-    # "actual alpha allocation" + "alpha reserve left over" always sums back to this same target,
-    # so subtracting the target up front never allocates cash that isn't really available.
-    remaining_for_underweight = max(0.0, base_deployable_cash - ctx.alpha_leader_reserve_target)
-
-    # A candidate must also clear min_momentum_score_to_fill_underweight to be considered at all
-    # — a symbol below the floor (or with no computable Momentum_Score) is fully excluded from
-    # the Underweight pool this cycle: not funded, and its own gap doesn't inflate total_gap or
-    # trigger extra harvesting on its behalf either (CLAUDE.md Step 3, "Underweight allocation").
+    # A candidate must clear min_momentum_score_to_fill_underweight to be considered at all —
+    # a symbol below the floor (or with no computable Momentum_Score) is fully excluded from
+    # the Underweight fill this cycle (CLAUDE.md Step 3).
     momentum_floor = cfg.meta.min_momentum_score_to_fill_underweight
     underweight: List[str] = []
     for sym in in_play_symbols(ctx):
         dr = ctx.drift_results[sym]
         if not (dr.breached and dr.is_underweight):
             continue
-        if sym in ctx.buy_guarded_symbols or sym == ctx.alpha_leader:
-            continue  # buy-guarded, or already funded via the Alpha allocation — no double-dip
+        if sym in ctx.buy_guarded_symbols:
+            continue  # every Step 2 buy guard applies to every buy
         score = ctx.momentum_scores[sym].score if sym in ctx.momentum_scores else None
         if score is None or score < momentum_floor:
             reason = (
@@ -561,125 +462,42 @@ def step3_alpha_leader(ctx: RunContext, broker: BrokerClient) -> Dict[str, float
             continue
         underweight.append(sym)
 
+    # Rank the qualifying candidates by Momentum_Score descending — the fill order.
+    underweight.sort(key=lambda s: ctx.momentum_scores[s].score, reverse=True)
+
     def _gap(sym: str) -> float:
         dr = ctx.drift_results[sym]
         return max(0.0, dr.target_percentage / 100 * ctx.account_balance - dr.market_value)
 
-    def _momentum_weighted_split(candidates: List[str], pool_dollars: float) -> Dict[str, float]:
-        """Splits `pool_dollars` across `candidates` weighted by each one's Momentum_Score,
-        normalized so the LOWEST-scoring qualifying candidate maps to 0 (e.g. scores +17/+14/+7/-2
-        normalize to 19/16/9/0), then weighted by that normalized score divided by the normalized
-        set's standard deviation. (Dividing every candidate by the same shared stdev doesn't
-        change the RATIOS between them — the resulting split is proportional to the normalized
-        scores themselves; the stdev term standardizes the units without altering the outcome.)
-
-        A candidate whose RAW (un-normalized) Momentum_Score is negative is additionally capped
-        at the pro-rata share its own portfolio_targets.json `weight` field would give it among
-        the qualifying set — so a name with genuinely negative momentum never gets a
-        momentum-boosted allocation, only ever the same modest weight-proportional share it would
-        get regardless of momentum.
-
-        Every candidate's share is ALSO capped at its own `_headroom()` — the per-asset
-        `max_allocation_percent` (else the global `max_portfolio_percentage`) — so a candidate
-        that happens to be the only (or dominant) qualifier for a large leftover cash pool can't
-        be driven past its own concentration cap just because nobody else was eligible to absorb
-        the rest of the pool. This is what keeps a single Underweight symbol from swallowing the
-        entire `remaining_for_underweight` pool the way the Alpha Leader's allocation was already
-        capped — the sector-concentration pass at the end of this function is a separate,
-        additional check on top of this per-asset one, not a substitute for it.
-
-        Capped-away dollars (from either cap) are NOT redistributed to other candidates — same
-        "no re-allocation" principle CLAUDE.md already applies when a downstream gate (e.g.
-        buy_price_diff_limit) drops a candidate after Step 3 has sized it."""
-        if not candidates or pool_dollars <= 0:
-            return {}
-        scores = {s: ctx.momentum_scores[s].score for s in candidates}
-        min_score = min(scores.values())
-        normalized = {s: scores[s] - min_score for s in candidates}
-        if len(candidates) >= 2 and len(set(normalized.values())) > 1:
-            stdev = statistics.stdev(normalized.values())
-            weights = {s: normalized[s] / stdev for s in candidates}
-        else:
-            # A single qualifying candidate, or every one tied on Momentum_Score -> no dispersion
-            # to weight by (stdev would be 0 or undefined) -> split evenly instead.
-            weights = {s: 1.0 for s in candidates}
-        total_weight = sum(weights.values())
-
-        weight_field_sum = sum(cfg.targets[s].weight for s in candidates)
-        result: Dict[str, float] = {}
-        for s in candidates:
-            share = pool_dollars * weights[s] / total_weight
-            if scores[s] < 0 and weight_field_sum > 0:
-                cap = pool_dollars * (cfg.targets[s].weight / weight_field_sum)
-                share = min(share, cap)
-            share = min(share, _headroom(s))
-            result[s] = share
-        return result
-
+    # --- Top-down full fills: walk the ranking, giving each candidate its FULL drift gap
+    # (capped by its own per-asset headroom) out of whatever deployable cash remains. Not
+    # pro-rated: a higher-momentum candidate is fully funded before the next one gets anything,
+    # and once cash runs out every remaining candidate simply waits for a future cycle.
     allocations: Dict[str, float] = {}
-    alpha_harvest_needed = 0.0
-    if ctx.alpha_leader is not None:
-        if ctx.alpha_leader == ctx.top_momentum_symbol:
-            allocations[ctx.alpha_leader] = ctx.alpha_leader_reserve_target
-        else:
-            # Fallback candidate found by the cascade: bought using its OWN raw target +
-            # multiplier, capped by its own headroom, and additionally capped so it never
-            # draws more than what was reserved for the Top Momentum Symbol — the fallback
-            # spends out of that same pot, which is why the reserve SHRINKS (see
-            # resolve_alpha_leader_reserve) rather than staying untouched.
-            desired = raw_alpha_target + multiplier_cash
-            capped = max(
-                0.0, min(desired, _headroom(ctx.alpha_leader), ctx.alpha_leader_reserve_target)
-            )
-            # Rank haircut (alpha_rank_reduction_percent): Rank 1 is the Top Momentum Symbol
-            # itself, so a fallback landed on by the cascade is always Rank 2 or lower and
-            # always takes at least some reduction — applied last, after every other cap.
-            rank = ranked.index(ctx.alpha_leader) + 1
-            rank_multiplier = max(
-                0.0, 1 - (rank - 1) * cfg.meta.alpha_rank_reduction_percent / 100
-            )
-            allocations[ctx.alpha_leader] = capped * rank_multiplier
-        # raw_alpha_target is real, already-available cash (base_deployable_cash's own
-        # carve-out); only the multiplier portion — capped along with everything else — must
-        # be harvested via Overweight trims.
-        cash_fundable = min(allocations[ctx.alpha_leader], raw_alpha_target)
-        alpha_harvest_needed = max(0.0, allocations[ctx.alpha_leader] - cash_fundable)
-    # else: no candidate down to alpha_leader_least_momentum_score cleared the buy-guard this
-    # cycle — nothing allocated, no multiplier harvest requested; the full
-    # alpha_leader_reserve_target stays reserved (see resolve_alpha_leader_reserve).
-
-    total_gap = sum(_gap(s) for s in underweight)
-    underweight_harvest_needed = 0.0
-    if total_gap > remaining_for_underweight:
-        # Cash alone can't close every qualifying Underweight gap in aggregate -> the shortfall
-        # (harvested via Overweight trims below) still targets closing the FULL total_gap, but
-        # the resulting ask is distributed across candidates by normalized-Momentum_Score weight
-        # (_momentum_weighted_split above) rather than each symbol's own gap size — some
-        # candidates may end up asked for more or less than their individual gap, but the total
-        # ask still sums to total_gap, so the harvest-shortfall math below is unaffected.
-        for sym, dollars in _momentum_weighted_split(underweight, total_gap).items():
-            allocations[sym] = allocations.get(sym, 0.0) + dollars
-        underweight_harvest_needed = total_gap - remaining_for_underweight
-    elif total_gap > 0 and remaining_for_underweight > 0:
-        # Cash is abundant enough to close every gap (and then some) -> deploy the FULL
-        # remaining_for_underweight pool (CLAUDE.md Step 7: keep cash lean, close to
-        # min_cash_target), distributed by normalized-Momentum_Score weight rather than gap size.
-        for sym, dollars in _momentum_weighted_split(underweight, remaining_for_underweight).items():
-            allocations[sym] = allocations.get(sym, 0.0) + dollars
-
-    ctx.harvest_needed_dollars = alpha_harvest_needed + underweight_harvest_needed
+    remaining_cash = base_deployable_cash
+    for sym in underweight:
+        ask = min(_gap(sym), _headroom(sym))
+        if ask <= 0:
+            continue  # gap already closed, or no headroom under the per-asset cap
+        if remaining_cash <= 1e-9:
+            ctx.skipped.append(SkippedTrade(
+                sym,
+                "deployable cash exhausted by higher-ranked (higher Momentum_Score) "
+                "Underweight fills",
+                "Underweight buy",
+            ))
+            continue
+        dollars = min(ask, remaining_cash)
+        allocations[sym] = dollars
+        remaining_cash -= dollars
 
     # --- Sector/theme concentration cap (max_sector_percentage) — final pass over the complete
-    # allocations dict, so it uniformly covers both the Alpha allocation and every Underweight
-    # allocation regardless of which pot the dollars came from. For each sector_groups member
-    # group whose PROJECTED total (current market value + everything planned above) would exceed
-    # max_sector_percentage of account_balance, scale every member's planned dollars down
-    # proportionally so the group's projected total lands exactly at the cap. Symbols in no group
-    # are entirely unaffected. Mirrors Step 6's existing hard-cap proportional-scaling pattern;
-    # like that mechanism, this can leave harvest_needed_dollars (computed just above, before this
-    # scale-down) sized larger than what actually gets spent — the surplus simply isn't harvested
-    # down again here, it just stays as unspent cash, same graceful-degradation behavior as any
-    # other funding shortfall/overshoot in this pipeline.
+    # allocations dict. For each sector_groups member group whose PROJECTED total (current market
+    # value + everything planned above) would exceed the group's cap percentage of
+    # account_balance, scale every member's planned dollars down proportionally so the group's
+    # projected total lands exactly at the cap. Symbols in no group are entirely unaffected.
+    # Capped-away dollars are NOT redistributed to other groups or candidates — the money simply
+    # isn't spent this cycle, the same graceful-degradation behavior as any other downstream gate.
     for group, sector in cfg.sector_groups.items():
         cap_pct = cfg.sector_cap_percentage(group)  # group's own maxPercentage override, else global
         if cap_pct <= 0:
@@ -705,19 +523,18 @@ def step3_alpha_leader(ctx: RunContext, broker: BrokerClient) -> Dict[str, float
 
 
 # ============================================================================================
-# Step 4 — Evaluate Aggressive Profit-Taking & Reallocation
+# Step 4 — Evaluate Aggressive Profit-Taking (GET THE PROFITS — the only routine sell mechanism)
 # ============================================================================================
 
 def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
     cfg = ctx.config
-    fired_today: set = set()
     hist_start, hist_end = _price_change_window(ctx.current_date)
 
     for sym, pos in ctx.positions.items():
         if sym not in cfg.targets or pos.quantity <= 0 or pos.avg_cost_basis is None:
             continue  # not a target, not held, or cost basis unresolved (fail closed)
         if sym in ctx.blocked_symbols:
-            continue  # blocked -> exempt from GET THE PROFITS / Momentum Reversal Trim too;
+            continue  # blocked -> exempt from GET THE PROFITS too;
                        # a forceSell+held exception is liquidated separately via blocked_liquidations
 
         st = ctx.price_state.get(sym, AssetPriceState())
@@ -731,7 +548,7 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
         # the lots are chosen: place_equity_order rejects any tax_lots order whose top-level
         # quantity is fractional, and every possible sell target from a <1-share position is
         # fractional by definition. round_sell_quantity would floor this to 0 every time (see its
-        # docstring), permanently blocking GET THE PROFITS / Momentum Reversal Trim on this
+        # docstring), permanently blocking GET THE PROFITS on this
         # position even though Robinhood happily sells fractional quantities on an ORDINARY
         # (non-specified-lot) order. Fall back to that instead: size the sale in raw fractional
         # shares (uncapped by whole-share rounding), and — down in the TradeIntent construction
@@ -804,8 +621,8 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
             and (ctx.current_date - _parse_date(st.profitSellDate)).days < cfg.meta.profit_resell_cooldown_days
         )
 
-        # v2.70.0/2.72.0: selling_price_change — additional mandatory guard for GET THE PROFITS
-        # and Momentum Reversal Trim, independent of cooldown_blocks above. Compares the most
+        # v2.70.0/2.72.0: selling_price_change — additional mandatory guard for GET THE PROFITS,
+        # independent of cooldown_blocks above. Compares the most
         # recent stored close (price_history/daily_bars.json, cache trails one session) against
         # the live current price, as a percentage of the live current price — same basis as the
         # Step 2 buy-guard's leg1/leg2/leg3_price_change. The sale is only allowed to fire when
@@ -871,319 +688,36 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
                 elif _sell_price_target_blocked(ctx, sym, price, "partial profit-take sale"):
                     pass  # target_price_to_sell overrides GTP too — "any means" — already logged
                 else:
-                    # Extra dollar-profit floor when the candidate is the CURRENT Alpha Leader —
-                    # protects it from being sold too cheaply just because a routine sell gate
-                    # cleared. Checked against the same FIFO-matched realized dollar figure the
-                    # mechanism's own dollar gate uses (not the raw percentage) — independent of,
-                    # and typically stricter than, materialize_profit_in_dollars.
-                    alpha_leader_guard_blocks = (
-                        sym == ctx.alpha_leader
-                        and fifo.realized_profit_dollars < cfg.meta.minimum_alpha_leader_sell_profit
-                    )
-                    if alpha_leader_guard_blocks:
-                        ctx.skipped.append(SkippedTrade(
-                            sym,
-                            f"GTP gates clear (FIFO ${fifo.realized_profit_dollars:.2f}) but Alpha Leader sell "
-                            f"guard blocks (needs >= ${cfg.meta.minimum_alpha_leader_sell_profit:.2f})",
-                            "partial profit-take sale",
-                        ))
-                    else:
-                        reason = f"GET THE PROFITS: +{raw_gain_pct:.2f}%, FIFO ${fifo.realized_profit_dollars:.2f}"
-                        if fractional_position:
-                            reason += (" (ordinary order — sub-whole-share position, Robinhood "
-                                        "default lot matching; FIFO figure is an estimate)")
-                        ctx.profit_taking_sells.append(TradeIntent(
-                            symbol=sym, side="sell", quantity=sell_qty, reason=reason,
-                            tax_lots=None if fractional_position else
-                                [{"open_lot_id": l["open_lot_id"], "quantity": l["quantity"]} for l in fifo.lots_consumed],
-                            realized_profit_dollars=fifo.realized_profit_dollars,
-                            raw_gain_pct=raw_gain_pct,
-                        ))
-                        if fifo.realized_profit_dollars <= 0:
-                            # Defensive backstop — unreachable given the guard above, but keeps
-                            # the wash-sale forward buy-guard armed correctly if this invariant is
-                            # ever loosened by a future change.
-                            ctx.loss_sale_symbols.append(sym)
-                        fired_today.add(sym)
-                        continue  # GTP is exclusive with MRT for the same symbol/cycle
-
-        # --- MOMENTUM REVERSAL TRIM (independent of GTP; one shared same-day guard) ---
-        # v2.64.0: the margin-percent gate and dollar gate are OR'd, not AND'd — either one
-        # clearing its own bar is enough, same restructuring as GET THE PROFITS above. The
-        # downtrend condition (Momentum_Score <= momentum_reversal_threshold) is untouched and
-        # still required — this only changes how the profitability side of the gate combines.
-        mscore = ctx.momentum_scores.get(sym)
-        downtrend_confirmed = mscore is not None and mscore.score <= cfg.meta.momentum_reversal_threshold
-        if sym not in fired_today and not already_today and downtrend_confirmed:
-            fifo = fifo_realized_profit(broker.get_tax_lots(ctx.account_number, sym), sell_qty, price)
-            margin_gate_passes = raw_gain_pct >= cfg.meta.momentum_reversal_minimum_profit_margin_percent
-            dollar_gate_passes = fifo.fully_covered and fifo.realized_profit_dollars > cfg.meta.momentum_reversal_minimum_profit_dollars
-            if margin_gate_passes or dollar_gate_passes:
-                # v2.66.0: same FIFO-vs-blended-average gap as GET THE PROFITS above — require
-                # the true FIFO-matched dollar figure to be positive unconditionally before firing,
-                # regardless of which gate (margin or dollar) actually passed.
-                if not fifo.fully_covered:
-                    ctx.skipped.append(SkippedTrade(
-                        sym,
-                        "cost basis pending transfer on required lots (fail-closed)",
-                        "partial profit-take sale",
+                    reason = f"GET THE PROFITS: +{raw_gain_pct:.2f}%, FIFO ${fifo.realized_profit_dollars:.2f}"
+                    if fractional_position:
+                        reason += (" (ordinary order — sub-whole-share position, Robinhood "
+                                    "default lot matching; FIFO figure is an estimate)")
+                    ctx.profit_taking_sells.append(TradeIntent(
+                        symbol=sym, side="sell", quantity=sell_qty, reason=reason,
+                        tax_lots=None if fractional_position else
+                            [{"open_lot_id": l["open_lot_id"], "quantity": l["quantity"]} for l in fifo.lots_consumed],
+                        realized_profit_dollars=fifo.realized_profit_dollars,
+                        raw_gain_pct=raw_gain_pct,
                     ))
-                elif fifo.realized_profit_dollars <= 0:
-                    ctx.skipped.append(SkippedTrade(
-                        sym,
-                        f"MRT gate clears on blended-average (score {mscore.score:.2f}, +{raw_gain_pct:.2f}%) "
-                        f"but the FIFO-matched lots actually being sold would realize "
-                        f"${fifo.realized_profit_dollars:.2f} (not a real profit) — refusing to sell at a loss",
-                        "partial profit-take sale",
-                    ))
-                elif cooldown_blocks:
-                    ctx.skipped.append(SkippedTrade(
-                        sym, f"MRT gate clears (score {mscore.score:.2f}, +{raw_gain_pct:.2f}% / "
-                             f"FIFO ${fifo.realized_profit_dollars:.2f}) but profit_resell_cooldown_days active",
-                        "partial profit-take sale",
-                    ))
-                elif sell_price_guard_blocks:
-                    ctx.skipped.append(SkippedTrade(
-                        sym, f"MRT gate clears (score {mscore.score:.2f}, +{raw_gain_pct:.2f}% / "
-                             f"FIFO ${fifo.realized_profit_dollars:.2f}) but selling_price_change guard active "
-                             f"(price hasn't turned back up)",
-                        "partial profit-take sale",
-                    ))
-                elif _sell_price_target_blocked(ctx, sym, price, "partial profit-take sale"):
-                    pass  # target_price_to_sell overrides MRT too — "any means" — already logged
-                else:
-                    alpha_leader_guard_blocks = (
-                        sym == ctx.alpha_leader
-                        and fifo.realized_profit_dollars < cfg.meta.minimum_alpha_leader_sell_profit
-                    )
-                    if alpha_leader_guard_blocks:
-                        ctx.skipped.append(SkippedTrade(
-                            sym,
-                            f"MRT gates clear (FIFO ${fifo.realized_profit_dollars:.2f}) but Alpha Leader sell "
-                            f"guard blocks (needs >= ${cfg.meta.minimum_alpha_leader_sell_profit:.2f})",
-                            "partial profit-take sale",
-                        ))
-                    else:
-                        reason = f"MOMENTUM REVERSAL TRIM: score {mscore.score:.2f}, FIFO ${fifo.realized_profit_dollars:.2f}"
-                        if fractional_position:
-                            reason += (" (ordinary order — sub-whole-share position, Robinhood "
-                                        "default lot matching; FIFO figure is an estimate)")
-                        ctx.profit_taking_sells.append(TradeIntent(
-                            symbol=sym, side="sell", quantity=sell_qty, reason=reason,
-                            tax_lots=None if fractional_position else
-                                [{"open_lot_id": l["open_lot_id"], "quantity": l["quantity"]} for l in fifo.lots_consumed],
-                            realized_profit_dollars=fifo.realized_profit_dollars,
-                            raw_gain_pct=raw_gain_pct,
-                        ))
-                        if fifo.realized_profit_dollars <= 0:
-                            # Defensive backstop — unreachable given the guard above, but keeps
-                            # the wash-sale forward buy-guard armed correctly if this invariant is
-                            # ever loosened by a future change.
-                            ctx.loss_sale_symbols.append(sym)
-                        fired_today.add(sym)
-
-    # --- Overweight High-Beta ranking (routine, non-mandatory trim source) ---
-    already_sold = {t.symbol for t in ctx.profit_taking_sells}
-    candidates = []
-    for sym, dr in ctx.drift_results.items():
-        if not (
-            sym in cfg.targets and dr.breached and dr.is_overweight
-            and sym not in already_sold and sym not in ctx.blocked_symbols
-        ):
-            continue
-        # target_price_to_sell filters candidates out BEFORE forceSell is even considered below —
-        # "by any means" includes a forceSell-driven trim, not just a routine one.
-        if _sell_price_target_blocked(
-            ctx, sym, ctx.quotes[sym].last_trade_price, "Overweight trim to fund Underweight/Multiplier"
-        ):
-            continue
-        candidates.append(sym)
-
-    bench = cfg.meta.beta_benchmark_symbol
-    lb = cfg.meta.beta_calculation_lookback_days
-    end = ctx.current_date - timedelta(days=1)
-    start = end - timedelta(days=int(lb * 1.6))
-    bench_closes = broker.get_daily_closes(bench, start, end)
-    bench_returns = daily_returns(bench_closes)
-
-    ranked: List[TradeIntent] = []
-    for sym in candidates:
-        pos = ctx.positions[sym]
-        st = ctx.price_state.get(sym, AssetPriceState())
-        price = ctx.quotes[sym].last_trade_price
-
-        if pos.avg_cost_basis is None:
-            ctx.skipped.append(SkippedTrade(
-                sym, "cost basis pending transfer (fail-closed)", "Overweight trim",
-            ))
-            continue
-
-        lp_date = _parse_date(st.lastPurchaseDate)
-        locked_in = lp_date is not None and (ctx.current_date - lp_date).days <= cfg.meta.lock_in_period
-        if locked_in and sym not in ctx.drawdown_liquidations:
-            ctx.skipped.append(SkippedTrade(sym, f"within lock_in_period ({cfg.meta.lock_in_period}d)", "Overweight trim"))
-            continue
-
-        # overweight_sell_minimum_profit_margin_percent/_dollars are OR'd (v2.64.0), not AND'd —
-        # either clearing its own bar is enough. Overweight-trim sizing isn't determined until
-        # later (Step 6 harvests only as much as Underweight/Alpha buys actually need), so at
-        # ranking time the best available estimate for the dollar leg is the FULL held position's
-        # unrealized dollar gain — the ceiling on what this trim could ever realize (same estimate
-        # minimum_alpha_leader_sell_profit below reuses).
-        margin_pct = (price - pos.avg_cost_basis) / pos.avg_cost_basis * 100
-        unrealized_dollars = (price - pos.avg_cost_basis) * pos.quantity
-        margin_gate_passes = margin_pct >= cfg.meta.overweight_sell_minimum_profit_margin_percent
-        dollar_gate_passes = unrealized_dollars >= cfg.meta.overweight_sell_minimum_profit_margin_dollars
-        if not (margin_gate_passes or dollar_gate_passes) and not cfg.force_sell_active(sym, price):
-            if sym in cfg.force_sell:
-                trigger = cfg.force_sell[sym].trigger_price
-                reason = (
-                    f"underwater ({margin_pct:.2f}% margin, est. ${unrealized_dollars:.2f}); forceSell trigger "
-                    f"not yet met (needs price > ${trigger:,.2f}, currently ${price:,.2f})"
-                )
-            else:
-                reason = f"underwater ({margin_pct:.2f}% margin, est. ${unrealized_dollars:.2f}) and not in forceSell"
-            ctx.skipped.append(SkippedTrade(sym, reason, "Overweight trim to fund Underweight/Multiplier"))
-            continue
-
-        # minimum_alpha_leader_sell_profit is a DOLLAR floor — independent of, and stacked on top
-        # of, the margin/dollar gate above (reuses the same unrealized_dollars estimate).
-        if (
-            sym == ctx.alpha_leader
-            and unrealized_dollars < cfg.meta.minimum_alpha_leader_sell_profit
-            and not cfg.force_sell_active(sym, price)
-        ):
-            ctx.skipped.append(SkippedTrade(
-                sym,
-                f"Alpha Leader sell guard blocks Overweight trim (est. unrealized ${unrealized_dollars:.2f} < "
-                f"minimum_alpha_leader_sell_profit ${cfg.meta.minimum_alpha_leader_sell_profit:.2f})",
-                "Overweight trim to fund Underweight/Multiplier",
-            ))
-            continue
-
-        asset_closes = broker.get_daily_closes(sym, start, end)
-        asset_returns = daily_returns(asset_closes)
-        n = min(len(asset_returns), len(bench_returns))
-        b = beta(asset_returns[-n:], bench_returns[-n:]) if n >= 2 else 0.0
-        score = margin_pct * b
-        ranked.append(TradeIntent(
-            symbol=sym, side="sell", reason=f"Overweight High-Beta trim (score {score:.2f})",
-            beta=b, raw_gain_pct=margin_pct,
-        ))
-
-    ranked.sort(key=lambda t: (t.raw_gain_pct or 0.0) * (t.beta or 0.0), reverse=True)
-    ctx.overweight_trims = _size_overweight_trims(ctx, broker, ranked)
+                    if fifo.realized_profit_dollars <= 0:
+                        # Defensive backstop — unreachable given the guard above, but keeps
+                        # the wash-sale forward buy-guard armed correctly if this invariant is
+                        # ever loosened by a future change.
+                        ctx.loss_sale_symbols.append(sym)
 
     ctx.total_high_beta_gains_realized = sum(
-        t.realized_profit_dollars or 0.0 for t in ctx.profit_taking_sells + ctx.overweight_trims
+        t.realized_profit_dollars or 0.0 for t in ctx.profit_taking_sells
     )
-
-
-def _size_overweight_trims(
-    ctx: RunContext, broker: BrokerClient, ranked: List[TradeIntent]
-) -> List[TradeIntent]:
-    """Sizes the already-ranked, already-gate-filtered Overweight High-Beta candidates to harvest
-    exactly `ctx.harvest_needed_dollars` (CLAUDE.md Step 3: the cash shortfall between the Alpha
-    Leader's multiplier injection + fully-closed Underweight targets, and what
-    `base_deployable_cash` alone can fund). Walks the ranking top-down — highest High-Beta score
-    first — trimming each candidate toward its own target weight (its "overweight excess") until
-    the shortfall is covered or candidates run out. Every sell guard (`lock_in_period`,
-    `overweight_sell_minimum_profit_margin_percent`/`overweight_sell_minimum_profit_margin_dollars`
-    (OR'd)/`forceSell`, `minimum_alpha_leader_sell_profit`)
-    was already applied by the caller's ranking loop before a candidate ever reaches `ranked` —
-    harvesting only decides HOW MUCH of an already-qualified candidate to sell, never bypasses
-    those guards. Mirrors GET THE PROFITS/Momentum Reversal Trim's whole-share rounding,
-    sub-whole-share ordinary-order fallback, and FIFO fail-closed handling."""
-    remaining_harvest = max(0.0, ctx.harvest_needed_dollars)
-    sized: List[TradeIntent] = []
-
-    for intent in ranked:
-        sym = intent.symbol
-        if remaining_harvest <= 1e-9:
-            ctx.skipped.append(SkippedTrade(
-                sym, "ranked as Overweight trim candidate but no harvest shortfall remains this cycle",
-                "Overweight trim",
-            ))
-            continue
-
-        pos = ctx.positions[sym]
-        price = ctx.quotes[sym].last_trade_price
-        dr = ctx.drift_results[sym]
-        target_mv = dr.target_percentage / 100 * ctx.account_balance
-        max_trim_dollars = max(0.0, dr.market_value - target_mv)
-        if max_trim_dollars <= 0:
-            ctx.skipped.append(SkippedTrade(sym, "already at or below target weight", "Overweight trim"))
-            continue
-
-        trim_dollars = min(remaining_harvest, max_trim_dollars)
-        whole_shares_held = math.floor(pos.quantity + 1e-9)
-        fractional_position = whole_shares_held == 0
-        raw_qty = trim_dollars / price
-        sell_qty = (
-            min(pos.quantity, raw_qty) if fractional_position
-            else round_sell_quantity(raw_qty, pos.quantity)
-        )
-        if sell_qty <= 0:
-            ctx.skipped.append(SkippedTrade(sym, "harvest slice rounds to 0 whole shares", "Overweight trim"))
-            continue
-
-        lots = broker.get_tax_lots(ctx.account_number, sym)
-        fifo = fifo_realized_profit(lots, sell_qty, price)
-        if not fifo.fully_covered:
-            ctx.skipped.append(SkippedTrade(
-                sym, "cost basis pending transfer on required lots (fail-closed)", "Overweight trim",
-            ))
-            continue
-
-        # Wash-sale guard (backward-looking): a NEGATIVE FIFO result here can only happen when
-        # forceSell overrode the overweight_sell_minimum_profit_margin_percent gate up in the
-        # caller's ranking loop (routine trims are gated to profit-only) — check whether ANY lot
-        # of this symbol (not just the ones this specific sale would consume; the IRS rule cares
-        # about ANY substantially-identical purchase in the window, not which shares are sold)
-        # was opened within wash_sale_lookback_days days. If so, skip this loss sale entirely
-        # rather than lock in a disallowed loss.
-        if fifo.realized_profit_dollars < 0:
-            wash_window_start = ctx.current_date - timedelta(days=ctx.config.meta.wash_sale_lookback_days)
-            recent_purchase = any(lot.open_date >= wash_window_start for lot in lots)
-            if recent_purchase:
-                ctx.skipped.append(SkippedTrade(
-                    sym,
-                    f"wash sale guard: FIFO loss (${fifo.realized_profit_dollars:.2f}) with a lot "
-                    f"opened within the last {ctx.config.meta.wash_sale_lookback_days}d",
-                    "Overweight trim",
-                ))
-                continue
-            ctx.loss_sale_symbols.append(sym)  # no recent purchase -> safe to sell; arms the
-                                                # forward buy-guard so we don't repurchase into one
-
-        actual_dollars = sell_qty * price
-        score = (intent.raw_gain_pct or 0.0) * (intent.beta or 0.0)
-        reason = f"Overweight High-Beta trim (score {score:.2f}), harvesting ${actual_dollars:.2f}"
-        if fractional_position:
-            reason += (" (ordinary order — sub-whole-share position, Robinhood "
-                        "default lot matching; FIFO figure is an estimate)")
-        sized.append(TradeIntent(
-            symbol=sym, side="sell", quantity=sell_qty, reason=reason,
-            tax_lots=None if fractional_position else
-                [{"open_lot_id": l["open_lot_id"], "quantity": l["quantity"]} for l in fifo.lots_consumed],
-            realized_profit_dollars=fifo.realized_profit_dollars,
-            beta=intent.beta, raw_gain_pct=intent.raw_gain_pct,
-        ))
-        remaining_harvest -= actual_dollars
-
-    return sized
-
-
 # ============================================================================================
 # Step 5 — Price Limit & Volatility Halts
 # ============================================================================================
 
 def step5_price_limits(ctx: RunContext, broker: BrokerClient, buy_candidates: Dict[str, float]) -> Dict[str, float]:
-    """sell_price_diff_limit only exempts ROUTINE Overweight drift-selling (not the mandatory
-    GET THE PROFITS / Momentum Reversal Trim sales, already placed into ctx.profit_taking_sells
-    and untouched here). buy_price_diff_limit and 52_week_high_guard both apply to every planned
-    buy (Underweight AND Alpha allocation alike — this dict is the merged Step 3 output, so
-    there's no symbol-type-specific logic needed here, same as buy_price_diff_limit)."""
+    """buy_price_diff_limit and 52_week_high_guard both apply to every planned buy (the Step 3
+    Underweight fills). sell_price_diff_limit is retained as a parameter but has no applicable
+    sell path anymore: it only ever exempted ROUTINE Overweight drift-selling, a mechanism that
+    no longer exists — GET THE PROFITS sales (ctx.profit_taking_sells) were always exempt from
+    it and remain untouched here."""
     cfg = ctx.config
     n_days = cfg.meta.no_of_days_for_price_compare
     end = ctx.current_date - timedelta(days=1)
@@ -1201,15 +735,13 @@ def step5_price_limits(ctx: RunContext, broker: BrokerClient, buy_candidates: Di
                 ctx.skipped.append(SkippedTrade(
                     sym, f"buy_price_diff_limit: +{pump_pct:.2f}% vs. {n_days}-day low "
                          f"(limit {cfg.meta.buy_price_diff_limit}%)",
-                    "Underweight/Alpha buy",
+                    "Underweight buy",
                 ))
                 continue
 
         # 52_week_high_guard: blocks chasing a symbol already trading near its 52-week high, by
-        # ANY means (Underweight or Alpha allocation alike, since this is the same merged buy
-        # dict). Missing 52-week-high data fails OPEN (allows the buy) — same posture as the
-        # buy_price_diff_limit/sell_price_diff_limit checks in this function when historical
-        # data is unavailable.
+        # ANY means. Missing 52-week-high data fails OPEN (allows the buy) — same posture as the
+        # buy_price_diff_limit check in this function when historical data is unavailable.
         high_52w = broker.get_fifty_two_week_high(sym)
         if high_52w:
             pct_of_high = price / high_52w * 100
@@ -1217,29 +749,11 @@ def step5_price_limits(ctx: RunContext, broker: BrokerClient, buy_candidates: Di
                 ctx.skipped.append(SkippedTrade(
                     sym, f"52_week_high_guard: price ${price:,.2f} is {pct_of_high:.2f}% of "
                          f"52-week high ${high_52w:,.2f} (limit {cfg.meta.fifty_two_week_high_guard}%)",
-                    "Underweight/Alpha buy",
+                    "Underweight buy",
                 ))
                 continue
 
         filtered_buys[sym] = dollars
-
-    kept_trims: List[TradeIntent] = []
-    for intent in ctx.overweight_trims:
-        bars = broker.get_daily_lows_highs(intent.symbol, start, end)[-n_days:]
-        price = ctx.quotes[intent.symbol].last_trade_price
-        if not bars:
-            kept_trims.append(intent)
-            continue
-        high_n = max(h for _, h in bars)
-        crash_pct = (high_n - price) / high_n * 100
-        if crash_pct > cfg.meta.sell_price_diff_limit:
-            ctx.skipped.append(SkippedTrade(
-                intent.symbol, f"sell_price_diff_limit: -{crash_pct:.2f}% vs. {n_days}-day high",
-                "Overweight trim",
-            ))
-        else:
-            kept_trims.append(intent)
-    ctx.overweight_trims = kept_trims
 
     return filtered_buys
 
@@ -1264,10 +778,8 @@ def _selling_symbols(ctx: RunContext) -> set:
     per-trade seek_approval_value check."""
     return (
         {t.symbol for t in ctx.profit_taking_sells}
-        | {t.symbol for t in ctx.overweight_trims}
         | set(ctx.drawdown_liquidations)
         | set(ctx.blocked_liquidations)
-        | set(ctx.fresh_alpha_leader_liquidations)
     )
 
 
@@ -1275,7 +787,7 @@ def step6a_prepare_sells(
     ctx: RunContext, planned_buys: Optional[Dict[str, float]] = None
 ) -> tuple[List[TradeIntent], bool, Optional[str]]:
     """Builds the final sell order list (drawdown liquidations + blocked+forceSell liquidations +
-    GET THE PROFITS/Momentum Reversal Trim + Overweight High-Beta trims), applies
+    GET THE PROFITS sales), applies
     sell_or_buy_value_limit, and checks the seek_approval_value halt — evaluated PER INDIVIDUAL
     TRADE (each planned sell, and each planned buy in `planned_buys`), not the old aggregate
     "sum of all sells this cycle" total: a single oversized trade now halts the cycle even if
@@ -1309,15 +821,7 @@ def step6a_prepare_sells(
                     reason="Blocked + forceSell: liquidating full position (100%)")
         for sym in ctx.blocked_liquidations if sym in ctx.positions
     ]
-    fresh_alpha_leader_liquidations = [
-        TradeIntent(symbol=sym, side="sell", quantity=ctx.positions[sym].quantity,
-                    reason="Fresh Alpha Leader Stop: emergency liquidation (100%)")
-        for sym in ctx.fresh_alpha_leader_liquidations if sym in ctx.positions
-    ]
-    all_sells = (
-        liquidations + blocked_liquidations + fresh_alpha_leader_liquidations
-        + ctx.profit_taking_sells + ctx.overweight_trims
-    )
+    all_sells = liquidations + blocked_liquidations + ctx.profit_taking_sells
 
     selling_syms = _selling_symbols(ctx)
     eligible_buys = {
@@ -1356,18 +860,14 @@ def step6a_prepare_sells(
         placed_symbols.add(intent.symbol)
 
     # Keep ctx's per-category sell lists in sync with what actually survived this filter. Before
-    # this, ctx.overweight_trims/ctx.profit_taking_sells/ctx.drawdown_liquidations still held
+    # this, ctx.profit_taking_sells/ctx.drawdown_liquidations still held
     # every ranked/logged candidate regardless of whether it cleared sell_or_buy_value_limit here
     # — which desynced Step 7's journal (its "N sell(s)" header count and per-section listings
     # counted candidates that were actually skipped) and, for drawdown_liquidations specifically,
     # would have made cli.py's _update_peak_prices mark a never-sold symbol as liquidated.
     ctx.drawdown_liquidations = [s for s in ctx.drawdown_liquidations if s in placed_symbols]
     ctx.blocked_liquidations = [s for s in ctx.blocked_liquidations if s in placed_symbols]
-    ctx.fresh_alpha_leader_liquidations = [
-        s for s in ctx.fresh_alpha_leader_liquidations if s in placed_symbols
-    ]
     ctx.profit_taking_sells = [t for t in ctx.profit_taking_sells if t.symbol in placed_symbols]
-    ctx.overweight_trims = [t for t in ctx.overweight_trims if t.symbol in placed_symbols]
 
     return sells_to_place, False, None
 
@@ -1417,32 +917,6 @@ def step6b_finalize_buys(
     return buys
 
 
-def resolve_alpha_leader_reserve(ctx: RunContext) -> Optional[AlphaLeaderReserve]:
-    """CLAUDE.md's Alpha Leader Reserve (Step 3): call once `ctx.buys` is final (i.e. after
-    step6b_finalize_buys has run) to compute the audit record `alpha_reserve.json` should hold
-    for this cycle. `ctx.alpha_leader_reserve_target` (set in step3_alpha_leader) is what the Top
-    Momentum Symbol would have received this cycle; whatever actually got spent buying
-    `ctx.alpha_leader` — finalized only now that Step 6's price-limit halts, hard-cap scaling,
-    and `min_value_of_trade` floor have all had their say — is subtracted from it, so
-    `reserve_cash` reflects the real outcome, not the Step 3 plan. Recalculated from scratch
-    every cycle; nothing here is ever read back in to influence a future cycle (contrast the
-    pre-cascade design). Returns None if there was no Top Momentum Symbol this cycle at all (no
-    in-play symbols) — the caller should leave alpha_reserve.json untouched in that case."""
-    if ctx.top_momentum_symbol is None:
-        return None
-
-    actual_spent = (
-        sum(t.dollar_amount or 0.0 for t in ctx.buys if t.symbol == ctx.alpha_leader)
-        if ctx.alpha_leader is not None else 0.0
-    )
-    return AlphaLeaderReserve(
-        date=ctx.current_date.isoformat(),
-        top_momentum_symbol=ctx.top_momentum_symbol,
-        alpha_leader_symbol=ctx.alpha_leader,
-        reserve_cash=max(0.0, ctx.alpha_leader_reserve_target - actual_spent),
-    )
-
-
 def compute_dormant_assets(ctx: RunContext) -> List[DormantAsset]:
     """CLAUDE.md Step 7's Dormant Assets report — purely observational, never influences any
     buy/sell decision. For every currently-held target asset whose last trading activity (the
@@ -1482,19 +956,18 @@ def _enforce_min_trade_value_buys(
     """CLAUDE.md's `min_value_of_trade` control: every buy that survives should be worth at
     least `min_value_of_trade` dollars. Rather than simply dropping anything under the floor (as
     `sell_or_buy_value_limit` already does for genuinely tiny amounts), a buy that's short of the
-    floor is bumped up to it by borrowing dollars from lower-priority buys — the Alpha Leader buy
-    (if any) is always highest priority, then the rest ranked by their own planned dollar amount
-    descending (a bigger amount reflects a bigger drift gap, i.e. more urgent). Lower-priority
-    buys are drained from the bottom of that ranking first, cascading: a buy drained below its
-    own floor gets its own turn to borrow from whatever is left further down. A buy that still
-    can't reach the floor once every lower-ranked buy is exhausted is dropped (logged to
-    ctx.skipped) rather than placed under-sized; its dollars simply stay wherever they were
-    already redirected to.
+    floor is bumped up to it by borrowing dollars from lower-priority buys — buys rank by their
+    own planned dollar amount descending (a bigger amount reflects a bigger drift gap, i.e. more
+    urgent). Lower-priority buys are drained from the bottom of that ranking first, cascading: a
+    buy drained below its own floor gets its own turn to borrow from whatever is left further
+    down. A buy that still can't reach the floor once every lower-ranked buy is exhausted is
+    dropped (logged to ctx.skipped) rather than placed under-sized; its dollars simply stay
+    wherever they were already redirected to.
     """
     if min_value <= 0 or not planned_buys:
         return planned_buys
 
-    order = sorted(planned_buys, key=lambda s: (s != ctx.alpha_leader, -planned_buys[s]))
+    order = sorted(planned_buys, key=lambda s: -planned_buys[s])
     amounts = dict(planned_buys)
     n = len(order)
     for i, sym in enumerate(order):

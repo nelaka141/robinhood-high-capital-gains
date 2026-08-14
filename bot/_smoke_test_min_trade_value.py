@@ -1,6 +1,6 @@
 """Focused unit-style coverage for the `min_value_of_trade` control (buy-side bump/cascade/drop
 in steps._enforce_min_trade_value_buys, sell-side bump in step4_profit_taking) and the
-Step 7 journal-counter fix (ctx.overweight_trims/profit_taking_sells/drawdown_liquidations only
+Step 7 journal-counter fix (ctx.profit_taking_sells/drawdown_liquidations only
 holding what actually got sold after step6a_prepare_sells). Pure logic tests against the helper
 functions directly — no broker/snapshot plumbing needed.
 
@@ -18,8 +18,7 @@ from bot.steps import _enforce_min_trade_value_buys, round_sell_quantity, step4_
 
 class _TaxLotOnlyBroker:
     """Minimal BrokerClient stub for step4_profit_taking: only get_tax_lots (for the FIFO
-    dollar-gate) and get_daily_closes (unconditionally called once for the beta benchmark in
-    step4's Overweight-ranking tail, even when there are no Overweight candidates) are needed."""
+    dollar-gate) and get_daily_closes (for the selling_price_change guard) are needed."""
 
     def __init__(self, lots: dict):
         self._lots = lots
@@ -34,11 +33,11 @@ class _TaxLotOnlyBroker:
         return [98.0, 98.5, 99.0, 99.5, 100.0]
 
 
-def _minimal_ctx(alpha_leader: str | None = None, targets: dict | None = None) -> RunContext:
+def _minimal_ctx(targets: dict | None = None) -> RunContext:
     meta = PortfolioMetadata(
         global_drift_tolerance=1.0, max_trailing_drawdown_percentage=35,
-        min_recovery_price_percentage=5.0, reinvestment_multiplier_factor=1.25,
-        max_portfolio_percentage=35.0, alpha_cash_allocation_percentage=35.0,
+        min_recovery_price_percentage=5.0,
+        max_portfolio_percentage=35.0,
         min_cash_absolute=250, min_cash_target=500, seek_approval_value=15000,
         sell_price_diff_limit=5, buy_price_diff_limit=5, fifty_two_week_high_guard=1000.0, no_of_days_for_price_compare=3,
         cap_on_total_cash_balance_to_use=30000, cool_down_period_after_lquidation=6,
@@ -46,36 +45,30 @@ def _minimal_ctx(alpha_leader: str | None = None, targets: dict | None = None) -
         sold_asset_repurchase_days=2, leg2_price_change=0.5, leg3_price_change=0.1, leg1_price_change=0.5,
         lock_in_period=2, overweight_sell_minimum_profit_margin_percent=1.0,
         overweight_sell_minimum_profit_margin_dollars=12.5,
-        momentum_reversal_minimum_profit_margin_percent=1.0,
-        momentum_reversal_minimum_profit_dollars=12.5,
         profit_resell_cooldown_days=15,
         selling_price_change=0.1,
         sell_or_buy_value_limit=10, min_value_of_trade=100,
         materialize_profit_percentage=4.0, profit_sell_percentage=50.0,
         materialize_profit_in_dollars=12.5, keep_aside_profits_for_tax_percent=30.0,
-        momentum_lookback_days=5, momentum_reversal_threshold=-10.0,
-        minimum_alpha_leader_sell_profit=5.0, alpha_leader_least_momentum_score=-1000.0,
-        alpha_rank_reduction_percent=10.0,
+        momentum_lookback_days=5,
         min_momentum_score_to_fill_underweight=-1000.0,
-        alpha_leader_fresh_position_days=3, alpha_leader_fresh_drawdown_percentage=15.0,
         max_sector_percentage=0.0,
         wash_sale_lookback_days=0,
         dormant_asset_days=5,
     )
     cfg = PortfolioConfig(meta=meta, targets=targets or {}, force_sell={}, blocked=[])
     ctx = RunContext(current_date=date(2026, 8, 4), config=cfg, account_number="TEST")
-    ctx.alpha_leader = alpha_leader
     return ctx
 
 
 def test_buy_bump_within_budget() -> None:
-    """IBM's own $60 slice is short of the $100 floor. AAPL (Alpha Leader, largest allocation)
-    is protected; MSFT and GOOG rank below IBM (smaller planned amounts) and are drained —
+    """IBM's own $60 slice is short of the $100 floor. AAPL (largest planned amount, highest
+    priority) is untouched; MSFT and GOOG rank below IBM (smaller planned amounts) and are drained —
     GOOG fully ($30), then $10 of MSFT's $45 — to bump IBM up to exactly the floor. MSFT's
     remaining $35 then can't clear the floor on its own turn (nothing left to borrow from) and
     is dropped too, rather than being placed under-sized. Matches the user's own worked example:
     bump the underfunded buy, funded by cutting lower-ranked buys."""
-    ctx = _minimal_ctx(alpha_leader="AAPL")
+    ctx = _minimal_ctx()
     planned = {"AAPL": 500.0, "IBM": 60.0, "MSFT": 45.0, "GOOG": 30.0}
     out = _enforce_min_trade_value_buys(ctx, planned, 100.0)
     assert out == {"AAPL": 500.0, "IBM": 100.0}, out
@@ -88,7 +81,7 @@ def test_buy_bump_within_budget() -> None:
 def test_buy_cascading_drop_when_pool_too_small() -> None:
     """5 buys of $30 each ($150 total) can only fund one $100 buy; the rest cascade-drain to 0
     and get dropped, logged to ctx.skipped."""
-    ctx = _minimal_ctx(alpha_leader=None)
+    ctx = _minimal_ctx()
     planned = {"B1": 30.0, "B2": 30.0, "B3": 30.0, "B4": 30.0, "B5": 30.0}
     out = _enforce_min_trade_value_buys(ctx, planned, 100.0)
     assert list(out.keys()) == ["B1"], out
@@ -97,17 +90,6 @@ def test_buy_cascading_drop_when_pool_too_small() -> None:
     for s in ctx.skipped:
         assert s.would_be_action == "buy"
     print(f"[buy-cascading-drop] survivors={out} skipped={[s.symbol for s in ctx.skipped]}")
-
-
-def test_buy_alpha_leader_always_protected_first() -> None:
-    """Even if the Alpha Leader's own planned dollar amount is small, it is never drained to
-    fund another symbol — it's always processed (and protected) first."""
-    ctx = _minimal_ctx(alpha_leader="TINY")
-    planned = {"TINY": 50.0, "BIG": 500.0}
-    out = _enforce_min_trade_value_buys(ctx, planned, 100.0)
-    assert out["TINY"] == 100.0, out
-    assert out["BIG"] == 450.0, out
-    print(f"[buy-alpha-protected] {out}")
 
 
 def test_buy_noop_when_min_value_zero() -> None:
@@ -162,7 +144,7 @@ def test_sell_bump_capped_at_shares_held() -> None:
 
 
 def test_journal_counter_ctx_filtering() -> None:
-    """Direct check of the step6a fix's contract: ctx.overweight_trims/profit_taking_sells/
+    """Direct check of the step6a fix's contract: ctx.profit_taking_sells/
     drawdown_liquidations must only contain symbols that survived sell_or_buy_value_limit."""
     from bot.models import Quote
 
@@ -171,9 +153,7 @@ def test_journal_counter_ctx_filtering() -> None:
     ctx.positions = {}
     ctx.profit_taking_sells = [
         TradeIntent(symbol="BIG", side="sell", quantity=10, reason="GET THE PROFITS"),
-    ]
-    ctx.overweight_trims = [
-        TradeIntent(symbol="TINY", side="sell", quantity=1, reason="Overweight High-Beta trim"),
+        TradeIntent(symbol="TINY", side="sell", quantity=1, reason="GET THE PROFITS"),
     ]
     ctx.drawdown_liquidations = []
     ctx.config.meta.__dict__  # no-op; meta is frozen, values read directly below
@@ -182,8 +162,8 @@ def test_journal_counter_ctx_filtering() -> None:
     sells_to_place, halted, _ = step6a_prepare_sells(ctx)
     assert not halted
     assert [t.symbol for t in sells_to_place] == ["BIG"]
-    assert [t.symbol for t in ctx.profit_taking_sells] == ["BIG"], ctx.profit_taking_sells
-    assert ctx.overweight_trims == [], "TINY was below sell_or_buy_value_limit and must be dropped from ctx too"
+    assert [t.symbol for t in ctx.profit_taking_sells] == ["BIG"], \
+        "TINY was below sell_or_buy_value_limit and must be dropped from ctx too"
     assert any(s.symbol == "TINY" for s in ctx.skipped)
     print("[journal-counter-fix] ctx sell lists match sells_to_place exactly — OK")
 
@@ -238,7 +218,6 @@ def test_fractional_position_still_skipped_if_unreachable() -> None:
 def main() -> None:
     test_buy_bump_within_budget()
     test_buy_cascading_drop_when_pool_too_small()
-    test_buy_alpha_leader_always_protected_first()
     test_buy_noop_when_min_value_zero()
     test_sell_bump_matches_user_example()
     test_sell_bump_capped_at_shares_held()

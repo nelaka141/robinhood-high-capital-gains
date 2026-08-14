@@ -85,8 +85,7 @@ def render_entry(ctx: RunContext) -> str:
     ts = ctx.current_date.isoformat()
     n_sells = (
         len(ctx.drawdown_liquidations) + len(ctx.blocked_liquidations)
-        + len(ctx.fresh_alpha_leader_liquidations)
-        + len(ctx.profit_taking_sells) + len(ctx.overweight_trims)
+        + len(ctx.profit_taking_sells)
     )
     n_buys = len(ctx.buys)
 
@@ -103,12 +102,6 @@ def render_entry(ctx: RunContext) -> str:
         "",
         "## Drawdown Audit",
         f"Emergency liquidations: {', '.join(ctx.drawdown_liquidations) or 'none'}",
-        "",
-        "## Fresh Alpha Leader Stop",
-        f"Liquidations (bought as Alpha Leader within "
-        f"{ctx.config.meta.alpha_leader_fresh_position_days}d, dropped >= "
-        f"{ctx.config.meta.alpha_leader_fresh_drawdown_percentage:.1f}% from that buy price): "
-        f"{', '.join(ctx.fresh_alpha_leader_liquidations) or 'none'}",
         "",
         "## Excluded / Buy-Guarded Symbols (Step 2)",
     ]
@@ -135,38 +128,15 @@ def render_entry(ctx: RunContext) -> str:
 
     lines += [
         "",
-        "## Alpha Leader Selection — Momentum_Score",
+        "## Underweight Fill Ranking — Momentum_Score",
         "| Symbol | RSI14 | EMA9_now | EMA9_prior | Price_vs_EMA% | EMA_Slope% | Score |",
         "|---|---|---|---|---|---|---|",
     ]
     for sym, m in sorted(ctx.momentum_scores.items(), key=lambda kv: -kv[1].score):
-        tag = ""
-        if sym == ctx.top_momentum_symbol:
-            tag += " ← TOP MOMENTUM"
-        if sym == ctx.alpha_leader:
-            tag += " ← ALPHA LEADER" if sym != ctx.top_momentum_symbol else " (ALPHA LEADER)"
         lines.append(
-            f"| {sym}{tag} | {m.rsi14:.2f} | {m.ema9_now:.2f} | {m.ema9_prior:.2f} | "
+            f"| {sym} | {m.rsi14:.2f} | {m.ema9_now:.2f} | {m.ema9_prior:.2f} | "
             f"{m.price_vs_ema_pct:+.2f} | {m.ema_slope_pct:+.2f} | {m.score:+.2f} |"
         )
-
-    if ctx.top_momentum_symbol is not None and ctx.alpha_leader != ctx.top_momentum_symbol:
-        cascade_note = (
-            f"**Buy-guard cascade:** {ctx.top_momentum_symbol} (Top Momentum) is buy-guarded — "
-            + (
-                f"{ctx.alpha_leader} acted as Alpha Leader instead."
-                if ctx.alpha_leader is not None
-                else "no fallback candidate cleared the buy-guard down to "
-                     f"alpha_leader_least_momentum_score "
-                     f"({ctx.config.meta.alpha_leader_least_momentum_score:.1f}) — no Alpha Leader this cycle."
-            )
-        )
-        lines += ["", cascade_note]
-    lines += [
-        "",
-        f"`Alpha_leader_reserve_cash`: **${ctx.alpha_leader_reserve_cash:,.2f}**"
-        + (f" (reserved for {ctx.top_momentum_symbol})" if ctx.alpha_leader_reserve_cash > 0 else ""),
-    ]
 
     lines += [
         "",
@@ -176,20 +146,14 @@ def render_entry(ctx: RunContext) -> str:
         f"**${(ctx.net_realized_gains_ytd_effective or 0):,.2f}**",
         f"- `tax_reserve` (final): **${ctx.tax_reserve:,.2f}**",
         "",
-        "## GET THE PROFITS / Momentum Reversal Trim Sells",
+        "## GET THE PROFITS Sells",
     ]
     for t in ctx.profit_taking_sells:
         lines.append(f"- **{t.symbol}**: {t.reason}")
     if not ctx.profit_taking_sells:
         lines.append("- none fired this cycle")
 
-    lines += ["", "## Overweight High-Beta Trims"]
-    for t in ctx.overweight_trims:
-        lines.append(f"- **{t.symbol}**: {t.reason}")
-    if not ctx.overweight_trims:
-        lines.append("- none fired this cycle")
-
-    lines += ["", "## Buys"]
+    lines += ["", "## Buys (Underweight fills, momentum-ranked top-down)"]
     for t in ctx.buys:
         lines.append(f"- **{t.symbol}**: ${t.dollar_amount:,.2f}")
     if not ctx.buys:
@@ -242,14 +206,12 @@ def _render_dormant_assets_section(ctx: RunContext) -> List[str]:
 def render_email_summary(ctx: RunContext) -> str:
     n_sells = (
         len(ctx.drawdown_liquidations) + len(ctx.blocked_liquidations)
-        + len(ctx.fresh_alpha_leader_liquidations)
-        + len(ctx.profit_taking_sells) + len(ctx.overweight_trims)
+        + len(ctx.profit_taking_sells)
     )
     return (
         f"Scheduled rebalance {ctx.current_date.isoformat()}: "
         f"{len(ctx.buys)} buy(s), "
         f"{n_sells} sell(s). "
-        f"Alpha Leader: {ctx.alpha_leader or 'n/a'}. "
         f"Total_High_Beta_Gains_Realized: ${ctx.total_high_beta_gains_realized:,.2f}. "
         f"Final buying_power: ${ctx.account_cash:,.2f}. "
         f"Dormant assets (no activity > {ctx.config.meta.dormant_asset_days}d): {len(ctx.dormant_assets)}. "
