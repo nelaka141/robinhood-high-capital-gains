@@ -381,14 +381,7 @@
     }
   },
   "target_price_to_sell": {
-    "FCX": 70.5,
-    "BRK.B": 533.0
   },
   "target_price_to_buy": {
-    "FCX": 67.5,
-    "BRK.B": 520.0,
-    "TQQQ": 68.0,
-    "PLTR": 160,
-    "SPCX": 132
   }
 }
