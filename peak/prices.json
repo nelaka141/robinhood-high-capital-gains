@@ -28,7 +28,7 @@
 		"liquidatedDate": null,
 		"profitSellPrice": 175.3224,
 		"profitSellDate": "2026-08-11",
-		"lastPurchaseDate": "2026-07-30",
+		"lastPurchaseDate": "2026-08-18",
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -292,7 +292,7 @@
 		"liquidatedDate": null,
 		"profitSellPrice": 234.735,
 		"profitSellDate": "2026-08-05",
-		"lastPurchaseDate": "2026-07-30",
+		"lastPurchaseDate": "2026-08-18",
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -352,8 +352,8 @@
 		"lastLossSaleDate": null
 	},
 	"JNJ": {
-		"peakPrice": 261.975,
-		"peakDate": "2026-08-11",
+		"peakPrice": 270.63,
+		"peakDate": "2026-08-18",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 260.84,
@@ -418,8 +418,8 @@
 		"lastLossSaleDate": null
 	},
 	"UNP": {
-		"peakPrice": 300.66,
-		"peakDate": "2026-08-17",
+		"peakPrice": 301.98,
+		"peakDate": "2026-08-18",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 299.71,
@@ -435,7 +435,7 @@
 		"liquidatedDate": null,
 		"profitSellPrice": 114.06,
 		"profitSellDate": "2026-08-12",
-		"lastPurchaseDate": "2026-08-07",
+		"lastPurchaseDate": "2026-08-18",
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -462,8 +462,8 @@
 		"lastLossSaleDate": null
 	},
 	"XOM": {
-		"peakPrice": 161.545,
-		"peakDate": "2026-08-17",
+		"peakPrice": 163.865,
+		"peakDate": "2026-08-18",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 159.73,
@@ -473,8 +473,8 @@
 		"lastLossSaleDate": null
 	},
 	"CVX": {
-		"peakPrice": 202.92,
-		"peakDate": "2026-08-17",
+		"peakPrice": 204.485,
+		"peakDate": "2026-08-18",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 196.32,
@@ -484,8 +484,8 @@
 		"lastLossSaleDate": null
 	},
 	"COP": {
-		"peakPrice": 127.53,
-		"peakDate": "2026-08-17",
+		"peakPrice": 128.28,
+		"peakDate": "2026-08-18",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 125.6775,
@@ -572,8 +572,8 @@
 		"lastLossSaleDate": null
 	},
 	"DUK": {
-		"peakPrice": 125.24,
-		"peakDate": "2026-08-07",
+		"peakPrice": 125.49,
+		"peakDate": "2026-08-18",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": null,
