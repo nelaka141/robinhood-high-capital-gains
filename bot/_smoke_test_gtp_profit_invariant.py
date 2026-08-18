@@ -49,6 +49,9 @@ def _meta(**overrides) -> PortfolioMetadata:
         sell_or_buy_value_limit=1, min_value_of_trade=1,
         materialize_profit_percentage=2.5, profit_sell_percentage=50.0,
         materialize_profit_in_dollars=1e9,  # unreachable -> only the percent gate can fire in GTP tests
+        materialize_profit_percentage_max=2.5,   # ramp disabled (flat at the static 2.5% bar) ->
+        materialize_profit_in_dollars_max=1e9,   # not what this file tests; see
+        profit_threshold_ramp_days=30,           # _smoke_test_dynamic_profit_threshold.py
         min_raw_gain_percent_to_sell=-1e9,  # disabled -> not what this file tests; see
             # _smoke_test_min_raw_gain_percent.py
         keep_aside_profits_for_tax_percent=30.0,
