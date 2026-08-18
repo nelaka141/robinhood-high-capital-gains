@@ -41,6 +41,9 @@ def _meta(**overrides) -> PortfolioMetadata:
         selling_price_change=0.1, sell_or_buy_value_limit=1, min_value_of_trade=1,
         materialize_profit_percentage=2.5, profit_sell_percentage=50.0,
         materialize_profit_in_dollars=1.0,  # low enough that the FIFO dollar gate alone can fire
+        materialize_profit_percentage_max=2.5,  # ramp disabled (flat at the static 2.5% bar) ->
+        materialize_profit_in_dollars_max=1.0,  # not what this file tests; see
+        profit_threshold_ramp_days=30,          # _smoke_test_dynamic_profit_threshold.py
         min_raw_gain_percent_to_sell=0.5,   # the production default
         keep_aside_profits_for_tax_percent=30.0, momentum_lookback_days=5,
         min_momentum_score_to_fill_underweight=-1000.0, max_sector_percentage=0.0,

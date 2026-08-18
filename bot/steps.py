@@ -28,6 +28,7 @@ from .models import (
     MomentumScore,
     RunContext,
     SkippedTrade,
+    TaxLot,
     TradeIntent,
 )
 from .state import AssetPriceState, load_transferred_basis
@@ -59,6 +60,38 @@ def _is_loss(ctx: RunContext, sym: str) -> bool:
     if not pos or pos.avg_cost_basis is None:
         return False
     return ctx.quotes[sym].last_trade_price < pos.avg_cost_basis
+
+
+def _weighted_avg_lot_age_days(lots_consumed: List[dict], lots: List[TaxLot], current_date: date) -> float:
+    """Quantity-weighted average age (in days) of the SPECIFIC lots a GET THE PROFITS sale
+    actually consumes (`fifo.lots_consumed`, already post loss-lot exclusion) — v2.78.0's dynamic
+    profit-threshold ramp measures "how long the profit-making lots have been held" against
+    exactly this population, not the position's full lot history or its unconsumed lots.
+    Returns 0.0 (the day-0 floor of the ramp) if there's nothing to weight, e.g. a not-fully-
+    covered FIFO walk that consumed no lots — that case is already handled as a fail-closed skip
+    by the caller regardless of what this returns."""
+    if not lots_consumed:
+        return 0.0
+    open_dates = {lot.open_lot_id: lot.open_date for lot in lots}
+    total_qty = sum(c["quantity"] for c in lots_consumed)
+    if total_qty <= 0:
+        return 0.0
+    weighted_days = sum(
+        c["quantity"] * (current_date - open_dates[c["open_lot_id"]]).days
+        for c in lots_consumed
+    )
+    return weighted_days / total_qty
+
+
+def _dynamic_profit_threshold(base: float, max_value: float, ramp_days: float, days_held: float) -> float:
+    """v2.78.0: parabolic ramp from `base` (day 0) up to `max_value` (reached at `ramp_days` and
+    held flat beyond it) — threshold(days) = base + (max_value - base) * min(1, days/ramp_days)**2.
+    Applies independently to each leg of GET THE PROFITS' percent/dollar OR-gate; `ramp_days<=0`
+    degenerates to the max (no ramp at all, i.e. always at the cap)."""
+    if ramp_days <= 0:
+        return max_value
+    t = min(1.0, max(0.0, days_held) / ramp_days)
+    return base + (max_value - base) * t * t
 
 
 def _sell_price_target_blocked(ctx: RunContext, sym: str, price: float, mechanism: str) -> bool:
@@ -698,8 +731,27 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
         # percentage gate clears (as it was under the old AND semantics).
         if not already_today:
             fifo = fifo_realized_profit(lots, sell_qty, price, exclude_loss_lots=True)
-            percent_gate_passes = raw_gain_pct > cfg.meta.materialize_profit_percentage
-            dollar_gate_passes = fifo.fully_covered and fifo.realized_profit_dollars > cfg.meta.materialize_profit_in_dollars
+
+            # v2.78.0: dynamic profit-threshold ramp — the percent/dollar OR-gate is no longer a
+            # flat bar. Each leg ramps parabolically from its own base (materialize_profit_percentage
+            # / materialize_profit_in_dollars, the day-0 floor) up to its own cap
+            # (materialize_profit_percentage_max / materialize_profit_in_dollars_max) over
+            # profit_threshold_ramp_days, independently — measured against the quantity-weighted
+            # average age of the SPECIFIC profitable lots this sale actually consumes (post
+            # loss-lot exclusion), not the position's full lot history. A freshly-profitable
+            # position clears a low bar; one that's sat on its gains for a while must clear a
+            # much higher one before GTP will harvest it.
+            weighted_days_held = _weighted_avg_lot_age_days(fifo.lots_consumed, lots, ctx.current_date)
+            dynamic_percent_threshold = _dynamic_profit_threshold(
+                cfg.meta.materialize_profit_percentage, cfg.meta.materialize_profit_percentage_max,
+                cfg.meta.profit_threshold_ramp_days, weighted_days_held,
+            )
+            dynamic_dollar_threshold = _dynamic_profit_threshold(
+                cfg.meta.materialize_profit_in_dollars, cfg.meta.materialize_profit_in_dollars_max,
+                cfg.meta.profit_threshold_ramp_days, weighted_days_held,
+            )
+            percent_gate_passes = raw_gain_pct > dynamic_percent_threshold
+            dollar_gate_passes = fifo.fully_covered and fifo.realized_profit_dollars > dynamic_dollar_threshold
             if percent_gate_passes or dollar_gate_passes:
                 # v2.66.0: percent_gate_passes is based on avg_cost_basis (a whole-position
                 # blended average) and can pass even when the FIFO-matched lots actually being
@@ -756,7 +808,11 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
                 elif _sell_price_target_blocked(ctx, sym, price, "partial profit-take sale"):
                     pass  # target_price_to_sell overrides GTP too — "any means" — already logged
                 else:
-                    reason = f"GET THE PROFITS: {raw_gain_pct:+.2f}%, FIFO ${fifo.realized_profit_dollars:.2f}"
+                    reason = (
+                        f"GET THE PROFITS: {raw_gain_pct:+.2f}%, FIFO ${fifo.realized_profit_dollars:.2f} "
+                        f"(dynamic thresholds {dynamic_percent_threshold:.2f}% / ${dynamic_dollar_threshold:.2f} "
+                        f"at {weighted_days_held:.1f}d weighted profitable-lot age)"
+                    )
                     if loss_excluded_qty > 0:
                         reason += (f" (loss-lot sell guard: {loss_excluded_qty:.4f} share(s) held back — "
                                    f"their lots are underwater at ${price:.2f})")

@@ -58,9 +58,11 @@ class PortfolioMetadata:
     selling_price_change: float
     sell_or_buy_value_limit: float
     min_value_of_trade: float
-    materialize_profit_percentage: float
+    materialize_profit_percentage: float  # v2.78.0: the day-0 floor of the dynamic ramp — see
+        # materialize_profit_percentage_max below; not a flat bar anymore
     profit_sell_percentage: float
-    materialize_profit_in_dollars: float
+    materialize_profit_in_dollars: float  # v2.78.0: same — the day-0 floor of the dynamic ramp,
+        # see materialize_profit_in_dollars_max below
     min_raw_gain_percent_to_sell: float  # v2.77.0: floor on the position's OVERALL
         # blended-average raw_gain_pct required for GET THE PROFITS to fire at all — on top of,
         # not instead of, the percent/dollar OR-gate and the per-sold-lot profit check. Closes
@@ -73,6 +75,17 @@ class PortfolioMetadata:
     max_sector_percentage: float
     wash_sale_lookback_days: int
     dormant_asset_days: int  # Step 7 reporting only — never gates a buy/sell decision
+
+    # v2.78.0 — dynamic profit-threshold ramp. Defaulted (rather than required) so existing
+    # PortfolioMetadata(...) call sites (mostly test fixtures) that predate this feature don't
+    # need updating just to opt into it; portfolio_targets.json sets all three explicitly.
+    materialize_profit_percentage_max: float = 10.0  # cap the percent leg of the GET THE PROFITS
+        # OR-gate ramps to, parabolically, as the quantity-weighted average age of the specific
+        # profitable lots a sale would consume increases — see profit_threshold_ramp_days
+    materialize_profit_in_dollars_max: float = 200.0  # same ramp/cap pairing for the dollar leg,
+        # independent of the percent leg's own ramp
+    profit_threshold_ramp_days: float = 30  # number of days of (quantity-weighted-average)
+        # profitable-lot age at which both legs' dynamic threshold reaches its own max
 
 
 @dataclass(frozen=True)
