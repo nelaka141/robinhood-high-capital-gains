@@ -26,8 +26,8 @@
 		"peakDate": "2026-08-13",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
-		"profitSellPrice": 175.3224,
-		"profitSellDate": "2026-08-11",
+		"profitSellPrice": 175.68,
+		"profitSellDate": "2026-08-19",
 		"lastPurchaseDate": "2026-08-18",
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
@@ -59,8 +59,8 @@
 		"peakDate": "2026-08-07",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
-		"profitSellPrice": 103.555,
-		"profitSellDate": "2026-08-07",
+		"profitSellPrice": 102.915,
+		"profitSellDate": "2026-08-19",
 		"lastPurchaseDate": "2026-08-13",
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
@@ -160,7 +160,7 @@
 		"liquidatedDate": null,
 		"profitSellPrice": null,
 		"profitSellDate": null,
-		"lastPurchaseDate": "2026-07-16",
+		"lastPurchaseDate": "2026-08-19",
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -290,14 +290,14 @@
 		"peakDate": "2026-08-10",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
-		"profitSellPrice": 234.735,
-		"profitSellDate": "2026-08-05",
+		"profitSellPrice": 236.91,
+		"profitSellDate": "2026-08-19",
 		"lastPurchaseDate": "2026-08-18",
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
 	"NFLX": {
-		"peakPrice": 78.985,
+		"peakPrice": 80.45,
 		"peakDate": "2026-08-19",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -341,7 +341,7 @@
 		"lastLossSaleDate": null
 	},
 	"LLY": {
-		"peakPrice": 1284.3,
+		"peakPrice": 1286.62,
 		"peakDate": "2026-08-19",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -473,7 +473,7 @@
 		"lastLossSaleDate": null
 	},
 	"CVX": {
-		"peakPrice": 206.32,
+		"peakPrice": 206.365,
 		"peakDate": "2026-08-19",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
