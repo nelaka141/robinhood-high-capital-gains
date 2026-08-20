@@ -33,13 +33,13 @@
 		"lastLossSaleDate": null
 	},
 	"MU": {
-		"peakPrice": 1022.91,
-		"peakDate": "2026-07-10",
-		"liquidatedPrice": 862.81,
-		"liquidatedDate": "2026-07-16",
+		"peakPrice": 962.6799,
+		"peakDate": "2026-08-20",
+		"liquidatedPrice": "",
+		"liquidatedDate": null,
 		"profitSellPrice": 925.47,
 		"profitSellDate": "2026-08-12",
-		"lastPurchaseDate": "2026-07-27",
+		"lastPurchaseDate": "2026-08-20",
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -484,7 +484,7 @@
 		"lastLossSaleDate": null
 	},
 	"COP": {
-		"peakPrice": 134.4,
+		"peakPrice": 134.71,
 		"peakDate": "2026-08-20",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -550,8 +550,8 @@
 		"lastLossSaleDate": null
 	},
 	"FCX": {
-		"peakPrice": 70.477,
-		"peakDate": "2026-08-10",
+		"peakPrice": 71.035,
+		"peakDate": "2026-08-20",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 67.615,
