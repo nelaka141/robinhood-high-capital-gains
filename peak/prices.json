@@ -22,7 +22,7 @@
 		"lastLossSaleDate": null
 	},
 	"PLTR": {
-		"peakPrice": 184.7042,
+		"peakPrice": 186.25,
 		"peakDate": "2026-08-27",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -55,7 +55,7 @@
 		"lastLossSaleDate": null
 	},
 	"MSTR": {
-		"peakPrice": 128.66,
+		"peakPrice": 137.69,
 		"peakDate": "2026-08-27",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -66,8 +66,8 @@
 		"lastLossSaleDate": null
 	},
 	"COIN": {
-		"peakPrice": 188.47,
-		"peakDate": "2026-08-25",
+		"peakPrice": 191.29,
+		"peakDate": "2026-08-27",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 188.47,
@@ -180,8 +180,8 @@
 		"peakDate": "2026-08-10",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
-		"profitSellPrice": 503.03,
-		"profitSellDate": "2026-08-11",
+		"profitSellPrice": 505.655,
+		"profitSellDate": "2026-08-27",
 		"lastPurchaseDate": "2026-08-13",
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
