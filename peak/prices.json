@@ -22,8 +22,8 @@
 		"lastLossSaleDate": null
 	},
 	"PLTR": {
-		"peakPrice": 186.25,
-		"peakDate": "2026-08-27",
+		"peakPrice": 186.26,
+		"peakDate": "2026-08-28",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 184.7042,
@@ -143,8 +143,8 @@
 		"lastLossSaleDate": null
 	},
 	"NVDA": {
-		"peakPrice": 226.4501,
-		"peakDate": "2026-08-14",
+		"peakPrice": 226.6341,
+		"peakDate": "2026-08-28",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 224.76,
@@ -176,12 +176,12 @@
 		"lastLossSaleDate": null
 	},
 	"MSFT": {
-		"peakPrice": 507.25,
-		"peakDate": "2026-08-10",
+		"peakPrice": 512.754,
+		"peakDate": "2026-08-28",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
-		"profitSellPrice": 505.655,
-		"profitSellDate": "2026-08-27",
+		"profitSellPrice": 512.754,
+		"profitSellDate": "2026-08-28",
 		"lastPurchaseDate": "2026-08-13",
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
@@ -303,7 +303,7 @@
 		"liquidatedDate": null,
 		"profitSellPrice": 78.065,
 		"profitSellDate": "2026-08-14",
-		"lastPurchaseDate": "2026-08-13",
+		"lastPurchaseDate": "2026-08-28",
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -517,13 +517,13 @@
 		"lastLossSaleDate": null
 	},
 	"AMT": {
-		"peakPrice": 179.9814,
-		"peakDate": "2026-08-26",
+		"peakPrice": 176.07,
+		"peakDate": "2026-08-28",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 174.68,
 		"profitSellDate": "2026-08-19",
-		"lastPurchaseDate": "2026-08-05",
+		"lastPurchaseDate": "2026-08-28",
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
