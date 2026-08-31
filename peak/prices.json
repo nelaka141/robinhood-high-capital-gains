@@ -39,7 +39,7 @@
 		"liquidatedDate": null,
 		"profitSellPrice": 982.545,
 		"profitSellDate": "2026-08-21",
-		"lastPurchaseDate": "2026-08-20",
+		"lastPurchaseDate": "2026-08-31",
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -473,12 +473,12 @@
 		"lastLossSaleDate": null
 	},
 	"CVX": {
-		"peakPrice": 207.415,
-		"peakDate": "2026-08-20",
+		"peakPrice": 208.01,
+		"peakDate": "2026-08-31",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
-		"profitSellPrice": 196.32,
-		"profitSellDate": "2026-08-11",
+		"profitSellPrice": 208.01,
+		"profitSellDate": "2026-08-31",
 		"lastPurchaseDate": "2026-08-26",
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
