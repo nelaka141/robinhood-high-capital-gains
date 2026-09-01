@@ -466,3 +466,234 @@ Unrealized figures are on the LOT basis (summed over the actual lots), not the b
 ## Orders Placed
 ```
 ```
+
+# 2026-08-28 — Scheduled Rebalance Check — EXECUTED (1 sell(s), 2 buy(s))
+
+**Status:** EXECUTED. 1 sell order(s), 2 buy order(s) sized this cycle.
+
+## Account Snapshot
+- `buying_power` (settled): **$89,449.90**
+- `cash` (ledger): **$89,449.90**
+- `current_cash` (post-cap): **$89,449.90**
+- `account_balance`: **$140,637.12**
+
+## Drawdown Audit
+Emergency liquidations: none
+
+## Excluded / Buy-Guarded Symbols (Step 2)
+- **SOXL** (excluded): liquidated 2026-07-16 @ 147.6401 — recovery (5.0%) or cooldown (6d) not yet met
+- **MSTR** (excluded): Profit-sell buy-guard: profit-sold 2026-08-24 @ 122.3499 (full exit) — blocked because: dip not confirmed (leg2 close_1d_back→close_yesterday change=-10.534%, need > -0.050%); upturn not confirmed (leg3 close_yesterday→today change=-1.857%, need > 0.150%)
+- **COIN** (excluded): Profit-sell buy-guard: profit-sold 2026-08-25 @ 188.47 (full exit) — blocked because: dip not confirmed (leg2 close_1d_back→close_yesterday change=-4.803%, need > -0.050%); upturn not confirmed (leg3 close_yesterday→today change=-2.466%, need > 0.150%)
+- **LLY** (excluded): Profit-sell buy-guard: profit-sold 2026-08-19 @ 1284.3 (full exit) — blocked because: upturn not confirmed (leg3 close_yesterday→today change=-0.684%, need > 0.150%)
+- **JNJ** (excluded): Profit-sell buy-guard: profit-sold 2026-08-19 @ 275.33 (full exit) — blocked because: upturn not confirmed (leg3 close_yesterday→today change=-0.049%, need > 0.150%)
+- **JPM** (excluded): Profit-sell buy-guard: profit-sold 2026-08-13 @ 363.54 (full exit) — blocked because: earlier dip not confirmed (leg1 close_2d_back→close_1d_back change=+0.054%, need > 0.200%)
+- **V** (excluded): Profit-sell buy-guard: profit-sold 2026-08-26 @ 383.44 (full exit) — blocked because: earlier dip not confirmed (leg1 close_2d_back→close_1d_back change=+0.063%, need > 0.200%); upturn not confirmed (leg3 close_yesterday→today change=+0.147%, need > 0.150%)
+- **CAT** (excluded): Profit-sell buy-guard: profit-sold 2026-08-17 @ 873.055 (full exit) — blocked because: earlier dip not confirmed (leg1 close_2d_back→close_1d_back change=-1.300%, need > 0.200%)
+- **UNP** (excluded): Profit-sell buy-guard: profit-sold 2026-08-19 @ 306.56 (full exit) — blocked because: earlier dip not confirmed (leg1 close_2d_back→close_1d_back change=-0.334%, need > 0.200%); upturn not confirmed (leg3 close_yesterday→today change=+0.096%, need > 0.150%)
+- **EQIX** (excluded): Profit-sell buy-guard: profit-sold 2026-08-14 @ 1086.12 (full exit) — blocked because: earlier dip not confirmed (leg1 close_2d_back→close_1d_back change=-0.575%, need > 0.200%); upturn not confirmed (leg3 close_yesterday→today change=-0.324%, need > 0.150%)
+- **TQQQ** (buy-guarded only): Profit-sell buy-guard: profit-sold 2026-08-13 @ 76.6899 (partial, remainder still held) — blocked because: earlier dip not confirmed (leg1 close_2d_back→close_1d_back change=-0.273%, need > 0.200%); dip not confirmed (leg2 close_1d_back→close_yesterday change=-3.868%, need > -0.050%); upturn not confirmed (leg3 close_yesterday→today change=-0.198%, need > 0.150%)
+- **INTC** (buy-guarded only): Buy-timing guard — blocked because: earlier dip not confirmed (leg1 close_2d_back→close_1d_back change=-0.820%, need > 0.200%); dip not confirmed (leg2 close_1d_back→close_yesterday change=-4.156%, need > -0.050%)
+- **PLTR** (buy-guarded only): Profit-sell buy-guard: profit-sold 2026-08-27 @ 184.7042 (partial, remainder still held) — blocked because: earlier dip not confirmed (leg1 close_2d_back→close_1d_back change=-2.561%, need > 0.200%); dip not confirmed (leg2 close_1d_back→close_yesterday change=-4.526%, need > -0.050%)
+- **MU** (buy-guarded only): Profit-sell buy-guard: profit-sold 2026-08-21 @ 982.545 (partial, remainder still held) — blocked because: earlier dip not confirmed (leg1 close_2d_back→close_1d_back change=-0.585%, need > 0.200%); upturn not confirmed (leg3 close_yesterday→today change=-0.757%, need > 0.150%)
+- **ARM** (buy-guarded only): Profit-sell buy-guard: profit-sold 2026-08-13 @ 282.4199 (partial, remainder still held) — blocked because: earlier dip not confirmed (leg1 close_2d_back→close_1d_back change=-3.802%, need > 0.200%); dip not confirmed (leg2 close_1d_back→close_yesterday change=-1.661%, need > -0.050%); upturn not confirmed (leg3 close_yesterday→today change=-2.146%, need > 0.150%)
+- **SMCI** (buy-guarded only): Profit-sell buy-guard: profit-sold 2026-08-25 @ 37.75 (partial, remainder still held) — blocked because: dip not confirmed (leg2 close_1d_back→close_yesterday change=-2.789%, need > -0.050%); upturn not confirmed (leg3 close_yesterday→today change=-0.235%, need > 0.150%)
+- **IONQ** (buy-guarded only): Buy-timing guard — blocked because: dip not confirmed (leg2 close_1d_back→close_yesterday change=-5.964%, need > -0.050%); upturn not confirmed (leg3 close_yesterday→today change=-4.209%, need > 0.150%)
+- **SPCX** (buy-guarded only): Buy-timing guard — blocked because: earlier dip not confirmed (leg1 close_2d_back→close_1d_back change=-1.188%, need > 0.200%); dip not confirmed (leg2 close_1d_back→close_yesterday change=-0.877%, need > -0.050%)
+- **TSLA** (buy-guarded only): Profit-sell buy-guard: profit-sold 2026-08-04 @ 324.92 (partial, remainder still held) — blocked because: dip not confirmed (leg2 close_1d_back→close_yesterday change=-2.525%, need > -0.050%)
+- **NVDA** (buy-guarded only): Profit-sell buy-guard: profit-sold 2026-08-27 @ 224.76 (partial, remainder still held) — blocked because: dip not confirmed (leg2 close_1d_back→close_yesterday change=-8.084%, need > -0.050%); upturn not confirmed (leg3 close_yesterday→today change=-0.594%, need > 0.150%)
+- **ORCL** (buy-guarded only): Profit-sell buy-guard: profit-sold 2026-08-21 @ 146.45 (partial, remainder still held) — blocked because: earlier dip not confirmed (leg1 close_2d_back→close_1d_back change=-2.686%, need > 0.200%); dip not confirmed (leg2 close_1d_back→close_yesterday change=-2.007%, need > -0.050%)
+- **MSFT** (buy-guarded only): Profit-sell buy-guard: profit-sold 2026-08-27 @ 505.655 (partial, remainder still held) — blocked because: earlier dip not confirmed (leg1 close_2d_back→close_1d_back change=-0.909%, need > 0.200%); dip not confirmed (leg2 close_1d_back→close_yesterday change=-1.695%, need > -0.050%)
+- **HOOD** (buy-guarded only): Profit-sell buy-guard: profit-sold 2026-08-13 @ 99.5005 (partial, remainder still held) — blocked because: dip not confirmed (leg2 close_1d_back→close_yesterday change=-1.125%, need > -0.050%); upturn not confirmed (leg3 close_yesterday→today change=-1.199%, need > 0.150%)
+- **AAPL** (buy-guarded only): Profit-sell buy-guard: profit-sold 2026-07-17 @ 333.4801 (partial, remainder still held) — blocked because: earlier dip not confirmed (leg1 close_2d_back→close_1d_back change=-1.124%, need > 0.200%); dip not confirmed (leg2 close_1d_back→close_yesterday change=-0.358%, need > -0.050%)
+- **META** (buy-guarded only): Buy-timing guard — blocked because: earlier dip not confirmed (leg1 close_2d_back→close_1d_back change=-1.046%, need > 0.200%)
+- **AMD** (buy-guarded only): Profit-sell buy-guard: profit-sold 2026-08-13 @ 494.02 (partial, remainder still held) — blocked because: earlier dip not confirmed (leg1 close_2d_back→close_1d_back change=-0.368%, need > 0.200%); upturn not confirmed (leg3 close_yesterday→today change=-0.367%, need > 0.150%)
+- **NEE** (buy-guarded only): Buy-timing guard — blocked because: earlier dip not confirmed (leg1 close_2d_back→close_1d_back change=+0.000%, need > 0.200%); upturn not confirmed (leg3 close_yesterday→today change=-1.570%, need > 0.150%)
+- **VRT** (buy-guarded only): Profit-sell buy-guard: profit-sold 2026-08-12 @ 296.415 (partial, remainder still held) — blocked because: earlier dip not confirmed (leg1 close_2d_back→close_1d_back change=-3.026%, need > 0.200%); dip not confirmed (leg2 close_1d_back→close_yesterday change=-2.054%, need > -0.050%); upturn not confirmed (leg3 close_yesterday→today change=-1.092%, need > 0.150%)
+- **AVGO** (buy-guarded only): Profit-sell buy-guard: profit-sold 2026-08-05 @ 422.59 (partial, remainder still held) — blocked because: dip not confirmed (leg2 close_1d_back→close_yesterday change=-4.259%, need > -0.050%)
+- **F** (buy-guarded only): Profit-sell buy-guard: profit-sold 2026-08-14 @ 14.4276 (partial, remainder still held) — blocked because: dip not confirmed (leg2 close_1d_back→close_yesterday change=-0.358%, need > -0.050%); upturn not confirmed (leg3 close_yesterday→today change=+0.107%, need > 0.150%)
+- **GM** (buy-guarded only): Profit-sell buy-guard: profit-sold 2026-08-05 @ 89.55 (partial, remainder still held) — blocked because: earlier dip not confirmed (leg1 close_2d_back→close_1d_back change=-0.599%, need > 0.200%)
+- **IBM** (buy-guarded only): Profit-sell buy-guard: profit-sold 2026-08-19 @ 236.91 (partial, remainder still held) — blocked because: dip not confirmed (leg2 close_1d_back→close_yesterday change=-3.766%, need > -0.050%); upturn not confirmed (leg3 close_yesterday→today change=-0.815%, need > 0.150%)
+- **UNH** (buy-guarded only): Buy-timing guard — blocked because: earlier dip not confirmed (leg1 close_2d_back→close_1d_back change=-1.122%, need > 0.200%); upturn not confirmed (leg3 close_yesterday→today change=-0.262%, need > 0.150%)
+- **GE** (buy-guarded only): Profit-sell buy-guard: profit-sold 2026-08-05 @ 382.1775 (partial, remainder still held) — blocked because: earlier dip not confirmed (leg1 close_2d_back→close_1d_back change=-1.405%, need > 0.200%)
+- **LTRN** (buy-guarded only): Buy-timing guard — blocked because: earlier dip not confirmed (leg1 close_2d_back→close_1d_back change=+0.000%, need > 0.200%); upturn not confirmed (leg3 close_yesterday→today change=+0.000%, need > 0.150%)
+- **BRK.B** (buy-guarded only): Buy-timing guard — blocked because: earlier dip not confirmed (leg1 close_2d_back→close_1d_back change=-0.117%, need > 0.200%); upturn not confirmed (leg3 close_yesterday→today change=+0.015%, need > 0.150%)
+- **HD** (buy-guarded only): Buy-timing guard — blocked because: upturn not confirmed (leg3 close_yesterday→today change=-0.305%, need > 0.150%)
+- **WMT** (buy-guarded only): Profit-sell buy-guard: profit-sold 2026-08-19 @ 116.365 (partial, remainder still held) — blocked because: upturn not confirmed (leg3 close_yesterday→today change=+0.107%, need > 0.150%)
+- **XOM** (buy-guarded only): Profit-sell buy-guard: profit-sold 2026-08-11 @ 159.73 (partial, remainder still held) — blocked because: upturn not confirmed (leg3 close_yesterday→today change=-0.051%, need > 0.150%)
+- **CVX** (buy-guarded only): Profit-sell buy-guard: profit-sold 2026-08-11 @ 196.32 (partial, remainder still held) — blocked because: earlier dip not confirmed (leg1 close_2d_back→close_1d_back change=-0.159%, need > 0.200%)
+- **SO** (buy-guarded only): Buy-timing guard — blocked because: upturn not confirmed (leg3 close_yesterday→today change=-0.124%, need > 0.150%)
+- **PLD** (buy-guarded only): Profit-sell buy-guard: profit-sold 2026-08-13 @ 141.89 (partial, remainder still held) — blocked because: upturn not confirmed (leg3 close_yesterday→today change=-0.184%, need > 0.150%)
+- **LIN** (buy-guarded only): Buy-timing guard — blocked because: earlier dip not confirmed (leg1 close_2d_back→close_1d_back change=-0.642%, need > 0.200%)
+- **FCX** (buy-guarded only): Profit-sell buy-guard: profit-sold 2026-08-21 @ 76.0501 (partial, remainder still held) — blocked because: upturn not confirmed (leg3 close_yesterday→today change=-0.603%, need > 0.150%)
+- **SHW** (buy-guarded only): Buy-timing guard — blocked because: upturn not confirmed (leg3 close_yesterday→today change=-0.162%, need > 0.150%)
+- **DUK** (buy-guarded only): Buy-timing guard — blocked because: earlier dip not confirmed (leg1 close_2d_back→close_1d_back change=-0.248%, need > 0.200%)
+
+## Blocked Assets (`blocked` list)
+- **LTRN**: blocked; forceSell trigger not yet met (needs price > $4.50, currently $2.16) — staying frozen this cycle
+
+## Underweight Fill Ranking — Momentum_Score
+| Symbol | RSI14 | EMA9_now | EMA9_prior | Price_vs_EMA% | EMA_Slope% | Score |
+|---|---|---|---|---|---|---|
+| PLTR | 76.29 | 175.99 | 169.51 | +5.83 | +3.82 | +35.95 |
+| MSFT | 79.99 | 491.38 | 483.78 | +4.35 | +1.57 | +35.91 |
+| FCX | 71.94 | 75.16 | 68.24 | +3.71 | +10.14 | +35.80 |
+| HOOD | 63.39 | 104.11 | 94.54 | +4.18 | +10.13 | +27.69 |
+| ORCL | 68.61 | 146.72 | 144.65 | +4.28 | +1.43 | +24.32 |
+| SMCI | 64.72 | 37.02 | 35.93 | +3.63 | +3.03 | +21.38 |
+| NVDA | 66.91 | 216.95 | 218.52 | +4.46 | -0.72 | +20.66 |
+| TSLA | 64.79 | 347.35 | 338.05 | +2.48 | +2.75 | +20.03 |
+| COP | 64.34 | 130.31 | 127.95 | +0.23 | +1.84 | +16.41 |
+| NFLX | 61.90 | 79.66 | 77.56 | +1.19 | +2.70 | +15.78 |
+| TQQQ | 63.24 | 71.62 | 72.62 | +2.14 | -1.37 | +14.00 |
+| SPCX | 59.75 | 138.01 | 136.70 | +2.46 | +0.96 | +13.17 |
+| IBM | 58.65 | 234.08 | 233.77 | +1.19 | +0.13 | +9.97 |
+| CVX | 58.52 | 201.10 | 201.17 | -0.16 | -0.03 | +8.33 |
+| AMZN | 58.30 | 260.57 | 263.16 | -0.63 | -0.98 | +6.69 |
+| MU | 56.58 | 936.29 | 937.58 | -0.85 | -0.14 | +5.60 |
+| AMT | 51.23 | 175.33 | 173.52 | +0.42 | +1.04 | +2.70 |
+| IONQ | 58.32 | 42.30 | 43.15 | -3.68 | -1.98 | +2.66 |
+| AMD | 53.02 | 476.86 | 481.28 | -0.41 | -0.92 | +1.70 |
+| META | 47.72 | 566.81 | 565.04 | +2.68 | +0.31 | +0.71 |
+| INTC | 54.42 | 91.75 | 96.74 | +0.96 | -5.16 | +0.22 |
+| GOOG | 50.91 | 341.52 | 343.29 | -0.48 | -0.52 | -0.09 |
+| ARM | 53.77 | 251.85 | 260.42 | -0.79 | -3.29 | -0.31 |
+| VRT | 50.82 | 265.83 | 273.00 | +0.20 | -2.63 | -1.60 |
+| BRK.B | 46.29 | 503.67 | 504.56 | +0.02 | -0.18 | -3.87 |
+| AVGO | 48.84 | 370.40 | 386.41 | +1.11 | -4.14 | -4.19 |
+| XOM | 48.01 | 160.57 | 162.01 | -2.62 | -0.89 | -5.49 |
+| GM | 42.42 | 86.35 | 86.08 | +0.56 | +0.32 | -6.71 |
+| SHW | 45.17 | 349.32 | 353.20 | -1.34 | -1.10 | -7.27 |
+| PLD | 40.40 | 142.01 | 140.95 | -0.30 | +0.76 | -9.14 |
+| LIN | 38.97 | 486.11 | 482.50 | +0.34 | +0.75 | -9.94 |
+| AAPL | 37.98 | 311.69 | 310.78 | +1.34 | +0.29 | -10.39 |
+| F | 40.68 | 14.04 | 14.15 | -0.56 | -0.77 | -10.65 |
+| COST | 40.29 | 951.76 | 951.71 | -0.99 | +0.01 | -10.69 |
+| PG | 38.71 | 144.55 | 144.19 | -0.67 | +0.25 | -11.71 |
+| GE | 41.43 | 352.06 | 361.71 | -1.95 | -2.67 | -13.19 |
+| UNH | 36.57 | 396.70 | 396.65 | -0.68 | +0.01 | -14.09 |
+| HD | 39.62 | 336.24 | 340.73 | -2.57 | -1.32 | -14.26 |
+| DUK | 32.45 | 122.08 | 123.72 | -0.79 | -1.32 | -19.66 |
+| WMT | 31.03 | 106.87 | 112.18 | -3.86 | -4.74 | -27.57 |
+| NEE | 23.71 | 84.56 | 85.90 | -2.82 | -1.56 | -30.67 |
+| SO | 22.79 | 90.46 | 92.35 | -1.68 | -2.05 | -30.93 |
+
+## Tax Reserve
+- `net_realized_gains_ytd_pretrade`: **$69,405.86**
+- `net_realized_gains_ytd_effective` (post-sells): **$69,411.02**
+- `tax_reserve` (final): **$24,293.86**
+
+## GET THE PROFITS Sells
+- **MSFT**: GET THE PROFITS: +2.62%, FIFO $5.45 (dynamic thresholds 2.50% / $52.50 at 15.0d weighted profitable-lot age) (ordinary order — sub-whole-share position, Robinhood default lot matching; FIFO figure is an estimate)
+
+## Buys (Underweight fills, momentum-ranked top-down)
+- **AMT**: $2,188.13
+- **NFLX**: $2,115.04
+
+## Total_High_Beta_Gains_Realized: **$5.45**
+
+## SKIPPED/PENDING
+| Symbol | Reason | Would-be action |
+|---|---|---|
+| COST | Momentum_Score (-10.69) below min_momentum_score_to_fill_underweight (0.00) | Underweight buy |
+| SPCX | loss-lot sell guard: every sellable lot is at or above the current price ($141.40) — nothing can be sold at a gain | partial profit-take sale |
+| PLTR | even selling all 0.0118 fractional share(s) held ($2.19) falls short of min_value_of_trade ($100.00) | partial profit-take sale |
+| MU | loss-lot sell guard: every sellable lot is at or above the current price ($928.36) — nothing can be sold at a gain | partial profit-take sale |
+| AMZN | loss-lot sell guard: every sellable lot is at or above the current price ($258.93) — nothing can be sold at a gain | partial profit-take sale |
+| NVDA | even selling all 0.2081 fractional share(s) held ($47.16) falls short of min_value_of_trade ($100.00) | partial profit-take sale |
+| ORCL | even selling all 0.0890 fractional share(s) held ($13.61) falls short of min_value_of_trade ($100.00) | partial profit-take sale |
+| TQQQ | even selling all 0.0676 fractional share(s) held ($4.95) falls short of min_value_of_trade ($100.00) | partial profit-take sale |
+| ARM | loss-lot sell guard: every sellable lot is at or above the current price ($249.85) — nothing can be sold at a gain | partial profit-take sale |
+| SMCI | even selling all 0.5661 fractional share(s) held ($21.72) falls short of min_value_of_trade ($100.00) | partial profit-take sale |
+| IONQ | loss-lot sell guard: every sellable lot is at or above the current price ($40.74) — nothing can be sold at a gain | partial profit-take sale |
+| HOOD | even selling all 0.3822 fractional share(s) held ($41.46) falls short of min_value_of_trade ($100.00) | partial profit-take sale |
+| AMD | loss-lot sell guard: every sellable lot is at or above the current price ($474.93) — nothing can be sold at a gain | partial profit-take sale |
+| NEE | loss-lot sell guard: every sellable lot is at or above the current price ($82.18) — nothing can be sold at a gain | partial profit-take sale |
+| VRT | loss-lot sell guard: every sellable lot is at or above the current price ($266.37) — nothing can be sold at a gain | partial profit-take sale |
+| AVGO | loss-lot sell guard: every sellable lot is at or above the current price ($374.53) — nothing can be sold at a gain | partial profit-take sale |
+| F | loss-lot sell guard: every sellable lot is at or above the current price ($13.96) — nothing can be sold at a gain | partial profit-take sale |
+| GM | loss-lot sell guard: every sellable lot is at or above the current price ($86.83) — nothing can be sold at a gain | partial profit-take sale |
+| IBM | even selling all 0.0545 fractional share(s) held ($12.91) falls short of min_value_of_trade ($100.00) | partial profit-take sale |
+| NFLX | even selling all 0.9068 fractional share(s) held ($73.09) falls short of min_value_of_trade ($100.00) | partial profit-take sale |
+| UNH | loss-lot sell guard: every sellable lot is at or above the current price ($394.02) — nothing can be sold at a gain | partial profit-take sale |
+| GE | loss-lot sell guard: every sellable lot is at or above the current price ($345.18) — nothing can be sold at a gain | partial profit-take sale |
+| HD | loss-lot sell guard: every sellable lot is at or above the current price ($327.61) — nothing can be sold at a gain | partial profit-take sale |
+| WMT | loss-lot sell guard: every sellable lot is at or above the current price ($102.74) — nothing can be sold at a gain | partial profit-take sale |
+| PG | loss-lot sell guard: every sellable lot is at or above the current price ($143.58) — nothing can be sold at a gain | partial profit-take sale |
+| XOM | even selling all 0.2323 fractional share(s) held ($36.32) falls short of min_value_of_trade ($100.00) | partial profit-take sale |
+| COP | even selling all 0.4089 fractional share(s) held ($53.40) falls short of min_value_of_trade ($100.00) | partial profit-take sale |
+| SO | loss-lot sell guard: every sellable lot is at or above the current price ($88.94) — nothing can be sold at a gain | partial profit-take sale |
+| PLD | even selling all 0.6429 fractional share(s) held ($91.02) falls short of min_value_of_trade ($100.00) | partial profit-take sale |
+| DUK | loss-lot sell guard: every sellable lot is at or above the current price ($121.12) — nothing can be sold at a gain | partial profit-take sale |
+| SHW | loss-lot sell guard: every sellable lot is at or above the current price ($344.65) — nothing can be sold at a gain | partial profit-take sale |
+| FCX | even selling all 0.4282 fractional share(s) held ($33.38) falls short of min_value_of_trade ($100.00) | partial profit-take sale |
+| COP | 52_week_high_guard: price $130.60 is 96.12% of 52-week high $135.88 (limit 95%) | Underweight buy |
+
+## Dormant Assets (no activity > 5d)
+| Symbol | Days Dormant | Last Activity | Unrealized $ | Unrealized % |
+|---|---|---|---|---|
+| LTRN | never | n/a | $-1,452.00 | -69.14% |
+| AAPL | 28d | 2026-07-31 | $0.73 | +0.05% |
+| TSLA | 24d | 2026-08-04 | $-299.36 | -8.36% |
+| GM | 23d | 2026-08-05 | $-22.33 | -1.06% |
+| HD | 22d | 2026-08-06 | $-118.42 | -5.93% |
+| LIN | 22d | 2026-08-06 | $0.02 | +0.00% |
+| SHW | 22d | 2026-08-06 | $-99.10 | -4.95% |
+| GOOG | 21d | 2026-08-07 | $-236.70 | -3.92% |
+| NEE | 21d | 2026-08-07 | $-136.70 | -5.36% |
+| UNH | 21d | 2026-08-07 | $-124.66 | -4.94% |
+| GE | 21d | 2026-08-07 | $-178.64 | -7.27% |
+| PG | 21d | 2026-08-07 | $-45.04 | -1.81% |
+| SO | 21d | 2026-08-07 | $-103.99 | -4.20% |
+| DUK | 21d | 2026-08-07 | $-53.51 | -2.16% |
+| XOM | 17d | 2026-08-11 | $0.99 | +2.79% |
+| COP | 17d | 2026-08-11 | $6.24 | +13.22% |
+| VRT | 16d | 2026-08-12 | $-1.28 | -2.86% |
+| AVGO | 16d | 2026-08-12 | $-472.44 | -11.04% |
+| AMZN | 15d | 2026-08-13 | $-162.16 | -3.61% |
+| TQQQ | 15d | 2026-08-13 | $0.12 | +2.40% |
+| ARM | 15d | 2026-08-13 | $-15.58 | -8.33% |
+| HOOD | 15d | 2026-08-13 | $6.44 | +18.41% |
+| AMD | 15d | 2026-08-13 | $-0.80 | -2.49% |
+| PLD | 15d | 2026-08-13 | $1.11 | +1.24% |
+| F | 14d | 2026-08-14 | $-116.27 | -5.19% |
+| SPCX | 11d | 2026-08-17 | $-54.23 | -2.89% |
+| IBM | 9d | 2026-08-19 | $0.26 | +2.02% |
+| WMT | 9d | 2026-08-19 | $-3.09 | -10.73% |
+| MU | 7d | 2026-08-21 | $-28.25 | -3.82% |
+| ORCL | 7d | 2026-08-21 | $0.80 | +6.25% |
+| IONQ | 7d | 2026-08-21 | $-94.97 | -4.38% |
+| FCX | 7d | 2026-08-21 | $3.73 | +12.58% |
+
+## Loss-Only Lot Assets (every sellable lot underwater)
+19 asset(s), $31,647.28 market value, $-3,177.73 total unrealized. GET THE PROFITS is structurally unable to fire on these (the loss-lot sell guard leaves no sellable lot), so they can only exit via an emergency stop or a manual action.
+
+Unrealized figures are on the LOT basis (summed over the actual lots), not the broker's blended `avg_cost_basis` — so they can never contradict this list's own membership test.
+
+| Symbol | Qty | Lot Cost | Price | Market Value | Unrealized $ | Unrealized % | Lots | Best/Worst Lot Cost |
+|---|---|---|---|---|---|---|---|---|
+| LTRN | 300.0000 | $7.00 | $2.16 | $648.00 | $-1,452.00 | -69.14% | 1 | $7.00 / $7.00 |
+| AVGO | 10.1667 | $421.00 | $374.53 | $3,807.72 | $-472.47 | -11.04% | 2 | $377.86 / $423.11 |
+| WMT | 0.2499 | $115.09 | $102.74 | $25.67 | $-3.09 | -10.73% | 1 | $115.09 / $115.09 |
+| MU ⚠ | 0.7667 | $1,039.08 | $928.36 | $711.76 | $-84.89 | -10.66% | 1 | $1,039.08 / $1,039.08 |
+| ARM | 0.6867 | $272.54 | $249.85 | $171.57 | $-15.58 | -8.33% | 1 | $272.54 / $272.54 |
+| GE | 6.6016 | $372.24 | $345.18 | $2,278.75 | $-178.66 | -7.27% | 2 | $356.04 / $373.67 |
+| HD | 5.7373 | $348.26 | $327.61 | $1,879.58 | $-118.45 | -5.93% | 2 | $342.23 / $348.34 |
+| NEE | 29.3977 | $86.83 | $82.18 | $2,415.90 | $-136.83 | -5.36% | 5 | $83.94 / $90.00 |
+| F | 151.9817 | $14.73 | $13.96 | $2,122.42 | $-115.75 | -5.17% | 4 | $14.30 / $14.85 |
+| SHW | 5.5210 | $362.60 | $344.65 | $1,902.82 | $-99.10 | -4.95% | 1 | $362.60 / $362.60 |
+| UNH | 6.0861 | $414.50 | $394.02 | $2,398.04 | $-124.64 | -4.94% | 5 | $405.49 / $430.15 |
+| IONQ | 50.9222 | $42.61 | $40.74 | $2,074.83 | $-94.97 | -4.38% | 1 | $42.61 / $42.61 |
+| SO | 26.6631 | $92.85 | $88.94 | $2,371.42 | $-104.13 | -4.21% | 4 | $91.84 / $93.28 |
+| SPCX | 12.8805 | $145.61 | $141.40 | $1,821.30 | $-54.23 | -2.89% | 1 | $145.61 / $145.61 |
+| VRT | 0.1637 | $274.20 | $266.37 | $43.61 | $-1.28 | -2.86% | 1 | $274.20 / $274.20 |
+| AMD | 0.0658 | $487.06 | $474.93 | $31.26 | $-0.80 | -2.49% | 1 | $487.06 / $487.06 |
+| DUK | 19.9650 | $123.80 | $121.12 | $2,418.17 | $-53.56 | -2.17% | 4 | $122.69 / $124.67 |
+| PG | 16.9972 | $146.23 | $143.58 | $2,440.45 | $-45.00 | -1.81% | 4 | $145.28 / $147.88 |
+| GM | 24.0013 | $87.76 | $86.83 | $2,084.03 | $-22.30 | -1.06% | 2 | $87.66 / $87.82 |
+
+⚠ = the broker's blended `avg_cost_basis` materially disagrees with the cost of the actual lots, so the two views of this position tell different stories:
+- **MU**: `avg_cost_basis` $965.21 vs. lot-weighted $1,039.08 (price $928.36) — the blended average implies -3.82%, the lots imply -10.66%
+
+## Orders Placed
+```
+```
