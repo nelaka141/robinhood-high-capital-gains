@@ -24,6 +24,7 @@ from .indicators import ema_series, rsi_series
 from .models import (
     DormantAsset,
     DriftResult,
+    FifoSaleResult,
     LossOnlyAsset,
     MomentumScore,
     RunContext,
@@ -656,8 +657,48 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
         # downsized to whatever happens to be priced. Only when basis is fully available does the
         # loss-lot cap apply, so the two rules stay independent.
         lots = broker.get_tax_lots(ctx.account_number, sym)
+
+        # --- Zero-available-lots fallback (v2.79.0) ---
+        # The Fail-Closed pending-basis rule (below, via `fifo.fully_covered`) exists for a
+        # PARTIAL shortfall — some lots priced, some not, not enough to cover the sale target —
+        # where downsizing to whatever's priced would produce a guessed figure. It should NOT
+        # extend to the all-or-nothing case where LITERALLY ZERO of this symbol's lots are
+        # priced+selectable yet — but ONLY when that's genuinely same-day lot-sync latency, not
+        # a stale/unresolved position. Concretely, this requires BOTH:
+        #   1. every one of the symbol's lots is dated TODAY (open_date == ctx.current_date) —
+        #      distinguishes "bought this morning, still syncing" from an older position whose
+        #      lots simply never finished syncing (a genuine data problem that should stay
+        #      fail-closed, not be papered over with an estimate); and
+        #   2. avg_cost_basis is resolved — already guaranteed by this function's own entry
+        #      check (`pos.avg_cost_basis is None: continue`, above), so no separate test is
+        #      needed here, but it's worth spelling out why this fallback can never fire for a
+        #      same-day TRANSFERRED position with no basis yet: a transfer's cost basis can only
+        #      come from `transferred_basis.json` (Step 1's override waterfall) or from the lots
+        #      themselves — if neither has resolved same-day, avg_cost_basis stays None and the
+        #      entry check above already excludes the symbol before this code ever runs, so
+        #      there's no profit figure to estimate from in the first place.
+        # There's no lot data to shortchange in case 1, so rather than block a same-day round-
+        # trip purely on lot-sync latency (nothing in CLAUDE.md's rules gates GET THE PROFITS on
+        # holding period — lock_in_period is inert for it), fall back to an ORDINARY order
+        # exactly like the sub-whole-share fallback above: omit `tax_lots`, let Robinhood's own
+        # default matching decide what's disposed (not guaranteed date-ordered FIFO — same
+        # caveat as that fallback), and gate the dollar leg off `(price - avg_cost_basis) *
+        # sell_qty` since there's no lot-level cost data to walk. avg_cost_basis is already
+        # independently known via Step 1's primary source (average_buy_price, populated on fill)
+        # even when every lot is still unselectable.
+        # Scoped narrowly: the moment even ONE lot is priced+selectable, OR any of the symbol's
+        # lots is dated before today (a same-day buy sitting alongside an older, still-pending
+        # transfer, say), this fallback does not apply and the existing Fail-Closed skip governs
+        # unchanged (see `fifo.fully_covered` below) — a genuine partial-sync or multi-day-stale
+        # shortfall still fails closed rather than being downsized or guessed at.
+        no_lots_available = (
+            bool(lots)
+            and priced_lot_quantity(lots) <= 1e-9
+            and all(lot.open_date == ctx.current_date for lot in lots)
+        )
+
         loss_excluded_qty = 0.0
-        if sell_qty <= priced_lot_quantity(lots) + 1e-9:
+        if not no_lots_available and sell_qty <= priced_lot_quantity(lots) + 1e-9:
             capped_qty = min(sell_qty, profitable_lot_quantity(lots, price))
             if not fractional_position:
                 # A specified-lot order still needs a whole-share TOTAL (round_sell_quantity's
@@ -730,7 +771,17 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
         # which leg passed, so it's computed unconditionally here rather than only after the
         # percentage gate clears (as it was under the old AND semantics).
         if not already_today:
-            fifo = fifo_realized_profit(lots, sell_qty, price, exclude_loss_lots=True)
+            if no_lots_available:
+                # No lot-level cost data exists at all to walk — estimate off the blended
+                # avg_cost_basis instead (see the Zero-available-lots fallback note above).
+                fifo = FifoSaleResult(
+                    realized_profit_dollars=(price - pos.avg_cost_basis) * sell_qty,
+                    lots_consumed=[],
+                    quantity_sold=sell_qty,
+                    fully_covered=True,
+                )
+            else:
+                fifo = fifo_realized_profit(lots, sell_qty, price, exclude_loss_lots=True)
 
             # v2.78.0: dynamic profit-threshold ramp — the percent/dollar OR-gate is no longer a
             # flat bar. Each leg ramps parabolically from its own base (materialize_profit_percentage
@@ -819,9 +870,14 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
                     if fractional_position:
                         reason += (" (ordinary order — sub-whole-share position, Robinhood "
                                     "default lot matching; FIFO figure is an estimate)")
+                    elif no_lots_available:
+                        reason += (" (ordinary order — no priced/selectable lots yet, e.g. a "
+                                    "same-day buy still syncing broker-side; Robinhood default "
+                                    "lot matching, dollar figure is an avg_cost_basis estimate, "
+                                    "not a FIFO walk)")
                     ctx.profit_taking_sells.append(TradeIntent(
                         symbol=sym, side="sell", quantity=sell_qty, reason=reason,
-                        tax_lots=None if fractional_position else
+                        tax_lots=None if (fractional_position or no_lots_available) else
                             [{"open_lot_id": l["open_lot_id"], "quantity": l["quantity"]} for l in fifo.lots_consumed],
                         realized_profit_dollars=fifo.realized_profit_dollars,
                         raw_gain_pct=raw_gain_pct,
