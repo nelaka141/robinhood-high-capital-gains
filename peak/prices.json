@@ -477,8 +477,8 @@
 		"peakDate": "2026-08-31",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
-		"profitSellPrice": 208.01,
-		"profitSellDate": "2026-08-31",
+		"profitSellPrice": 207.89,
+		"profitSellDate": "2026-09-01",
 		"lastPurchaseDate": "2026-08-26",
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
@@ -517,8 +517,8 @@
 		"lastLossSaleDate": null
 	},
 	"AMT": {
-		"peakPrice": 176.4551,
-		"peakDate": "2026-08-31",
+		"peakPrice": 177.325,
+		"peakDate": "2026-09-01",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 174.68,
