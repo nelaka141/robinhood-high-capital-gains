@@ -110,6 +110,57 @@ def test_partial_lots_still_fail_closed() -> None:
     print("[partial-lots-fail-closed] 2 priced sh / 5 sh target -> still fail-closed, not downsized")
 
 
+def test_stale_non_today_lots_stay_fail_closed() -> None:
+    """A position whose lots are ALL unpriced/unselectable but NOT dated today (e.g. an
+    ACATS transfer that's been stuck pending for days) must NOT hit the zero-available-lots
+    fallback, even though avg_cost_basis happens to be resolved (e.g. via transferred_basis.json,
+    which can supply avg_cost_basis independently of the individual lots ever syncing). The
+    fallback is scoped to genuine same-day sync latency only -- an older stuck position is a
+    real data problem and must stay Fail-Closed, not get sold off an estimate."""
+    targets = {"MU": AssetTarget(symbol="MU", weight=1.0)}
+    ctx = _minimal_ctx(targets=targets)
+    ctx.current_date = date(2026, 8, 4)
+    ctx.positions = {"MU": Position(symbol="MU", quantity=10.0, avg_cost_basis=600.0)}
+    ctx.quotes = {"MU": Quote(symbol="MU", last_trade_price=850.0)}
+    lots = {"MU": [TaxLot(open_lot_id="mu-stale-transfer", quantity=10.0, cost_per_share=None,
+                           open_date=date(2026, 7, 20), is_selectable=False)]}
+    broker = _TaxLotOnlyBroker(lots)
+
+    step4_profit_taking(ctx, broker)
+
+    assert ctx.profit_taking_sells == [], ctx.profit_taking_sells
+    assert any(
+        s.symbol == "MU" and "cost basis pending transfer" in s.reason for s in ctx.skipped
+    ), ctx.skipped
+    print("[stale-non-today-fail-closed] lots dated 2026-07-20 (not today) -> still fail-closed")
+
+
+def test_mixed_today_and_older_unpriced_lots_stay_fail_closed() -> None:
+    """A same-day buy sitting alongside an OLDER still-pending lot (both unpriced) must also
+    stay Fail-Closed -- the "every lot dated today" requirement means one older lot in the mix
+    is enough to disqualify the fallback, even though none of the lots are priced."""
+    targets = {"MU": AssetTarget(symbol="MU", weight=1.0)}
+    ctx = _minimal_ctx(targets=targets)
+    ctx.current_date = date(2026, 8, 4)
+    ctx.positions = {"MU": Position(symbol="MU", quantity=10.0, avg_cost_basis=600.0)}
+    ctx.quotes = {"MU": Quote(symbol="MU", last_trade_price=850.0)}
+    lots = {"MU": [
+        TaxLot(open_lot_id="mu-today", quantity=5.0, cost_per_share=None,
+               open_date=date(2026, 8, 4), is_selectable=False),
+        TaxLot(open_lot_id="mu-older-pending", quantity=5.0, cost_per_share=None,
+               open_date=date(2026, 7, 20), is_selectable=False),
+    ]}
+    broker = _TaxLotOnlyBroker(lots)
+
+    step4_profit_taking(ctx, broker)
+
+    assert ctx.profit_taking_sells == [], ctx.profit_taking_sells
+    assert any(
+        s.symbol == "MU" and "cost basis pending transfer" in s.reason for s in ctx.skipped
+    ), ctx.skipped
+    print("[mixed-today-and-older-fail-closed] one older unpriced lot in the mix -> still fail-closed")
+
+
 def test_zero_lots_available_respects_loss_check() -> None:
     """Same zero-available-lots position, but priced at a loss vs. avg_cost_basis -> the
     estimate-based dollar gate must still refuse to sell at a loss, same as the FIFO path does."""
@@ -130,6 +181,8 @@ def test_zero_lots_available_respects_loss_check() -> None:
 def main() -> None:
     test_zero_lots_available_falls_back_to_ordinary_order()
     test_partial_lots_still_fail_closed()
+    test_stale_non_today_lots_stay_fail_closed()
+    test_mixed_today_and_older_unpriced_lots_stay_fail_closed()
     test_zero_lots_available_respects_loss_check()
     print("\nSMOKE TEST (zero-available-lots fallback) PASSED")
 
