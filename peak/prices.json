@@ -37,8 +37,8 @@
 		"peakDate": "2026-08-21",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
-		"profitSellPrice": 982.545,
-		"profitSellDate": "2026-08-21",
+		"profitSellPrice": 949.47,
+		"profitSellDate": "2026-09-02",
 		"lastPurchaseDate": "2026-08-31",
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
@@ -301,8 +301,8 @@
 		"peakDate": "2026-08-25",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
-		"profitSellPrice": 78.065,
-		"profitSellDate": "2026-08-14",
+		"profitSellPrice": 82.035,
+		"profitSellDate": "2026-09-02",
 		"lastPurchaseDate": "2026-08-28",
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
@@ -352,8 +352,8 @@
 		"lastLossSaleDate": null
 	},
 	"JNJ": {
-		"peakPrice": 275.33,
-		"peakDate": "2026-08-19",
+		"peakPrice": 277.97,
+		"peakDate": "2026-09-02",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 275.33,
@@ -473,8 +473,8 @@
 		"lastLossSaleDate": null
 	},
 	"CVX": {
-		"peakPrice": 210.11,
-		"peakDate": "2026-09-01",
+		"peakPrice": 210.94,
+		"peakDate": "2026-09-02",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 207.89,
@@ -556,7 +556,7 @@
 		"liquidatedDate": null,
 		"profitSellPrice": 76.0501,
 		"profitSellDate": "2026-08-21",
-		"lastPurchaseDate": "2026-08-17",
+		"lastPurchaseDate": "2026-09-02",
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
