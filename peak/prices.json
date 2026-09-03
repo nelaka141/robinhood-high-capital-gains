@@ -55,23 +55,23 @@
 		"lastLossSaleDate": null
 	},
 	"MSTR": {
-		"peakPrice": 132.01,
+		"peakPrice": 142.175,
 		"peakDate": "2026-09-03",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
-		"profitSellPrice": 122.3499,
-		"profitSellDate": "2026-08-24",
+		"profitSellPrice": 142.175,
+		"profitSellDate": "2026-09-03",
 		"lastPurchaseDate": "2026-09-03",
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
 	"COIN": {
-		"peakPrice": 188.13,
+		"peakPrice": 192.27,
 		"peakDate": "2026-09-03",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
-		"profitSellPrice": 188.47,
-		"profitSellDate": "2026-08-25",
+		"profitSellPrice": 192.27,
+		"profitSellDate": "2026-09-03",
 		"lastPurchaseDate": "2026-09-03",
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
@@ -114,8 +114,8 @@
 		"peakDate": "2026-07-09",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
-		"profitSellPrice": null,
-		"profitSellDate": null,
+		"profitSellPrice": 151.96,
+		"profitSellDate": "2026-09-03",
 		"lastPurchaseDate": "2026-08-17",
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
@@ -143,7 +143,7 @@
 		"lastLossSaleDate": null
 	},
 	"NVDA": {
-		"peakPrice": 227.71,
+		"peakPrice": 229.51,
 		"peakDate": "2026-09-03",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -198,7 +198,7 @@
 		"lastLossSaleDate": null
 	},
 	"HOOD": {
-		"peakPrice": 120.54,
+		"peakPrice": 122.91,
 		"peakDate": "2026-09-03",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
@@ -352,8 +352,8 @@
 		"lastLossSaleDate": null
 	},
 	"JNJ": {
-		"peakPrice": 277.97,
-		"peakDate": "2026-09-02",
+		"peakPrice": 278.715,
+		"peakDate": "2026-09-03",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 275.33,
@@ -517,8 +517,8 @@
 		"lastLossSaleDate": null
 	},
 	"AMT": {
-		"peakPrice": 177.325,
-		"peakDate": "2026-09-01",
+		"peakPrice": 178.275,
+		"peakDate": "2026-09-03",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 174.68,
