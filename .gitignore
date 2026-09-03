@@ -18,3 +18,5 @@ __pycache__/
 # the agent while composing the Step 9 email report each cycle — same rationale as above:
 # live account data, never committed.
 /scratch_*
+/email_body.html
+/email_body_plain.md
