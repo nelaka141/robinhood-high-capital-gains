@@ -28,7 +28,7 @@
 		"liquidatedDate": null,
 		"profitSellPrice": 184.7042,
 		"profitSellDate": "2026-08-27",
-		"lastPurchaseDate": "2026-08-26",
+		"lastPurchaseDate": "2026-09-03",
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -55,24 +55,24 @@
 		"lastLossSaleDate": null
 	},
 	"MSTR": {
-		"peakPrice": 137.69,
-		"peakDate": "2026-08-27",
+		"peakPrice": 132.01,
+		"peakDate": "2026-09-03",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 122.3499,
 		"profitSellDate": "2026-08-24",
-		"lastPurchaseDate": "2026-08-13",
+		"lastPurchaseDate": "2026-09-03",
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
 	"COIN": {
-		"peakPrice": 191.29,
-		"peakDate": "2026-08-27",
+		"peakPrice": 188.13,
+		"peakDate": "2026-09-03",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 188.47,
 		"profitSellDate": "2026-08-25",
-		"lastPurchaseDate": "2026-07-31",
+		"lastPurchaseDate": "2026-09-03",
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -143,8 +143,8 @@
 		"lastLossSaleDate": null
 	},
 	"NVDA": {
-		"peakPrice": 226.6341,
-		"peakDate": "2026-08-28",
+		"peakPrice": 227.71,
+		"peakDate": "2026-09-03",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 224.76,
@@ -176,13 +176,13 @@
 		"lastLossSaleDate": null
 	},
 	"MSFT": {
-		"peakPrice": 514.205,
-		"peakDate": "2026-08-28",
+		"peakPrice": 512.14,
+		"peakDate": "2026-09-03",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 512.754,
 		"profitSellDate": "2026-08-28",
-		"lastPurchaseDate": "2026-08-13",
+		"lastPurchaseDate": "2026-09-03",
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
@@ -198,8 +198,8 @@
 		"lastLossSaleDate": null
 	},
 	"HOOD": {
-		"peakPrice": 115.155,
-		"peakDate": "2026-07-15",
+		"peakPrice": 120.54,
+		"peakDate": "2026-09-03",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 99.5005,
@@ -290,15 +290,15 @@
 		"peakDate": "2026-08-10",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
-		"profitSellPrice": 236.91,
-		"profitSellDate": "2026-08-19",
+		"profitSellPrice": 236.04,
+		"profitSellDate": "2026-09-03",
 		"lastPurchaseDate": "2026-09-02",
 		"lastLossSalePrice": null,
 		"lastLossSaleDate": null
 	},
 	"NFLX": {
-		"peakPrice": 82.42,
-		"peakDate": "2026-09-02",
+		"peakPrice": 83.23,
+		"peakDate": "2026-09-03",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 82.035,
@@ -473,8 +473,8 @@
 		"lastLossSaleDate": null
 	},
 	"CVX": {
-		"peakPrice": 212.385,
-		"peakDate": "2026-09-02",
+		"peakPrice": 212.51,
+		"peakDate": "2026-09-03",
 		"liquidatedPrice": "",
 		"liquidatedDate": null,
 		"profitSellPrice": 207.89,
