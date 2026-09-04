@@ -16,8 +16,8 @@ from __future__ import annotations
 from datetime import date
 
 from bot.config import AssetTarget, PortfolioConfig, PortfolioMetadata
-from bot.models import Position, Quote, RunContext, TaxLot
-from bot.steps import step4_profit_taking, step4b_sell_cleanup
+from bot.models import Position, Quote, RunContext, TaxLot, TradeIntent
+from bot.steps import step4_profit_taking, step4b_sell_cleanup, step6a_prepare_sells
 
 
 def _meta(**overrides) -> PortfolioMetadata:
@@ -211,6 +211,54 @@ def test_breakeven_lot_counts_as_green() -> None:
     print("[breakeven-counts-as-green] EVEN: exact breakeven lot -> still swept, $0.00 realized — OK")
 
 
+def test_cleanup_sweep_exempt_from_sell_or_buy_value_limit() -> None:
+    """v2.82.0 — reproduces the 2026-09-04 cycle: a $4.92 TQQQ-style remainder (0.0676 sh @ $72.70)
+    is swept by 4b, then must SURVIVE step6a's sell_or_buy_value_limit ($50) rather than being
+    dropped as 'below sell_or_buy_value_limit' — which is exactly what happened every cycle before
+    this exemption, leaving the dust in place forever."""
+    ctx, broker = _position(
+        "TQQQ", price=72.70, quantity=0.0676, avg_cost=71.44,
+        lots=[TaxLot(open_lot_id="a", quantity=0.0676, cost_per_share=71.44, open_date=date(2026, 7, 16))],
+        meta_overrides={"sell_or_buy_value_limit": 50.0},
+    )
+    step4b_sell_cleanup(ctx, broker)
+    assert len(ctx.cleanup_sells) == 1, ctx.cleanup_sells
+    mv = 0.0676 * 72.70
+    assert mv < 50.0, mv  # sanity: this IS a sub-floor order
+
+    sells, halted, _ = step6a_prepare_sells(ctx)
+    assert not halted
+    assert [s.symbol for s in sells] == ["TQQQ"], sells
+    assert len(ctx.cleanup_sells) == 1, "cleanup list must stay in sync with what was placed"
+    assert not any(
+        s.symbol == "TQQQ" and "below sell_or_buy_value_limit" in s.reason for s in ctx.skipped
+    ), ctx.skipped
+    print(f"[cleanup-exempt-from-value-limit] TQQQ: ${mv:.2f} sweep (< $50 floor) still placed — OK")
+
+
+def test_gtp_sale_still_subject_to_sell_or_buy_value_limit() -> None:
+    """Control for the exemption above: the floor still applies to a GET THE PROFITS sale of the
+    same tiny size — only cleanup sweeps are exempt."""
+    ctx, broker = _position(
+        "GTPDUST", price=72.70, quantity=0.0676, avg_cost=71.44,
+        lots=[TaxLot(open_lot_id="a", quantity=0.0676, cost_per_share=71.44, open_date=date(2026, 7, 16))],
+        meta_overrides={"sell_or_buy_value_limit": 50.0},
+    )
+    # Inject a profit-taking intent directly (bypassing step4's own min_value_of_trade floor,
+    # which would otherwise block this before step6a ever saw it).
+    ctx.profit_taking_sells.append(TradeIntent(
+        symbol="GTPDUST", side="sell", quantity=0.0676, reason="test GTP", realized_profit_dollars=0.08,
+    ))
+    sells, halted, _ = step6a_prepare_sells(ctx)
+    assert not halted
+    assert sells == [], sells
+    assert ctx.profit_taking_sells == [], ctx.profit_taking_sells
+    assert any(
+        s.symbol == "GTPDUST" and "below sell_or_buy_value_limit" in s.reason for s in ctx.skipped
+    ), ctx.skipped
+    print("[gtp-still-floored] GTPDUST: same-size GET THE PROFITS sale still dropped by the floor — OK")
+
+
 def main() -> None:
     test_rule_a_sweeps_small_single_green_lot()
     test_rule_a_skips_when_above_threshold()
@@ -221,6 +269,8 @@ def main() -> None:
     test_target_price_to_sell_blocks_cleanup()
     test_blocked_symbol_never_swept()
     test_breakeven_lot_counts_as_green()
+    test_cleanup_sweep_exempt_from_sell_or_buy_value_limit()
+    test_gtp_sale_still_subject_to_sell_or_buy_value_limit()
     print("\nSMOKE TEST (Sell Cleanup Pass) PASSED")
 
 
