@@ -104,6 +104,13 @@ class PortfolioMetadata:
     # updating just to opt into this feature.
     cleanup_dust_threshold_dollars: float = 200.0
 
+    # v2.80.1 — GLOBAL fallback for `AssetTarget.max_position_value` (Step 3 Position Cap
+    # Top-Up): used for any target that doesn't set its own `max_position_value` override.
+    # None (the default) preserves the original v2.80.0 behavior — a target with no per-asset
+    # override simply never participates in the top-up pass. Set to a real number in
+    # portfolio_targets.json to opt EVERY target into the top-up pass by default.
+    default_max_position_value: Optional[float] = None
+
 
 @dataclass(frozen=True)
 class PortfolioConfig:
@@ -158,6 +165,17 @@ class PortfolioConfig:
         market value (existing holdings + this cycle's planned buy) never exceeds this cap."""
         override = self.targets[symbol].max_allocation_percent
         return override if override is not None else self.meta.max_portfolio_percentage
+
+    def resolved_max_position_value(self, symbol: str) -> Optional[float]:
+        """Effective `max_position_value` for the Step 3 Position Cap Top-Up: the asset's own
+        `max_position_value` override if set, else the global `default_max_position_value`
+        (v2.80.1) if configured, else None — meaning the asset doesn't participate in the
+        top-up pass at all (mirrors `max_allocation_percentage`'s override-else-global
+        pattern, except the global side is itself optional here)."""
+        override = self.targets[symbol].max_position_value
+        if override is not None:
+            return override
+        return self.meta.default_max_position_value
 
     def sell_price_target_blocks(self, symbol: str, current_price: float) -> bool:
         """target_price_to_sell: True while `symbol` has a configured sell-price floor and

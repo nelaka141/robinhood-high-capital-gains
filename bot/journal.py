@@ -172,7 +172,7 @@ def render_entry(ctx: RunContext) -> str:
 
     lines += ["", "## Position Cap Top-Up (leftover-cash pass toward `max_position_value`)"]
     for sym, dollars in ctx.position_cap_topups.items():
-        target = ctx.config.targets[sym].max_position_value
+        target = ctx.config.resolved_max_position_value(sym)
         lines.append(f"- **{sym}**: +${dollars:,.2f} (target max_position_value ${target:,.2f})")
     if not ctx.position_cap_topups:
         lines.append("- none this cycle")
