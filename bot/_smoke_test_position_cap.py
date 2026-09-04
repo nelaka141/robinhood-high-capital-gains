@@ -16,7 +16,7 @@ import math
 from datetime import date
 
 from bot.config import AssetTarget, PortfolioConfig, PortfolioMetadata, SectorGroup
-from bot.models import DriftResult, Quote, RunContext
+from bot.models import DriftResult, Position, Quote, RunContext
 from bot.steps import step3_underweight_buys
 
 
@@ -295,6 +295,94 @@ def test_topup_skips_buy_guarded_symbol() -> None:
     print(f"[topup-skips-buy-guarded] F (buy-guarded) got no top-up; logged={bool(reasons)} — OK")
 
 
+def test_topup_skips_below_momentum_floor() -> None:
+    """H has zero market value and ample max_position_value room, but the portfolio's momentum
+    floor is set so high that H's real (near-zero, flat-series) Momentum_Score can't possibly
+    clear it — v2.81.0 closes the gap where Top-Up previously ignored
+    min_momentum_score_to_fill_underweight entirely (the dry run that surfaced this: a symbol
+    ranked LAST of 53 by Momentum_Score still got a multi-thousand-dollar top-up)."""
+    targets = {"H": AssetTarget("H", weight=1.0, max_position_value=5000.0)}
+    drift = {"H": _dr(target_weight=0.0, actual_weight=0.0, target_pct=0.0, mv=0.0)}
+    ctx = _ctx(targets, drift, current_cash=4500.0, min_momentum_score_to_fill_underweight=1e6)
+    allocations = step3_underweight_buys(ctx, _TiedBroker())
+
+    assert math.isclose(allocations.get("H", 0.0), 0.0, abs_tol=0.01), (
+        f"H's Momentum_Score can't clear a 1e6 floor -> no top-up, got {allocations.get('H')}"
+    )
+    reasons = [s.reason for s in ctx.skipped if s.symbol == "H" and s.would_be_action == "Position Cap Top-Up"]
+    assert reasons and "min_momentum_score_to_fill_underweight" in reasons[0], (
+        f"expected a momentum-floor SKIPPED entry for H, got {reasons}"
+    )
+    print("[topup-skips-below-momentum-floor] H excluded from top-up by the momentum floor — OK")
+
+
+def test_topup_skips_held_position_at_a_loss() -> None:
+    """I is currently held (small quantity) with avg_cost_basis ABOVE the live quote (100.0) ->
+    the position is at a loss, so v2.81.0's held-at-a-loss guard excludes it from top-up even
+    though it has ample max_position_value room and clears every other guard."""
+    targets = {"I": AssetTarget("I", weight=1.0, max_position_value=5000.0)}
+    drift = {"I": _dr(target_weight=0.0, actual_weight=0.0, target_pct=0.0, mv=50.0)}
+    ctx = _ctx(targets, drift, current_cash=4500.0)
+    ctx.positions["I"] = Position(symbol="I", quantity=0.5, avg_cost_basis=120.0)  # quote 100.0 -> at a loss
+    allocations = step3_underweight_buys(ctx, _TiedBroker())
+
+    assert math.isclose(allocations.get("I", 0.0), 0.0, abs_tol=0.01), (
+        f"held-at-a-loss guard should block top-up entirely, got {allocations.get('I')}"
+    )
+    reasons = [s.reason for s in ctx.skipped if s.symbol == "I" and s.would_be_action == "Position Cap Top-Up"]
+    assert reasons and "at a loss" in reasons[0], f"expected a held-at-a-loss SKIPPED entry for I, got {reasons}"
+    print("[topup-skips-held-at-a-loss] I (held, underwater vs avg_cost_basis) excluded from top-up — OK")
+
+
+def test_topup_still_fires_for_held_position_at_a_gain() -> None:
+    """Regression: J is held with avg_cost_basis BELOW the live quote (a real gain) -> the
+    held-at-a-loss guard must NOT block it; top-up proceeds normally."""
+    targets = {"J": AssetTarget("J", weight=1.0, max_position_value=5000.0)}
+    drift = {"J": _dr(target_weight=0.0, actual_weight=0.0, target_pct=0.0, mv=50.0)}
+    ctx = _ctx(targets, drift, current_cash=4500.0)
+    ctx.positions["J"] = Position(symbol="J", quantity=0.5, avg_cost_basis=80.0)  # quote 100.0 -> at a gain
+    allocations = step3_underweight_buys(ctx, _TiedBroker())
+
+    # room = min(cap - mv, headroom - planned) = min(5000-50, 0.9*10000-50) = min(4950, 8950) = 4950,
+    # bounded by the $4500 leftover cash (sole candidate) -> full $4500 flows to J.
+    assert math.isclose(allocations.get("J", 0.0), 4500.0, abs_tol=0.01), (
+        f"J is at a gain, not a loss -> should be topped up normally, got {allocations.get('J')}"
+    )
+    print(f"[topup-fires-for-held-at-a-gain] J (held, in-the-money) topped up ${allocations['J']:.2f} — OK")
+
+
+def test_topup_skips_unresolved_cost_basis() -> None:
+    """K is held with avg_cost_basis=None (unresolved, per Step 1's fail-closed rule) -> can't
+    prove it isn't a loss, so v2.81.0 excludes it from top-up the same as a confirmed loss."""
+    targets = {"K": AssetTarget("K", weight=1.0, max_position_value=5000.0)}
+    drift = {"K": _dr(target_weight=0.0, actual_weight=0.0, target_pct=0.0, mv=50.0)}
+    ctx = _ctx(targets, drift, current_cash=4500.0)
+    ctx.positions["K"] = Position(symbol="K", quantity=0.5, avg_cost_basis=None)
+    allocations = step3_underweight_buys(ctx, _TiedBroker())
+
+    assert math.isclose(allocations.get("K", 0.0), 0.0, abs_tol=0.01), (
+        f"unresolved cost basis must fail closed for top-up, got {allocations.get('K')}"
+    )
+    print("[topup-skips-unresolved-cost-basis] K (avg_cost_basis unresolved) excluded from top-up — OK")
+
+
+def test_topup_unaffected_for_zero_quantity_position_record() -> None:
+    """Regression: a symbol with a Position record but quantity=0 (fully liquidated/never
+    filled) has no cost basis to be 'at a loss' against -> the held-at-a-loss guard must not
+    touch it, matching every existing topup-only-candidate test's assumption that an unheld
+    symbol tops up normally."""
+    targets = {"L": AssetTarget("L", weight=1.0, max_position_value=5000.0)}
+    drift = {"L": _dr(target_weight=0.0, actual_weight=0.0, target_pct=0.0, mv=0.0)}
+    ctx = _ctx(targets, drift, current_cash=4500.0)
+    ctx.positions["L"] = Position(symbol="L", quantity=0.0, avg_cost_basis=None)
+    allocations = step3_underweight_buys(ctx, _TiedBroker())
+
+    assert math.isclose(allocations.get("L", 0.0), 4500.0, abs_tol=0.01), (
+        f"a zero-quantity position record must not trigger the held-at-a-loss guard, got {allocations.get('L')}"
+    )
+    print(f"[topup-unaffected-zero-qty-position] L (quantity=0) topped up ${allocations['L']:.2f} normally — OK")
+
+
 def main() -> None:
     test_topup_only_candidate_gets_leftover_cash()
     test_topup_extends_a_symbol_already_partially_filled()
@@ -306,6 +394,11 @@ def main() -> None:
     test_global_default_opts_every_target_into_topup()
     test_per_asset_override_still_wins_when_global_default_set()
     test_topup_skips_buy_guarded_symbol()
+    test_topup_skips_below_momentum_floor()
+    test_topup_skips_held_position_at_a_loss()
+    test_topup_still_fires_for_held_position_at_a_gain()
+    test_topup_skips_unresolved_cost_basis()
+    test_topup_unaffected_for_zero_quantity_position_record()
     print("\nSMOKE TEST (max_position_value / Position Cap Top-Up) PASSED")
 
 
