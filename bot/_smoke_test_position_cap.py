@@ -222,6 +222,65 @@ def test_topup_bounded_by_sector_cap() -> None:
           f"(sum ${total:.2f} == $1500 sector cap; position_cap_topups dict scaled in sync) — OK")
 
 
+def test_resolved_max_position_value_override_vs_global_default() -> None:
+    """Direct unit coverage of PortfolioConfig.resolved_max_position_value (v2.80.1): a
+    per-asset override always wins; absent that, the global `default_max_position_value`
+    applies; absent both, the symbol resolves to None (doesn't participate at all)."""
+    targets = {
+        "OVERRIDE": AssetTarget("OVERRIDE", weight=1.0, max_position_value=999.0),
+        "DEFAULTED": AssetTarget("DEFAULTED", weight=1.0),
+        "NEITHER": AssetTarget("NEITHER", weight=1.0),
+    }
+    cfg = PortfolioConfig(
+        meta=_meta(default_max_position_value=6000.0), targets=targets, force_sell={}, blocked=[],
+    )
+    assert cfg.resolved_max_position_value("OVERRIDE") == 999.0, "per-asset override must win over the global default"
+    assert cfg.resolved_max_position_value("DEFAULTED") == 6000.0, "no override -> falls back to the global default"
+
+    cfg_no_default = PortfolioConfig(
+        meta=_meta(default_max_position_value=None), targets=targets, force_sell={}, blocked=[],
+    )
+    assert cfg_no_default.resolved_max_position_value("NEITHER") is None, (
+        "no override AND no global default -> None, symbol never participates in the top-up pass"
+    )
+    print("[resolved-max-position-value] override wins ($999), no-override falls back to global "
+          "default ($6000), neither-set resolves to None — OK")
+
+
+def test_global_default_opts_every_target_into_topup() -> None:
+    """With `default_max_position_value` set, a symbol carrying NO per-asset override still
+    gets topped up toward that global figure — the whole point of the v2.80.1 feature request:
+    every target participates by default unless it overrides or is excluded/guarded."""
+    targets = {
+        "PLAIN": AssetTarget("PLAIN", weight=1.0),  # no per-asset max_position_value at all
+    }
+    drift = {"PLAIN": _dr(target_weight=0.0, actual_weight=0.0, target_pct=0.0, mv=0.0)}
+    ctx = _ctx(targets, drift, current_cash=4500.0, default_max_position_value=6000.0)
+    allocations = step3_underweight_buys(ctx, _TiedBroker())
+
+    assert math.isclose(allocations.get("PLAIN", 0.0), 4500.0, abs_tol=0.01), (
+        f"PLAIN has no override but the global default ($6000) exceeds the $4500 leftover cash, "
+        f"so it should absorb all of it, got {allocations.get('PLAIN')}"
+    )
+    print(f"[global-default-opts-in] PLAIN (no per-asset max_position_value) still topped up "
+          f"${allocations['PLAIN']:.2f} via the $6000 global default — OK")
+
+
+def test_per_asset_override_still_wins_when_global_default_set() -> None:
+    """G has its OWN max_position_value ($500), tighter than the global default ($6000) — the
+    override must still win, not silently get replaced by the (looser) global figure."""
+    targets = {"G": AssetTarget("G", weight=1.0, max_position_value=500.0)}
+    drift = {"G": _dr(target_weight=0.0, actual_weight=0.0, target_pct=0.0, mv=0.0)}
+    ctx = _ctx(targets, drift, current_cash=4500.0, default_max_position_value=6000.0)
+    allocations = step3_underweight_buys(ctx, _TiedBroker())
+
+    assert math.isclose(allocations.get("G", 0.0), 500.0, abs_tol=0.01), (
+        f"G's own $500 override must cap the top-up, not the looser $6000 global default, got {allocations.get('G')}"
+    )
+    print(f"[override-wins-over-global-default] G capped at its own $500 override "
+          f"(not the $6000 global default) — OK")
+
+
 def test_topup_skips_buy_guarded_symbol() -> None:
     """F carries max_position_value but is buy-guarded (Step 2) -> gets nothing, and the
     leftover cash it would have used simply goes unspent (no other candidate to redirect to)."""
@@ -243,6 +302,9 @@ def main() -> None:
     test_topup_water_filling_when_one_candidate_caps_out()
     test_topup_bounded_by_per_asset_headroom_cap()
     test_topup_bounded_by_sector_cap()
+    test_resolved_max_position_value_override_vs_global_default()
+    test_global_default_opts_every_target_into_topup()
+    test_per_asset_override_still_wins_when_global_default_set()
     test_topup_skips_buy_guarded_symbol()
     print("\nSMOKE TEST (max_position_value / Position Cap Top-Up) PASSED")
 

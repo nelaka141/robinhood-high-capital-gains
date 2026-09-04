@@ -575,7 +575,8 @@ def step3_underweight_buys(ctx: RunContext, broker: BrokerClient) -> Dict[str, f
     if leftover_cash > 1e-9:
         topup_candidates: Dict[str, tuple[float, float]] = {}  # symbol -> (room, weight)
         for sym, target in cfg.targets.items():
-            if target.max_position_value is None:
+            cap = cfg.resolved_max_position_value(sym)  # own override, else global default_max_position_value
+            if cap is None:
                 continue
             if sym in ctx.excluded_symbols or sym in ctx.blocked_symbols or sym in ctx.buy_guarded_symbols:
                 continue
@@ -583,7 +584,7 @@ def step3_underweight_buys(ctx: RunContext, broker: BrokerClient) -> Dict[str, f
                 continue
             current_mv = ctx.drift_results[sym].market_value + allocations.get(sym, 0.0)
             room = min(
-                target.max_position_value - current_mv,
+                cap - current_mv,
                 _headroom(sym) - allocations.get(sym, 0.0),
             )
             if room > 1e-9:
@@ -592,7 +593,7 @@ def step3_underweight_buys(ctx: RunContext, broker: BrokerClient) -> Dict[str, f
                 ctx.skipped.append(SkippedTrade(
                     sym,
                     f"Position Cap Top-Up: no room left toward max_position_value "
-                    f"(${target.max_position_value:,.2f}) or per-asset concentration cap",
+                    f"(${cap:,.2f}) or per-asset concentration cap",
                     "Position Cap Top-Up",
                 ))
 
