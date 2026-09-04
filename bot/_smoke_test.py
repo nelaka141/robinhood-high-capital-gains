@@ -133,6 +133,9 @@ def main() -> None:
         steps.step4_profit_taking(ctx, broker)
         print(f"[Step 4] profit_taking_sells={[t.symbol for t in ctx.profit_taking_sells]}")
 
+        steps.step4b_sell_cleanup(ctx, broker)
+        print(f"[Step 4b] cleanup_sells={[t.symbol for t in ctx.cleanup_sells]}")
+
         planned_buys = steps.step5_price_limits(ctx, broker, planned_buys)
         print(f"[Step 5] planned_buys after pump-guard={ {k: round(v,2) for k,v in planned_buys.items()} }")
 

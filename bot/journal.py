@@ -86,7 +86,7 @@ def render_entry(ctx: RunContext) -> str:
     ts = ctx.current_date.isoformat()
     n_sells = (
         len(ctx.drawdown_liquidations) + len(ctx.blocked_liquidations)
-        + len(ctx.profit_taking_sells)
+        + len(ctx.profit_taking_sells) + len(ctx.cleanup_sells)
     )
     n_buys = len(ctx.buys)
 
@@ -139,13 +139,15 @@ def render_entry(ctx: RunContext) -> str:
             f"{m.price_vs_ema_pct:+.2f} | {m.ema_slope_pct:+.2f} | {m.score:+.2f} |"
         )
 
+    total_paid_taxes = sum(ctx.paid_taxes_by_year.values())
     lines += [
         "",
         "## Tax Reserve",
         f"- `net_realized_gains_ytd_pretrade`: **${ctx.net_realized_gains_ytd_pretrade:,.2f}**",
         f"- `net_realized_gains_ytd_effective` (post-sells): "
         f"**${(ctx.net_realized_gains_ytd_effective or 0):,.2f}**",
-        f"- `tax_reserve` (final): **${ctx.tax_reserve:,.2f}**",
+        f"- `total_paid_taxes` (all years, `tax/paid_taxes_by_year.json`): **${total_paid_taxes:,.2f}**",
+        f"- `tax_reserve` (final, after subtracting paid taxes): **${ctx.tax_reserve:,.2f}**",
         "",
         "## GET THE PROFITS Sells",
     ]
@@ -154,15 +156,31 @@ def render_entry(ctx: RunContext) -> str:
     if not ctx.profit_taking_sells:
         lines.append("- none fired this cycle")
 
+    lines += ["", "## Sell Cleanup Pass"]
+    for t in ctx.cleanup_sells:
+        lines.append(f"- **{t.symbol}**: {t.reason}")
+    if not ctx.cleanup_sells:
+        lines.append("- none fired this cycle")
+
     lines += ["", "## Buys (Underweight fills, momentum-ranked top-down)"]
     for t in ctx.buys:
-        lines.append(f"- **{t.symbol}**: ${t.dollar_amount:,.2f}")
+        topup = ctx.position_cap_topups.get(t.symbol)
+        note = f" (includes ${topup:,.2f} Position Cap Top-Up)" if topup else ""
+        lines.append(f"- **{t.symbol}**: ${t.dollar_amount:,.2f}{note}")
     if not ctx.buys:
         lines.append("- none fired this cycle")
+
+    lines += ["", "## Position Cap Top-Up (leftover-cash pass toward `max_position_value`)"]
+    for sym, dollars in ctx.position_cap_topups.items():
+        target = ctx.config.targets[sym].max_position_value
+        lines.append(f"- **{sym}**: +${dollars:,.2f} (target max_position_value ${target:,.2f})")
+    if not ctx.position_cap_topups:
+        lines.append("- none this cycle")
 
     lines += [
         "",
         f"## Total_High_Beta_Gains_Realized: **${ctx.total_high_beta_gains_realized:,.2f}**",
+        f"## Total_Cleanup_Gains_Realized: **${ctx.total_cleanup_gains_realized:,.2f}**",
         "",
         "## SKIPPED/PENDING",
         "| Symbol | Reason | Would-be action |",
@@ -258,13 +276,14 @@ def _render_loss_only_assets_section(ctx: RunContext) -> List[str]:
 def render_email_summary(ctx: RunContext) -> str:
     n_sells = (
         len(ctx.drawdown_liquidations) + len(ctx.blocked_liquidations)
-        + len(ctx.profit_taking_sells)
+        + len(ctx.profit_taking_sells) + len(ctx.cleanup_sells)
     )
     return (
         f"Scheduled rebalance {ctx.current_date.isoformat()}: "
         f"{len(ctx.buys)} buy(s), "
         f"{n_sells} sell(s). "
         f"Total_High_Beta_Gains_Realized: ${ctx.total_high_beta_gains_realized:,.2f}. "
+        f"Total_Cleanup_Gains_Realized: ${ctx.total_cleanup_gains_realized:,.2f}. "
         f"Final buying_power: ${ctx.account_cash:,.2f}. "
         f"Dormant assets (no activity > {ctx.config.meta.dormant_asset_days}d): {len(ctx.dormant_assets)}. "
         f"Loss-only-lot assets (no lot sellable at a gain): {len(ctx.loss_only_assets)}. "

@@ -29,6 +29,7 @@ from .config import load_portfolio_config
 from .models import RunContext
 from .state import (
     AssetPriceState,
+    load_paid_taxes_by_year,
     load_price_state,
     load_tax_by_year,
     save_price_state,
@@ -47,6 +48,7 @@ def run_cycle(account_number: str, repo_dir: str, broker: BrokerClient, dry_run:
     ctx = RunContext(current_date=now_et.date(), config=cfg, account_number=account_number)
     ctx.price_state = load_price_state(f"{repo_dir}/peak/prices.json")
     ctx.tax_by_year = load_tax_by_year(f"{repo_dir}/tax/realized_gains_by_year.json")
+    ctx.paid_taxes_by_year = load_paid_taxes_by_year(f"{repo_dir}/tax/paid_taxes_by_year.json")
 
     # ---- Step 1 ----
     steps.step1_fetch_state(ctx, broker, repo_dir)
@@ -66,6 +68,9 @@ def run_cycle(account_number: str, repo_dir: str, broker: BrokerClient, dry_run:
     # ---- Step 4 ----
     steps.step4_profit_taking(ctx, broker)
 
+    # ---- Step 4b ----
+    steps.step4b_sell_cleanup(ctx, broker)
+
     # ---- Step 5 ----
     planned_buys = steps.step5_price_limits(ctx, broker, planned_buys)
 
@@ -80,7 +85,10 @@ def run_cycle(account_number: str, repo_dir: str, broker: BrokerClient, dry_run:
 def _update_price_state(ctx: RunContext) -> None:
     today = ctx.current_date.isoformat()
     bought = {t.symbol for t in ctx.buys}
-    sold_for_profit = {t.symbol for t in ctx.profit_taking_sells}
+    # Cleanup sells (Step 4b) realize a profit (or breakeven) just like GET THE PROFITS — never a
+    # loss, by construction — so they arm the same profit-sell buy-guard/cooldown and reset the
+    # peak on a later repurchase exactly like a GTP sale would.
+    sold_for_profit = {t.symbol for t in ctx.profit_taking_sells} | {t.symbol for t in ctx.cleanup_sells}
     liquidated = set(ctx.drawdown_liquidations) | set(ctx.blocked_liquidations)
 
     for sym in ctx.config.targets:
