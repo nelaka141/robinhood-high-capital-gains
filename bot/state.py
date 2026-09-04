@@ -1,6 +1,10 @@
 """Load/save the bot's persistent state files:
-  peak/prices.json, tax/realized_gains_by_year.json, transferred_basis.json
-These are the files CLAUDE.md Step 7 commits every cycle (whichever changed)."""
+  peak/prices.json, tax/realized_gains_by_year.json, tax/paid_taxes_by_year.json,
+  transferred_basis.json
+These are the files CLAUDE.md Step 7 commits every cycle (whichever changed) — except
+tax/paid_taxes_by_year.json, which (like transferred_basis.json) is purely user-maintained: the
+bot only ever reads it, never writes it, since it has no way to know when the user actually paid
+a given year's taxes."""
 from __future__ import annotations
 
 import json
@@ -53,6 +57,20 @@ def load_tax_by_year(path: str | Path = "tax/realized_gains_by_year.json") -> Di
 
 def save_tax_by_year(data: Dict[str, float], path: str | Path = "tax/realized_gains_by_year.json") -> None:
     Path(path).write_text(json.dumps(data, indent=2) + "\n")
+
+
+def load_paid_taxes_by_year(path: str | Path = "tax/paid_taxes_by_year.json") -> Dict[str, float]:
+    """{ "2026": 20000.00, ... } — user-maintained record of actual taxes paid per calendar year,
+    manually edited (never auto-cleared/decayed, same posture as realized_gains_by_year.json's
+    manual-clearing model). Every entry across ALL years is summed and subtracted, dollar-for-
+    dollar, from the percentage-based tax_reserve figure (see steps.py's `_compute_tax_reserve`)
+    — the reserve still ramps as a percentage of realized gains, but money already paid out no
+    longer needs to be held aside on top of that. Missing file/empty dict is normal (no taxes
+    recorded as paid yet)."""
+    p = Path(path)
+    if not p.exists():
+        return {}
+    return json.loads(p.read_text())
 
 
 def load_transferred_basis(path: str | Path = "transferred_basis.json") -> Dict[str, dict]:

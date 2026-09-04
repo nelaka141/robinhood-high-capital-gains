@@ -1,0 +1,251 @@
+"""Focused coverage for `max_position_value` / Step 3's Position Cap Top-Up (v2.80.0): after the
+momentum-ranked top-down drift-gap fill, any deployable cash left over is used to top candidate
+symbols' market value up toward their own configured `max_position_value` (a flat dollar cap set
+alongside `weight`/`drift` in portfolio_targets.json) — independent of drift/Underweight/momentum
+status, pro-rated by `weight` when several candidates compete for the same leftover cash, and
+still bounded by the existing per-asset (`max_allocation_percent`) and sector caps.
+
+Pure logic tests against RunContext/steps functions directly (same style as
+bot/_smoke_test_sector_cap.py).
+
+Run: PYTHONPATH=. python3 bot/_smoke_test_position_cap.py
+"""
+from __future__ import annotations
+
+import math
+from datetime import date
+
+from bot.config import AssetTarget, PortfolioConfig, PortfolioMetadata, SectorGroup
+from bot.models import DriftResult, Quote, RunContext
+from bot.steps import step3_underweight_buys
+
+
+def _flat_series(n: int = 60) -> list:
+    return [100.0 + math.sin(i / 3.0) for i in range(n)]
+
+
+class _TiedBroker:
+    def get_daily_closes(self, symbol, start, end):
+        return _flat_series()
+
+
+def _meta(**overrides) -> PortfolioMetadata:
+    base = dict(
+        global_drift_tolerance=1.0, max_trailing_drawdown_percentage=35,
+        min_recovery_price_percentage=5.0,
+        max_portfolio_percentage=90.0,
+        min_cash_absolute=0, min_cash_target=500, seek_approval_value=1_000_000,
+        sell_price_diff_limit=5, buy_price_diff_limit=5, fifty_two_week_high_guard=1000.0, no_of_days_for_price_compare=3,
+        cap_on_total_cash_balance_to_use=30000, cool_down_period_after_lquidation=6,
+        beta_benchmark_symbol="SPY", beta_calculation_lookback_days=30,
+        sold_asset_repurchase_days=2, leg2_price_change=0.5, leg3_price_change=0.1, leg1_price_change=0.5,
+        lock_in_period=2, overweight_sell_minimum_profit_margin_percent=1.0,
+        overweight_sell_minimum_profit_margin_dollars=0.0,
+        profit_resell_cooldown_days=15,
+        selling_price_change=0.1,
+        sell_or_buy_value_limit=10, min_value_of_trade=0,
+        materialize_profit_percentage=2.0, profit_sell_percentage=50.0,
+        materialize_profit_in_dollars=0.0, min_raw_gain_percent_to_sell=-1e9,
+        keep_aside_profits_for_tax_percent=30.0,
+        momentum_lookback_days=5,
+        min_momentum_score_to_fill_underweight=-1000.0,
+        max_sector_percentage=90.0,
+        wash_sale_lookback_days=0,
+        dormant_asset_days=5,
+    )
+    base.update(overrides)
+    return PortfolioMetadata(**base)
+
+
+def _ctx(targets: dict, drift: dict, current_cash: float = 4500.0, sector_groups: dict = None,
+          **meta_overrides) -> RunContext:
+    """`targets`: {symbol: AssetTarget}. `drift`: {symbol: DriftResult} — full control per symbol
+    (unlike _smoke_test_sector_cap.py's generic builder), so a topup-only candidate can be given
+    drift=0/not-underweight while a normal candidate still gets its usual gap fill."""
+    groups = {
+        group: (entry if isinstance(entry, SectorGroup) else SectorGroup(members=list(entry)))
+        for group, entry in (sector_groups or {}).items()
+    }
+    cfg = PortfolioConfig(
+        meta=_meta(**meta_overrides), targets=targets,
+        force_sell={}, blocked=[], sector_groups=groups,
+    )
+    ctx = RunContext(current_date=date(2026, 8, 7), config=cfg, account_number="TEST")
+    ctx.current_cash = current_cash
+    ctx.tax_reserve = 0.0
+    ctx.account_balance = 10000.0
+    ctx.quotes = {s: Quote(s, last_trade_price=100.0) for s in targets}
+    ctx.drift_results = drift
+    return ctx
+
+
+def _dr(target_weight: float, actual_weight: float, target_pct: float, mv: float,
+        tolerance: float = 0.1) -> DriftResult:
+    return DriftResult(
+        symbol="?", current_percentage=mv / 100.0, actual_weight=actual_weight,
+        target_weight=target_weight, target_percentage=target_pct,
+        drift=abs(target_weight - actual_weight), asset_drift_tolerance=tolerance,
+        market_value=mv,
+    )
+
+
+def test_topup_only_candidate_gets_leftover_cash() -> None:
+    """Y is a normal Underweight candidate with a $1500 drift gap (filled first, as always).
+    X has NO drift gap of its own (already at/above target -> not breached, excluded from the
+    top-down fill entirely) but carries max_position_value=$800 and currently sits at $0 market
+    value. Of the $4500 deployable cash, $1500 funds Y's gap; the $3000 left over tops X up to
+    exactly its $800 cap (not the full leftover) — the rest of the leftover cash is simply unspent."""
+    targets = {
+        "Y": AssetTarget("Y", weight=1.0),
+        "X": AssetTarget("X", weight=1.0, max_position_value=800.0),
+    }
+    drift = {
+        "Y": _dr(target_weight=1.0, actual_weight=0.0, target_pct=15.0, mv=0.0),
+        "X": _dr(target_weight=0.0, actual_weight=0.0, target_pct=0.0, mv=0.0),  # not breached -> no gap fill
+    }
+    ctx = _ctx(targets, drift)
+    allocations = step3_underweight_buys(ctx, _TiedBroker())
+
+    assert math.isclose(allocations["Y"], 1500.0, abs_tol=0.01), f"Y's normal drift-gap fill unaffected, got {allocations['Y']:.2f}"
+    assert math.isclose(allocations.get("X", 0.0), 800.0, abs_tol=0.01), (
+        f"X should be topped up to exactly its $800 max_position_value cap, got {allocations.get('X')}"
+    )
+    assert math.isclose(ctx.position_cap_topups.get("X", 0.0), 800.0, abs_tol=0.01), "reporting dict should match"
+    print(f"[topup-only-candidate] Y=${allocations['Y']:.2f} (normal gap fill), "
+          f"X=${allocations['X']:.2f} (topped up to its $800 cap out of $3000 leftover) — OK")
+
+
+def test_topup_extends_a_symbol_already_partially_filled() -> None:
+    """Z is BOTH Underweight (drift gap $500, existing $500 mv -> $1000 target dollar amount) AND
+    carries max_position_value=$1500. It should receive its $500 gap fill from the primary pass
+    (mv now $1000 planned), then get topped up FURTHER by leftover cash afterward — only the
+    remaining $500 of room toward its $1500 cap, not the cap's full amount from scratch."""
+    targets = {"Z": AssetTarget("Z", weight=1.0, max_position_value=1500.0)}
+    drift = {"Z": _dr(target_weight=1.0, actual_weight=0.5, target_pct=10.0, mv=500.0)}
+    ctx = _ctx(targets, drift, current_cash=4500.0)
+    allocations = step3_underweight_buys(ctx, _TiedBroker())
+
+    assert math.isclose(allocations["Z"], 1000.0, abs_tol=0.01), (
+        f"Z's total planned allocation: $500 gap fill (closing existing $500 mv up to the $1000 "
+        f"drift target) + $500 top-up (the remaining room up to the $1500 cap) = $1000, got {allocations['Z']:.2f}"
+    )
+    assert math.isclose(ctx.position_cap_topups.get("Z", 0.0), 500.0, abs_tol=0.01), (
+        f"only the EXTRA $500 beyond the normal $500 gap fill should count as top-up, got {ctx.position_cap_topups.get('Z')}"
+    )
+    print(f"[topup-extends-partial-fill] Z gap-filled by $500 then topped up +$500 more "
+          f"to reach its $1500 cap (total planned mv ${500 + allocations['Z']:.2f}) — OK")
+
+
+def test_topup_prorated_by_weight_across_multiple_candidates() -> None:
+    """A (weight=3) and B (weight=1) both want top-up room far exceeding the $4500 leftover cash
+    (no other candidate consumes any of it) -> split 3:1 by weight -> A=$3375, B=$1125."""
+    targets = {
+        "A": AssetTarget("A", weight=3.0, max_position_value=100000.0),
+        "B": AssetTarget("B", weight=1.0, max_position_value=100000.0),
+    }
+    drift = {
+        "A": _dr(target_weight=0.0, actual_weight=0.0, target_pct=0.0, mv=0.0),
+        "B": _dr(target_weight=0.0, actual_weight=0.0, target_pct=0.0, mv=0.0),
+    }
+    ctx = _ctx(targets, drift, current_cash=4500.0)
+    allocations = step3_underweight_buys(ctx, _TiedBroker())
+
+    assert math.isclose(allocations["A"], 3375.0, abs_tol=0.01), f"A (weight 3) should get 3/4 of $4500, got {allocations['A']:.2f}"
+    assert math.isclose(allocations["B"], 1125.0, abs_tol=0.01), f"B (weight 1) should get 1/4 of $4500, got {allocations['B']:.2f}"
+    print(f"[topup-prorated-by-weight] A(w=3)=${allocations['A']:.2f} B(w=1)=${allocations['B']:.2f} "
+          f"— split 3:1 as expected — OK")
+
+
+def test_topup_water_filling_when_one_candidate_caps_out() -> None:
+    """A (weight=1, room only $200) and B (weight=1, room $100000) split $4500 evenly at first
+    ($2250 each), but A's room caps at $200 -> A gets $200, and the freed-up $4300 all flows to B
+    on the next round (water-filling, not a one-shot equal split)."""
+    targets = {
+        "A": AssetTarget("A", weight=1.0, max_position_value=200.0),
+        "B": AssetTarget("B", weight=1.0, max_position_value=100000.0),
+    }
+    drift = {
+        "A": _dr(target_weight=0.0, actual_weight=0.0, target_pct=0.0, mv=0.0),
+        "B": _dr(target_weight=0.0, actual_weight=0.0, target_pct=0.0, mv=0.0),
+    }
+    ctx = _ctx(targets, drift, current_cash=4500.0)
+    allocations = step3_underweight_buys(ctx, _TiedBroker())
+
+    assert math.isclose(allocations["A"], 200.0, abs_tol=0.01), f"A capped at its $200 room, got {allocations['A']:.2f}"
+    assert math.isclose(allocations["B"], 4300.0, abs_tol=0.01), (
+        f"B should absorb the $4300 A couldn't use (water-filling redistribution), got {allocations['B']:.2f}"
+    )
+    print(f"[topup-water-filling] A capped at ${allocations['A']:.2f}, B absorbed the rest "
+          f"(${allocations['B']:.2f}) once A hit its cap — OK")
+
+
+def test_topup_bounded_by_per_asset_headroom_cap() -> None:
+    """C has max_position_value=$5000 (plenty of room by that measure alone) but the GLOBAL
+    max_portfolio_percentage is tight (10% of $10,000 = $1000) and C already holds $900 -> only
+    $100 of headroom regardless of what max_position_value would otherwise allow."""
+    targets = {"C": AssetTarget("C", weight=1.0, max_position_value=5000.0)}
+    drift = {"C": _dr(target_weight=0.0, actual_weight=0.0, target_pct=0.0, mv=900.0)}
+    ctx = _ctx(targets, drift, current_cash=4500.0, max_portfolio_percentage=10.0)
+    allocations = step3_underweight_buys(ctx, _TiedBroker())
+
+    assert math.isclose(allocations.get("C", 0.0), 100.0, abs_tol=0.01), (
+        f"the tighter global per-asset cap (10% of $10,000 minus existing $900 = $100 headroom) "
+        f"must still bind even though max_position_value alone would allow far more, got {allocations.get('C')}"
+    )
+    print(f"[topup-bounded-by-headroom] C's top-up capped at ${allocations.get('C', 0.0):.2f} by the "
+          f"global max_portfolio_percentage headroom, not its much higher max_position_value — OK")
+
+
+def test_topup_bounded_by_sector_cap() -> None:
+    """D and E share a sector group capped at 15% of $10,000 = $1500 (global default). Both have
+    huge max_position_value room and no existing holdings -> pro-rated 1:1 to $2250 each before
+    the sector cap pass, then scaled down together so the group lands at exactly $1500 total."""
+    targets = {
+        "D": AssetTarget("D", weight=1.0, max_position_value=100000.0),
+        "E": AssetTarget("E", weight=1.0, max_position_value=100000.0),
+    }
+    drift = {
+        "D": _dr(target_weight=0.0, actual_weight=0.0, target_pct=0.0, mv=0.0),
+        "E": _dr(target_weight=0.0, actual_weight=0.0, target_pct=0.0, mv=0.0),
+    }
+    ctx = _ctx(targets, drift, current_cash=4500.0, max_sector_percentage=15.0,
+               sector_groups={"grp": ["D", "E"]})
+    allocations = step3_underweight_buys(ctx, _TiedBroker())
+
+    total = allocations["D"] + allocations["E"]
+    assert math.isclose(total, 1500.0, abs_tol=0.01), f"D+E must land at the $1500 sector cap, got ${total:.2f}"
+    assert math.isclose(allocations["D"], allocations["E"], abs_tol=0.01), "equal pre-scale top-up shares stay equal after scaling"
+    assert math.isclose(ctx.position_cap_topups["D"] + ctx.position_cap_topups["E"], 1500.0, abs_tol=0.01), (
+        "the reporting dict must reflect the POST-sector-cap-scaled figures, not the pre-scale ones"
+    )
+    print(f"[topup-bounded-by-sector-cap] D=${allocations['D']:.2f} E=${allocations['E']:.2f} "
+          f"(sum ${total:.2f} == $1500 sector cap; position_cap_topups dict scaled in sync) — OK")
+
+
+def test_topup_skips_buy_guarded_symbol() -> None:
+    """F carries max_position_value but is buy-guarded (Step 2) -> gets nothing, and the
+    leftover cash it would have used simply goes unspent (no other candidate to redirect to)."""
+    targets = {"F": AssetTarget("F", weight=1.0, max_position_value=5000.0)}
+    drift = {"F": _dr(target_weight=0.0, actual_weight=0.0, target_pct=0.0, mv=0.0)}
+    ctx = _ctx(targets, drift, current_cash=4500.0)
+    ctx.buy_guarded_symbols["F"] = ["Buy-timing guard active"]
+    allocations = step3_underweight_buys(ctx, _TiedBroker())
+
+    assert math.isclose(allocations.get("F", 0.0), 0.0, abs_tol=0.01), f"buy-guarded F must get no top-up, got {allocations.get('F')}"
+    reasons = [s.reason for s in ctx.skipped if s.symbol == "F" and s.would_be_action == "Position Cap Top-Up"]
+    print(f"[topup-skips-buy-guarded] F (buy-guarded) got no top-up; logged={bool(reasons)} — OK")
+
+
+def main() -> None:
+    test_topup_only_candidate_gets_leftover_cash()
+    test_topup_extends_a_symbol_already_partially_filled()
+    test_topup_prorated_by_weight_across_multiple_candidates()
+    test_topup_water_filling_when_one_candidate_caps_out()
+    test_topup_bounded_by_per_asset_headroom_cap()
+    test_topup_bounded_by_sector_cap()
+    test_topup_skips_buy_guarded_symbol()
+    print("\nSMOKE TEST (max_position_value / Position Cap Top-Up) PASSED")
+
+
+if __name__ == "__main__":
+    main()

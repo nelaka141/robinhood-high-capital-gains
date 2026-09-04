@@ -28,7 +28,7 @@ from .models import RunContext
 from .serialize import ctx_from_jsonable, ctx_to_jsonable, dump_json
 from .snapshot_broker import SnapshotBroker
 from .state import (
-    AssetPriceState, load_price_state, load_tax_by_year,
+    AssetPriceState, load_paid_taxes_by_year, load_price_state, load_tax_by_year,
     save_price_state, save_tax_by_year,
 )
 
@@ -53,6 +53,7 @@ def cmd_plan(args: argparse.Namespace) -> None:
     )
     ctx.price_state = load_price_state(f"{repo_dir}/peak/prices.json")
     ctx.tax_by_year = load_tax_by_year(f"{repo_dir}/tax/realized_gains_by_year.json")
+    ctx.paid_taxes_by_year = load_paid_taxes_by_year(f"{repo_dir}/tax/paid_taxes_by_year.json")
 
     steps.step1_fetch_state(ctx, broker, repo_dir)
 
@@ -84,6 +85,7 @@ def cmd_plan(args: argparse.Namespace) -> None:
     steps.step2_guardrails(ctx, broker)
     planned_buys = steps.step3_underweight_buys(ctx, broker)
     steps.step4_profit_taking(ctx, broker)
+    steps.step4b_sell_cleanup(ctx, broker)
     planned_buys = steps.step5_price_limits(ctx, broker, planned_buys)
     sells_to_place, halted, halt_reason = steps.step6a_prepare_sells(ctx, planned_buys)
     # Gathered here because tax lots need the broker; finalize filters it by this cycle's buys.
@@ -168,7 +170,10 @@ def _update_peak_prices(ctx: RunContext) -> None:
 
 def _update_profit_sell_and_purchase_dates(ctx: RunContext) -> None:
     today = ctx.current_date.isoformat()
-    for t in ctx.profit_taking_sells:
+    # Cleanup sells (Step 4b) realize a profit (or breakeven) just like GET THE PROFITS — never a
+    # loss, by construction — so they arm the same profit-sell buy-guard/cooldown and reset the
+    # peak on a later repurchase exactly like a GTP sale would.
+    for t in ctx.profit_taking_sells + ctx.cleanup_sells:
         st = ctx.price_state[t.symbol]
         st.profitSellPrice = ctx.quotes[t.symbol].last_trade_price
         st.profitSellDate = today

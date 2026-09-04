@@ -159,6 +159,8 @@ class RunContext:
     account_balance: float = 0.0       # equity market value + current_cash
 
     tax_by_year: Dict[str, float] = field(default_factory=dict)
+    paid_taxes_by_year: Dict[str, float] = field(default_factory=dict)  # user-maintained,
+        # tax/paid_taxes_by_year.json — subtracted dollar-for-dollar from tax_reserve
     net_realized_gains_ytd_pretrade: float = 0.0
     net_realized_gains_ytd_effective: Optional[float] = None
     tax_reserve: float = 0.0
@@ -179,18 +181,32 @@ class RunContext:
     momentum_scores: Dict[str, MomentumScore] = field(default_factory=dict)  # ranks the
                                                                           # Underweight fill order (Step 3)
 
+    position_cap_topups: Dict[str, float] = field(default_factory=dict)  # v2.80.0 — Step 3
+        # Position Cap Top-Up: symbol -> extra dollars allocated beyond its normal drift-gap
+        # fill, out of cash left over after the momentum-ranked top-down fill, toward that
+        # symbol's configured max_position_value. Reporting-only breakdown; the dollars
+        # themselves are already folded into step3_underweight_buys's returned allocations dict
+        # and flow through Step 5/6 exactly like any other planned buy.
+
     blocked_liquidations: List[str] = field(default_factory=list)  # blocked AND forceSell AND held -> liquidate 100%
     drawdown_liquidations: List[str] = field(default_factory=list)
     loss_sale_symbols: List[str] = field(default_factory=list)  # any sell this cycle (any
         # mechanism) that realized a loss -> Step 7 stamps lastLossSaleDate/Price, arming the
         # wash-sale buy-guard (Step 2) for wash_sale_lookback_days
     profit_taking_sells: List[TradeIntent] = field(default_factory=list)  # GET THE PROFITS
+    cleanup_sells: List[TradeIntent] = field(default_factory=list)  # v2.80.0 — Step 4b Sell
+        # Cleanup Pass: full-remainder sells of small/single-lot green positions, bypassing every
+        # GET THE PROFITS profit gate. Tracked separately from profit_taking_sells so the two
+        # mechanisms report distinctly in the journal even though both realize a profit.
     buys: List[TradeIntent] = field(default_factory=list)
 
     skipped: List[SkippedTrade] = field(default_factory=list)
     executed_orders: List[dict] = field(default_factory=list)
 
     total_high_beta_gains_realized: float = 0.0
+    total_cleanup_gains_realized: float = 0.0  # v2.80.0 — sum of ctx.cleanup_sells' realized
+        # dollars; kept separate from total_high_beta_gains_realized (GET THE PROFITS only, per
+        # CLAUDE.md's existing definition of that metric)
     high_beta_gain_rows: List[dict] = field(default_factory=list)
 
     dormant_assets: List["DormantAsset"] = field(default_factory=list)  # Step 7 reporting only

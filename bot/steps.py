@@ -95,6 +95,20 @@ def _dynamic_profit_threshold(base: float, max_value: float, ramp_days: float, d
     return base + (max_value - base) * t * t
 
 
+def _compute_tax_reserve(
+    prior_years_base: float, current_year_gains: float, percent: float, total_paid_taxes: float
+) -> float:
+    """v2.80.0: `tax/paid_taxes_by_year.json` — the percentage-based reserve (unchanged formula:
+    (prior_years_base + max(0, current_year_gains)) * percent / 100) is reduced dollar-for-dollar
+    by every year's recorded actual tax payment, summed across ALL years on file (not just the
+    current one — the underlying base already blends prior years and the current year together
+    before applying `percent`, so paid taxes are netted out the same way). Floored at 0 — already-
+    paid taxes can shrink the reserve to nothing, never go negative. `total_paid_taxes` is the
+    sum of every entry in paid_taxes_by_year.json; see state.load_paid_taxes_by_year."""
+    gross = (prior_years_base + max(0.0, current_year_gains)) * percent / 100
+    return max(0.0, gross - total_paid_taxes)
+
+
 def _sell_price_target_blocked(ctx: RunContext, sym: str, price: float, mechanism: str) -> bool:
     """target_price_to_sell (CLAUDE.md): blocks a sale that would otherwise fire, by ANY
     mechanism — including the emergency Drawdown Audit stop-loss and
@@ -229,9 +243,11 @@ def step1_fetch_state(ctx: RunContext, broker: BrokerClient, repo_dir: str = "."
         ctx.account_number, year_start, ctx.current_date
     )
     prior_years_base = sum(v for y, v in ctx.tax_by_year.items() if int(y) < ctx.current_date.year)
-    ctx.tax_reserve = (
-        prior_years_base + max(0.0, ctx.net_realized_gains_ytd_pretrade)
-    ) * cfg.meta.keep_aside_profits_for_tax_percent / 100
+    total_paid_taxes = sum(ctx.paid_taxes_by_year.values())
+    ctx.tax_reserve = _compute_tax_reserve(
+        prior_years_base, ctx.net_realized_gains_ytd_pretrade,
+        cfg.meta.keep_aside_profits_for_tax_percent, total_paid_taxes,
+    )
 
 
 def has_any_breach(ctx: RunContext) -> bool:
@@ -538,8 +554,76 @@ def step3_underweight_buys(ctx: RunContext, broker: BrokerClient) -> Dict[str, f
         allocations[sym] = dollars
         remaining_cash -= dollars
 
+    # --- Position Cap Top-Up (v2.80.0) — a SECOND, independent use of whatever deployable cash
+    # the top-down fill above left unspent. Any target symbol with a configured
+    # `max_position_value` (a flat dollar cap on its own market value, set alongside `weight`/
+    # `drift` in portfolio_targets.json) is topped up toward that cap — regardless of whether it
+    # was Underweight, drift-breached, or cleared the momentum floor above, since the whole point
+    # is to deploy cash a symbol's normal weight-based drift gap wouldn't otherwise reach. Still
+    # gated by every universal buy guard (in-play, not blocked, not buy-guarded — the same Step 2
+    # guards that apply to every buy) and by the SAME per-asset (`max_allocation_percent`/
+    # `max_portfolio_percentage`) headroom the top-down fill above respects, so this can never
+    # push a symbol's concentration past its existing percent-of-account_balance cap even if
+    # `max_position_value` itself is set higher than that cap implies.
+    #
+    # Multiple candidates share the leftover cash pro-rata by `weight` (water-filling: repeatedly
+    # split whatever's left proportionally, remove any candidate that hits its own room this
+    # round, and repeat with what's left over among the rest) so a candidate with little room
+    # doesn't get skipped just because it comes second in an arbitrary iteration order, and a
+    # candidate with lots of room doesn't starve the others by claiming everything in one pass.
+    leftover_cash = max(0.0, remaining_cash)
+    if leftover_cash > 1e-9:
+        topup_candidates: Dict[str, tuple[float, float]] = {}  # symbol -> (room, weight)
+        for sym, target in cfg.targets.items():
+            if target.max_position_value is None:
+                continue
+            if sym in ctx.excluded_symbols or sym in ctx.blocked_symbols or sym in ctx.buy_guarded_symbols:
+                continue
+            if sym not in ctx.drift_results:
+                continue
+            current_mv = ctx.drift_results[sym].market_value + allocations.get(sym, 0.0)
+            room = min(
+                target.max_position_value - current_mv,
+                _headroom(sym) - allocations.get(sym, 0.0),
+            )
+            if room > 1e-9:
+                topup_candidates[sym] = (room, target.weight)
+            else:
+                ctx.skipped.append(SkippedTrade(
+                    sym,
+                    f"Position Cap Top-Up: no room left toward max_position_value "
+                    f"(${target.max_position_value:,.2f}) or per-asset concentration cap",
+                    "Position Cap Top-Up",
+                ))
+
+        active = dict(topup_candidates)
+        while leftover_cash > 1e-9 and active:
+            total_weight = sum(w for _, w in active.values())
+            if total_weight <= 0:
+                break
+            capped_this_round = []
+            spent_this_round = 0.0
+            for sym, (room, weight) in list(active.items()):
+                give = min(leftover_cash * weight / total_weight, room)
+                if give <= 0:
+                    continue
+                allocations[sym] = allocations.get(sym, 0.0) + give
+                ctx.position_cap_topups[sym] = ctx.position_cap_topups.get(sym, 0.0) + give
+                spent_this_round += give
+                room -= give
+                if room <= 1e-9:
+                    capped_this_round.append(sym)
+                else:
+                    active[sym] = (room, weight)
+            leftover_cash -= spent_this_round
+            for sym in capped_this_round:
+                del active[sym]
+            if not capped_this_round:
+                break  # every candidate's share was fully absorbed without hitting a cap — done
+
     # --- Sector/theme concentration cap (max_sector_percentage) — final pass over the complete
-    # allocations dict. For each sector_groups member group whose PROJECTED total (current market
+    # allocations dict (top-down fill AND Position Cap Top-Up alike). For each sector_groups
+    # member group whose PROJECTED total (current market
     # value + everything planned above) would exceed the group's cap percentage of
     # account_balance, scale every member's planned dollars down proportionally so the group's
     # projected total lands exactly at the cap. Symbols in no group are entirely unaffected.
@@ -565,6 +649,10 @@ def step3_underweight_buys(ctx: RunContext, broker: BrokerClient) -> Dict[str, f
         for s in members:
             if s in allocations:
                 allocations[s] *= scale
+            if s in ctx.position_cap_topups:
+                # Keep the reporting-only breakdown in sync with what actually survived the
+                # sector cap, same reasoning as the top-down fill's own allocations.
+                ctx.position_cap_topups[s] *= scale
 
     return allocations
 
@@ -891,6 +979,129 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
     ctx.total_high_beta_gains_realized = sum(
         t.realized_profit_dollars or 0.0 for t in ctx.profit_taking_sells
     )
+
+
+# ============================================================================================
+# Step 4b — Sell Cleanup Pass (v2.80.0)
+# ============================================================================================
+
+def _lots_after_consumption(lots: List[TaxLot], consumed: Optional[List[dict]]) -> List[TaxLot]:
+    """The lot structure that would remain after a sale consumes `consumed` (a GET THE PROFITS
+    TradeIntent's own `tax_lots`, `{"open_lot_id", "quantity"}` per entry) out of `lots`. Lots
+    left with ~0 quantity are dropped entirely. `consumed=None` (no sale this cycle, or a sale
+    that went out as an ordinary/non-specified-lot order — see step4b_sell_cleanup) returns
+    `lots` unchanged."""
+    if not consumed:
+        return list(lots)
+    used = {c["open_lot_id"]: c["quantity"] for c in consumed}
+    out = []
+    for lot in lots:
+        remaining_qty = lot.quantity - used.get(lot.open_lot_id, 0.0)
+        if remaining_qty > 1e-9:
+            out.append(TaxLot(
+                open_lot_id=lot.open_lot_id, quantity=remaining_qty,
+                cost_per_share=lot.cost_per_share, open_date=lot.open_date,
+                is_selectable=lot.is_selectable,
+            ))
+    return out
+
+
+def step4b_sell_cleanup(ctx: RunContext, broker: BrokerClient) -> None:
+    """Cleans up the small/single-lot remainders GET THE PROFITS' whole-share rounding and
+    loss-lot exclusion routinely leave behind, plus any other stray single-lot position that's
+    too small to be worth tracking further — as long as the remaining lot is NOT a loss. Runs
+    AFTER step4_profit_taking so it sees this cycle's own GET THE PROFITS fills. Two independent
+    rules, unioned (a symbol matching either fires, evaluated once):
+
+      (a) ANY currently-held target asset whose remaining position (after this cycle's own GET
+          THE PROFITS sale, if one fired) is exactly ONE tax lot, that lot is not a loss (its
+          cost_per_share is at or below the current price), AND the remaining market value is
+          under `cleanup_dust_threshold_dollars` — sweep the whole remainder.
+      (b) Specifically for a symbol whose GET THE PROFITS sale fired THIS cycle: if what's left
+          over is exactly ONE tax lot and it's not a loss, sweep it regardless of dollar size —
+          "finish the job" rather than leave an odd remainder hanging after a profit-take that
+          already fired this cycle.
+
+    Bypasses every GET THE PROFITS profit gate (percent/dollar OR-gate, min_raw_gain_percent_to_sell,
+    profit_resell_cooldown_days, selling_price_change) — this is a dust/remainder cleanup, not a
+    profit-taking decision, so none of those gates are meaningful here. Still respects the
+    `blocked` list (checked via the caller loop skipping blocked_symbols) and target_price_to_sell
+    (the one guard CLAUDE.md says overrides even the emergency stop-losses). Never fires on a
+    loss — the single remaining lot must clear cost_per_share <= current_price — so this can never
+    need to arm the wash-sale buy-guard.
+
+    Always sized as an ORDINARY order (tax_lots=None): the whole point is disposing of the
+    ENTIRE remaining position, which is very often a fractional-share remainder (that's the
+    premise of rule (a)/(b) existing at all), and a specified-lot order requires a whole-share
+    top-level quantity — see fifo.round_sell_quantity's docstring. With only one lot involved,
+    Robinhood's own default lot matching disposes of that same lot regardless, so nothing is
+    lost by not specifying it.
+
+    A symbol whose GET THE PROFITS sale this cycle went out as an ordinary order itself (the
+    sub-whole-share or zero-available-lots fallback in step4_profit_taking — `tax_lots is None`
+    on that TradeIntent) is skipped here entirely: without knowing exactly which lot(s) Robinhood
+    actually consumed, the remaining lot structure can't be determined, and guessing would risk
+    double-counting or missing a lot."""
+    cfg = ctx.config
+    gtp_by_symbol = {t.symbol: t for t in ctx.profit_taking_sells}
+
+    for sym, pos in ctx.positions.items():
+        if sym not in cfg.targets or pos.quantity <= 0 or pos.avg_cost_basis is None:
+            continue
+        if sym in ctx.blocked_symbols:
+            continue
+        if sym in ctx.drawdown_liquidations or sym in ctx.blocked_liquidations:
+            continue  # already being fully liquidated by another mechanism this cycle
+
+        gtp_intent = gtp_by_symbol.get(sym)
+        if gtp_intent is not None and gtp_intent.tax_lots is None:
+            continue  # ordinary-order GTP fallback — remaining lot structure isn't knowable
+
+        lots = broker.get_tax_lots(ctx.account_number, sym)
+        remaining_lots = _lots_after_consumption(lots, gtp_intent.tax_lots if gtp_intent else None)
+        remaining_qty = sum(l.quantity for l in remaining_lots)
+        if remaining_qty <= 1e-9 or len(remaining_lots) != 1:
+            continue
+
+        lot = remaining_lots[0]
+        if lot.cost_per_share is None:
+            continue  # can't judge green/loss without a priced lot
+        price = ctx.quotes[sym].last_trade_price
+        is_green = lot.cost_per_share <= price
+        if not is_green:
+            continue
+
+        remaining_mv = remaining_qty * price
+        rule_a = remaining_mv < cfg.meta.cleanup_dust_threshold_dollars
+        rule_b = gtp_intent is not None
+        if not (rule_a or rule_b):
+            continue
+
+        if _sell_price_target_blocked(ctx, sym, price, "Sell Cleanup Pass"):
+            continue  # target_price_to_sell overrides even this cleanup sweep — "any means"
+
+        realized = (price - lot.cost_per_share) * remaining_qty
+        fired_rules = " + ".join(
+            r for r, active in (
+                (f"dust (<${cfg.meta.cleanup_dust_threshold_dollars:,.2f}, single green lot)", rule_a),
+                ("single green lot left after this cycle's own GET THE PROFITS sale", rule_b),
+            ) if active
+        )
+        reason = (
+            f"Sell Cleanup Pass: sweeping {remaining_qty:.4f} remaining share(s) "
+            f"(${remaining_mv:,.2f}, lot cost ${lot.cost_per_share:,.2f} vs. price ${price:,.2f}) "
+            f"— {fired_rules}"
+        )
+        ctx.cleanup_sells.append(TradeIntent(
+            symbol=sym, side="sell", quantity=remaining_qty, reason=reason,
+            tax_lots=None, realized_profit_dollars=realized,
+        ))
+
+    ctx.total_cleanup_gains_realized = sum(
+        t.realized_profit_dollars or 0.0 for t in ctx.cleanup_sells
+    )
+
+
 # ============================================================================================
 # Step 5 — Price Limit & Volatility Halts
 # ============================================================================================
@@ -961,6 +1172,7 @@ def _selling_symbols(ctx: RunContext) -> set:
     per-trade seek_approval_value check."""
     return (
         {t.symbol for t in ctx.profit_taking_sells}
+        | {t.symbol for t in ctx.cleanup_sells}
         | set(ctx.drawdown_liquidations)
         | set(ctx.blocked_liquidations)
     )
@@ -1004,7 +1216,7 @@ def step6a_prepare_sells(
                     reason="Blocked + forceSell: liquidating full position (100%)")
         for sym in ctx.blocked_liquidations if sym in ctx.positions
     ]
-    all_sells = liquidations + blocked_liquidations + ctx.profit_taking_sells
+    all_sells = liquidations + blocked_liquidations + ctx.profit_taking_sells + ctx.cleanup_sells
 
     selling_syms = _selling_symbols(ctx)
     eligible_buys = {
@@ -1051,6 +1263,8 @@ def step6a_prepare_sells(
     ctx.drawdown_liquidations = [s for s in ctx.drawdown_liquidations if s in placed_symbols]
     ctx.blocked_liquidations = [s for s in ctx.blocked_liquidations if s in placed_symbols]
     ctx.profit_taking_sells = [t for t in ctx.profit_taking_sells if t.symbol in placed_symbols]
+    ctx.cleanup_sells = [t for t in ctx.cleanup_sells if t.symbol in placed_symbols]
+    ctx.total_cleanup_gains_realized = sum(t.realized_profit_dollars or 0.0 for t in ctx.cleanup_sells)
 
     return sells_to_place, False, None
 
@@ -1076,9 +1290,11 @@ def step6b_finalize_buys(
 
     ctx.net_realized_gains_ytd_effective = net_realized_gains_ytd_effective
     prior_years_base = sum(v for y, v in ctx.tax_by_year.items() if int(y) < ctx.current_date.year)
-    ctx.tax_reserve = (
-        prior_years_base + max(0.0, net_realized_gains_ytd_effective)
-    ) * cfg.meta.keep_aside_profits_for_tax_percent / 100
+    total_paid_taxes = sum(ctx.paid_taxes_by_year.values())
+    ctx.tax_reserve = _compute_tax_reserve(
+        prior_years_base, net_realized_gains_ytd_effective,
+        cfg.meta.keep_aside_profits_for_tax_percent, total_paid_taxes,
+    )
 
     total_planned = sum(planned_buys.values())
     hard_cap = max(0.0, buying_power_now - cfg.meta.min_cash_absolute - ctx.tax_reserve)

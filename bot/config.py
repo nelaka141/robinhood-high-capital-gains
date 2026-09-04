@@ -15,6 +15,13 @@ class AssetTarget:
     drift: Optional[float] = None  # per-asset drift override, weight units; None -> global default
     max_allocation_percent: Optional[float] = None  # per-asset cap override, percent of
         # account_balance; None -> global max_portfolio_percentage default
+    max_position_value: Optional[float] = None  # v2.80.0: optional flat dollar cap on this
+        # asset's own market value (existing holdings + everything planned this cycle). Unlike
+        # max_allocation_percent (a percent-of-account_balance cap enforced on the normal
+        # drift-gap fill), this is a Step 3 Position Cap Top-Up target — a distinct mechanism
+        # that spends any deployable cash LEFT OVER after the momentum-ranked top-down fill by
+        # topping the asset's market value up toward this dollar figure. None -> the asset never
+        # participates in the top-up pass (its normal drift-gap fill is unaffected either way).
 
 
 @dataclass(frozen=True)
@@ -86,6 +93,16 @@ class PortfolioMetadata:
         # independent of the percent leg's own ramp
     profit_threshold_ramp_days: float = 30  # number of days of (quantity-weighted-average)
         # profitable-lot age at which both legs' dynamic threshold reaches its own max
+
+    # v2.80.0 — Sell Cleanup Pass (Step 4b): dollar market-value ceiling for cleanup rule (a) —
+    # a currently-held target asset whose remaining position (after this cycle's GET THE PROFITS
+    # sale, if any) is exactly one tax lot, that lot is not a loss, AND the remaining market
+    # value is under this figure gets that whole remainder swept, bypassing every GET THE PROFITS
+    # profit gate (percent/dollar OR-gate, min_raw_gain_percent_to_sell, cooldown,
+    # selling_price_change) — purely a dust-cleanup mechanism, not a profit-taking decision.
+    # Defaulted so existing PortfolioMetadata(...) call sites (mostly test fixtures) don't need
+    # updating just to opt into this feature.
+    cleanup_dust_threshold_dollars: float = 200.0
 
 
 @dataclass(frozen=True)
@@ -249,6 +266,7 @@ def load_portfolio_config(path: str | Path = "portfolio_targets.json") -> Portfo
         sym: AssetTarget(
             symbol=sym, weight=t["weight"], drift=t.get("drift"),
             max_allocation_percent=t.get("max_allocation_percent"),
+            max_position_value=t.get("max_position_value"),
         )
         for sym, t in data["targets"].items()
     }
