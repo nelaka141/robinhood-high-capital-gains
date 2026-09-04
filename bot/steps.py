@@ -1218,8 +1218,9 @@ def step6a_prepare_sells(
     ctx: RunContext, planned_buys: Optional[Dict[str, float]] = None
 ) -> tuple[List[TradeIntent], bool, Optional[str]]:
     """Builds the final sell order list (drawdown liquidations + blocked+forceSell liquidations +
-    GET THE PROFITS sales), applies
-    sell_or_buy_value_limit, and checks the seek_approval_value halt — evaluated PER INDIVIDUAL
+    GET THE PROFITS sales + Step 4b cleanup sweeps), applies
+    sell_or_buy_value_limit (to everything EXCEPT the cleanup sweeps — v2.82.0, see below), and
+    checks the seek_approval_value halt — evaluated PER INDIVIDUAL
     TRADE (each planned sell, and each planned buy in `planned_buys`), not the old aggregate
     "sum of all sells this cycle" total: a single oversized trade now halts the cycle even if
     the total is small, and a cycle full of many small trades no longer halts just because their
@@ -1279,12 +1280,19 @@ def step6a_prepare_sells(
         ctx.skipped.append(SkippedTrade("ALL TRADES", reason, "sell+buy batch"))
         return [], True, reason
 
+    # v2.82.0: Step 4b Sell Cleanup Pass sweeps are EXEMPT from sell_or_buy_value_limit. The
+    # whole point of the cleanup pass is disposing of tiny single-lot remainders (routinely a few
+    # dollars) — the very orders this floor exists to suppress — so applying it here simply
+    # re-created the dust the pass was meant to clear (before this, a $46 HOOD or $5 TQQQ
+    # remainder was swept by 4b and then dropped again right here every cycle, forever).
+    cleanup_symbols = {t.symbol for t in ctx.cleanup_sells}
+
     sells_to_place = []
     placed_symbols = set()
     for intent in all_sells:
         qty = intent.quantity or 0.0
         value = qty * ctx.quotes[intent.symbol].last_trade_price
-        if value < cfg.meta.sell_or_buy_value_limit:
+        if intent.symbol not in cleanup_symbols and value < cfg.meta.sell_or_buy_value_limit:
             ctx.skipped.append(SkippedTrade(intent.symbol, "below sell_or_buy_value_limit", "sell"))
             continue
         sells_to_place.append(intent)
