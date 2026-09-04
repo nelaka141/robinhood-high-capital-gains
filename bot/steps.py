@@ -558,13 +558,24 @@ def step3_underweight_buys(ctx: RunContext, broker: BrokerClient) -> Dict[str, f
     # the top-down fill above left unspent. Any target symbol with a configured
     # `max_position_value` (a flat dollar cap on its own market value, set alongside `weight`/
     # `drift` in portfolio_targets.json) is topped up toward that cap — regardless of whether it
-    # was Underweight, drift-breached, or cleared the momentum floor above, since the whole point
-    # is to deploy cash a symbol's normal weight-based drift gap wouldn't otherwise reach. Still
-    # gated by every universal buy guard (in-play, not blocked, not buy-guarded — the same Step 2
-    # guards that apply to every buy) and by the SAME per-asset (`max_allocation_percent`/
-    # `max_portfolio_percentage`) headroom the top-down fill above respects, so this can never
-    # push a symbol's concentration past its existing percent-of-account_balance cap even if
-    # `max_position_value` itself is set higher than that cap implies.
+    # was Underweight or drift-breached, since the whole point is to deploy cash a symbol's normal
+    # weight-based drift gap wouldn't otherwise reach. Still gated by every universal buy guard
+    # (in-play, not blocked, not buy-guarded — the same Step 2 guards that apply to every buy) and
+    # by the SAME per-asset (`max_allocation_percent`/`max_portfolio_percentage`) headroom the
+    # top-down fill above respects, so this can never push a symbol's concentration past its
+    # existing percent-of-account_balance cap even if `max_position_value` itself is set higher
+    # than that cap implies.
+    #
+    # v2.81.0: two more guards, both closing gaps the dry-run of the $6,000 global default
+    # surfaced — Top-Up was routing real dollars into the WORST-ranked and even loss-making
+    # candidates simply because they had leftover room under the cap:
+    #   - `min_momentum_score_to_fill_underweight` now applies to Top-Up too, same floor and same
+    #     "no computable score fails closed" posture as the top-down fill above.
+    #   - A symbol already held (any quantity > 0) whose current price sits below its
+    #     `avg_cost_basis` is excluded — don't add fresh dollars to a position that's already
+    #     losing money just to chase the dollar cap. An unresolved cost basis fails closed too
+    #     (can't prove it isn't a loss), same posture as every other cost-basis-dependent gate in
+    #     this document.
     #
     # Multiple candidates share the leftover cash pro-rata by `weight` (water-filling: repeatedly
     # split whatever's left proportionally, remove any candidate that hits its own room this
@@ -582,6 +593,30 @@ def step3_underweight_buys(ctx: RunContext, broker: BrokerClient) -> Dict[str, f
                 continue
             if sym not in ctx.drift_results:
                 continue
+
+            score = ctx.momentum_scores[sym].score if sym in ctx.momentum_scores else None
+            if score is None or score < momentum_floor:
+                reason = (
+                    f"Position Cap Top-Up: Momentum_Score ({score:.2f}) below "
+                    f"min_momentum_score_to_fill_underweight ({momentum_floor:.2f})" if score is not None
+                    else "Position Cap Top-Up: no Momentum_Score available (below "
+                         f"min_momentum_score_to_fill_underweight floor of {momentum_floor:.2f})"
+                )
+                ctx.skipped.append(SkippedTrade(sym, reason, "Position Cap Top-Up"))
+                continue
+
+            pos = ctx.positions.get(sym)
+            if pos is not None and pos.quantity > 0:
+                price = ctx.quotes[sym].last_trade_price
+                if pos.avg_cost_basis is None or price < pos.avg_cost_basis:
+                    ctx.skipped.append(SkippedTrade(
+                        sym,
+                        "Position Cap Top-Up: held position is at a loss (or cost basis "
+                        "unresolved) vs. avg_cost_basis — excluded from top-up",
+                        "Position Cap Top-Up",
+                    ))
+                    continue
+
             current_mv = ctx.drift_results[sym].market_value + allocations.get(sym, 0.0)
             room = min(
                 cap - current_mv,
