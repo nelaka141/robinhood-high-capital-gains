@@ -821,6 +821,159 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
             and all(lot.open_date == ctx.current_date for lot in lots)
         )
 
+        already_today = st.profitSellDate == ctx.current_date.isoformat()
+        # v2.65.0: purely a flat calendar-day check — the earlier Z-score recovery leg
+        # (pre-v2.70.0's z_score_sell_points) was removed; profit_resell_cooldown_days is now the
+        # sole guard, paired only with each mechanism's own percentage/dollar gate below.
+        # v2.69.0: strict "<" — only a gap strictly less than the cooldown window blocks; a gap
+        # exactly equal to profit_resell_cooldown_days now clears.
+        cooldown_blocks = (
+            st.profitSellDate is not None
+            and (ctx.current_date - _parse_date(st.profitSellDate)).days < cfg.meta.profit_resell_cooldown_days
+        )
+
+        # v2.70.0/2.72.0: selling_price_change — additional mandatory guard for GET THE PROFITS,
+        # independent of cooldown_blocks above. Compares the most
+        # recent stored close (price_history/daily_bars.json, cache trails one session) against
+        # the live current price, as a percentage of the live current price — same basis as the
+        # Step 2 buy-guard's leg1/leg2/leg3_price_change. The sale is only allowed to fire when
+        # (close_yesterday - price) * 100 / price < selling_price_change — i.e. today's price
+        # hasn't already dropped too far off yesterday's close. Missing/insufficient price
+        # history fails closed (guard stays active, blocking the sale), same posture as every
+        # other price-change guard in this file.
+        # (v2.83.0: computed here, ahead of the net-profit full exit below, since both that path
+        # and the profitable-lots-only path further down share these exact guards.)
+        sell_closes = broker.get_daily_closes(sym, hist_start, hist_end)
+        sell_close_yesterday = sell_closes[-1] if sell_closes else None
+        sell_price_change = (
+            (sell_close_yesterday - price) * 100 / price if sell_close_yesterday is not None else None
+        )
+        sell_price_guard_blocks = not (
+            sell_price_change is not None and sell_price_change < cfg.meta.selling_price_change
+        )
+
+        # --- Net-profit full exit (v2.83.0) ---
+        # The loss-lot sell guard below strips every underwater lot out of a sale and sells only
+        # the winners — which leaves the loss lot parked in the account indefinitely (it can
+        # never be sold at a gain, so GET THE PROFITS can never touch it again). For a MIXED
+        # position — at least one lot underwater AND at least one lot in profit at today's price
+        # — the operator's preference is instead: if the position's NET realized figure across
+        # ALL of its lots still clears the GET THE PROFITS gate, sell the ENTIRE position in one
+        # go (100% of the shares, fractional remainder included, bypassing profit_sell_percentage)
+        # as an ORDINARY order, letting Robinhood's default FIFO lot matching dispose of every
+        # lot. The underwater lot's loss is simply netted against the winners' gain in the same
+        # transaction, exactly as the IRS computes it. Only when this net path declines (net ≤ 0,
+        # gate not cleared, or the position is overall too marginal) does the loss-lot guard's
+        # profitable-lots-only behaviour below take over, unchanged.
+        #
+        # Fails closed on lot data: every lot must be priced+selectable (priced quantity must
+        # reconcile to the position quantity) — a pending-basis lot means the net figure can't be
+        # trusted, so this path stands aside and the existing pending-basis Fail-Closed rule
+        # governs. A position with no underwater lot at all, or no profitable lot at all, is not
+        # "mixed" and is untouched by this block.
+        #
+        # Wash-sale bookkeeping (see cli._update_peak_prices): the wash-sale forward buy-guard is
+        # armed off a sale's NET realized figure, never per lot — a net-profit full exit is a gain,
+        # so it deliberately does NOT append to ctx.loss_sale_symbols even though one of the lots
+        # it disposes of is individually underwater. Operator decision (2026-09-04): do not block
+        # a repurchase for wash_sale_lookback_days on the strength of a netted-out lot loss.
+        net_exit_note = ""
+        priced_qty = priced_lot_quantity(lots)
+        profitable_qty = profitable_lot_quantity(lots, price)
+        all_lots_priced = bool(lots) and abs(priced_qty - pos.quantity) <= max(1e-6, pos.quantity * 1e-4)
+        mixed_position = (
+            not no_lots_available
+            and all_lots_priced
+            and profitable_qty > 1e-9
+            and priced_qty - profitable_qty > 1e-9
+        )
+        if mixed_position and not already_today:
+            full_qty = pos.quantity
+            net = fifo_realized_profit(lots, full_qty, price, exclude_loss_lots=False)
+            underwater_qty = priced_qty - profitable_qty
+            underwater_dollars = sum(
+                (price - lot.cost_per_share) * lot.quantity for lot in lots
+                if lot.is_selectable and lot.cost_per_share is not None and lot.cost_per_share >= price
+            )
+            profitable_dollars = net.realized_profit_dollars - underwater_dollars
+            net_days_held = _weighted_avg_lot_age_days(net.lots_consumed, lots, ctx.current_date)
+            net_pct_threshold = _dynamic_profit_threshold(
+                cfg.meta.materialize_profit_percentage, cfg.meta.materialize_profit_percentage_max,
+                cfg.meta.profit_threshold_ramp_days, net_days_held,
+            )
+            net_dollar_threshold = _dynamic_profit_threshold(
+                cfg.meta.materialize_profit_in_dollars, cfg.meta.materialize_profit_in_dollars_max,
+                cfg.meta.profit_threshold_ramp_days, net_days_held,
+            )
+            net_gate_passes = net.fully_covered and (
+                raw_gain_pct > net_pct_threshold or net.realized_profit_dollars > net_dollar_threshold
+            )
+            full_value = full_qty * price
+
+            if not net.fully_covered:
+                net_exit_note = (
+                    f" (net-profit full exit declined: the {full_qty:.4f}-share position could not be "
+                    f"fully lot-matched — fail-closed, profitable lots only)"
+                )
+            elif net.realized_profit_dollars <= 0:
+                net_exit_note = (
+                    f" (net-profit full exit declined: net FIFO ${net.realized_profit_dollars:.2f} "
+                    f"across all {full_qty:.4f} share(s) is not a gain — profitable lots only)"
+                )
+            elif not net_gate_passes:
+                net_exit_note = (
+                    f" (net-profit full exit declined: net FIFO ${net.realized_profit_dollars:.2f} / "
+                    f"{raw_gain_pct:+.2f}% doesn't clear the dynamic thresholds "
+                    f"{net_pct_threshold:.2f}% / ${net_dollar_threshold:.2f} at {net_days_held:.1f}d "
+                    f"weighted lot age — profitable lots only)"
+                )
+            elif raw_gain_pct <= cfg.meta.min_raw_gain_percent_to_sell:
+                net_exit_note = (
+                    f" (net-profit full exit declined: blended gain {raw_gain_pct:+.2f}% doesn't clear "
+                    f"min_raw_gain_percent_to_sell ({cfg.meta.min_raw_gain_percent_to_sell}%) — "
+                    f"profitable lots only)"
+                )
+            elif min_trade_value > 0 and full_value < min_trade_value:
+                net_exit_note = (
+                    f" (net-profit full exit declined: whole position ${full_value:.2f} is under "
+                    f"min_value_of_trade ${min_trade_value:.2f})"
+                )
+            elif cooldown_blocks:
+                ctx.skipped.append(SkippedTrade(
+                    sym, f"net-profit full exit clears ({raw_gain_pct:+.2f}% / net FIFO "
+                         f"${net.realized_profit_dollars:.2f}) but profit_resell_cooldown_days active",
+                    "net-profit full exit",
+                ))
+                continue  # the profitable-lots-only path shares this exact guard — no fallback
+            elif sell_price_guard_blocks:
+                ctx.skipped.append(SkippedTrade(
+                    sym, f"net-profit full exit clears ({raw_gain_pct:+.2f}% / net FIFO "
+                         f"${net.realized_profit_dollars:.2f}) but selling_price_change guard active "
+                         f"(price hasn't turned back up)",
+                    "net-profit full exit",
+                ))
+                continue
+            elif _sell_price_target_blocked(ctx, sym, price, "net-profit full exit"):
+                continue  # target_price_to_sell overrides this path too — "any means"
+            else:
+                reason = (
+                    f"GET THE PROFITS — net-profit FULL EXIT (v2.83.0): {raw_gain_pct:+.2f}%, "
+                    f"net FIFO ${net.realized_profit_dollars:.2f} across ALL {full_qty:.4f} share(s) "
+                    f"(dynamic thresholds {net_pct_threshold:.2f}% / ${net_dollar_threshold:.2f} "
+                    f"at {net_days_held:.1f}d weighted lot age) — includes {underwater_qty:.4f} "
+                    f"underwater share(s) carrying ${underwater_dollars:.2f} of lot loss, netted "
+                    f"against ${profitable_dollars:.2f} from the profitable lots; ordinary order, "
+                    f"Robinhood default (FIFO) lot matching; wash-sale buy-guard NOT armed "
+                    f"(the sale is a net gain)"
+                )
+                ctx.profit_taking_sells.append(TradeIntent(
+                    symbol=sym, side="sell", quantity=full_qty, reason=reason,
+                    tax_lots=None,
+                    realized_profit_dollars=net.realized_profit_dollars,
+                    raw_gain_pct=raw_gain_pct,
+                ))
+                continue
+
         loss_excluded_qty = 0.0
         if not no_lots_available and sell_qty <= priced_lot_quantity(lots) + 1e-9:
             capped_qty = min(sell_qty, profitable_lot_quantity(lots, price))
@@ -859,35 +1012,6 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
                 "partial profit-take sale",
             ))
             continue
-
-        already_today = st.profitSellDate == ctx.current_date.isoformat()
-        # v2.65.0: purely a flat calendar-day check — the earlier Z-score recovery leg
-        # (pre-v2.70.0's z_score_sell_points) was removed; profit_resell_cooldown_days is now the
-        # sole guard, paired only with each mechanism's own percentage/dollar gate above.
-        # v2.69.0: strict "<" — only a gap strictly less than the cooldown window blocks; a gap
-        # exactly equal to profit_resell_cooldown_days now clears.
-        cooldown_blocks = (
-            st.profitSellDate is not None
-            and (ctx.current_date - _parse_date(st.profitSellDate)).days < cfg.meta.profit_resell_cooldown_days
-        )
-
-        # v2.70.0/2.72.0: selling_price_change — additional mandatory guard for GET THE PROFITS,
-        # independent of cooldown_blocks above. Compares the most
-        # recent stored close (price_history/daily_bars.json, cache trails one session) against
-        # the live current price, as a percentage of the live current price — same basis as the
-        # Step 2 buy-guard's leg1/leg2/leg3_price_change. The sale is only allowed to fire when
-        # (close_yesterday - price) * 100 / price < selling_price_change — i.e. today's price
-        # hasn't already dropped too far off yesterday's close. Missing/insufficient price
-        # history fails closed (guard stays active, blocking the sale), same posture as every
-        # other price-change guard in this file.
-        sell_closes = broker.get_daily_closes(sym, hist_start, hist_end)
-        sell_close_yesterday = sell_closes[-1] if sell_closes else None
-        sell_price_change = (
-            (sell_close_yesterday - price) * 100 / price if sell_close_yesterday is not None else None
-        )
-        sell_price_guard_blocks = not (
-            sell_price_change is not None and sell_price_change < cfg.meta.selling_price_change
-        )
 
         # --- GET THE PROFITS ---
         # v2.63.0: the percentage gate and dollar gate are OR'd, not AND'd — either one clearing
@@ -991,6 +1115,7 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
                     if loss_excluded_qty > 0:
                         reason += (f" (loss-lot sell guard: {loss_excluded_qty:.4f} share(s) held back — "
                                    f"their lots are underwater at ${price:.2f})")
+                    reason += net_exit_note  # v2.83.0: why the whole-position path stood aside, if it did
                     if fractional_position:
                         reason += (" (ordinary order — sub-whole-share position, Robinhood "
                                     "default lot matching; FIFO figure is an estimate)")

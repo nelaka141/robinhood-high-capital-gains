@@ -164,7 +164,10 @@ def _update_peak_prices(ctx: RunContext) -> None:
             st.liquidatedPrice, st.liquidatedDate = price, today
         if sym in ctx.loss_sale_symbols:
             # Wash-sale buy-guard (Step 2) basis: arms wash_sale_lookback_days regardless of
-            # which mechanism realized the loss.
+            # which mechanism realized the loss. Membership is decided on the sale's NET realized
+            # figure (see steps._is_loss and the GTP backstop) — a v2.83.0 net-profit full exit
+            # that sells an underwater lot alongside bigger winners is a net gain and is
+            # deliberately NOT stamped here (operator decision, 2026-09-04).
             st.lastLossSalePrice, st.lastLossSaleDate = price, today
 
 
