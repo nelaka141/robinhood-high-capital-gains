@@ -56,6 +56,10 @@ def cmd_plan(args: argparse.Namespace) -> None:
     ctx.paid_taxes_by_year = load_paid_taxes_by_year(f"{repo_dir}/tax/paid_taxes_by_year.json")
 
     steps.step1_fetch_state(ctx, broker, repo_dir)
+    # v2.84.0: follow up on any in-window repurchase recorded on an earlier cycle — needs the
+    # broker's tax lots, so it runs here (both the NO TRADES and the normal path) before any
+    # state is written; a cleared/kept washVerifyPending rides along in price_state to the save.
+    ctx.deferred_loss_notes = steps.verify_deferred_losses(ctx, broker)
 
     if not steps.has_any_breach(ctx):
         # NO TRADES cycle — CLAUDE.md Step 1's early exit. Still update peak prices + the tax
@@ -127,6 +131,11 @@ def cmd_finalize(args: argparse.Namespace) -> None:
         ctx, planned_buys, net_realized_gains_ytd_effective=args.post_sell_pnl, buying_power_now=args.buying_power
     )
 
+    # v2.84.0: this cycle's buys are now known — journal any repurchase that lands inside the
+    # wash-sale window of an earlier net-profit full exit, and arm the follow-up verify check.
+    # Runs BEFORE the state stamping below so it reads the EARLIER exit's lastNettedLoss* fields.
+    ctx.deferred_loss_notes += steps.note_wash_window_repurchases(ctx)
+
     _update_peak_prices(ctx)
     _update_profit_sell_and_purchase_dates(ctx)
     save_price_state(ctx.price_state, f"{repo_dir}/peak/prices.json")
@@ -180,6 +189,13 @@ def _update_profit_sell_and_purchase_dates(ctx: RunContext) -> None:
         st = ctx.price_state[t.symbol]
         st.profitSellPrice = ctx.quotes[t.symbol].last_trade_price
         st.profitSellDate = today
+        if t.netted_loss_dollars:
+            # v2.84.0: a net-profit full exit netted an underwater lot's loss inside this
+            # net-gain sale — record it so Step 7 can journal (and later verify) the deferral
+            # if the symbol is bought back inside wash_sale_lookback_days. Observational only.
+            st.lastNettedLossDollars = round(t.netted_loss_dollars, 2)
+            st.lastNettedLossShares = t.netted_loss_shares
+            st.lastNettedLossDate = today
     for t in ctx.buys:
         st = ctx.price_state[t.symbol]
         st.lastPurchaseDate = today

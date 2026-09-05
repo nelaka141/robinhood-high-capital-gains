@@ -16,8 +16,8 @@ from typing import Any, Dict
 
 from .config import PortfolioConfig
 from .models import (
-    DriftResult, LossOnlyAsset, MomentumScore, Position, Quote, RunContext, SkippedTrade,
-    TradeIntent,
+    DeferredLossNote, DriftResult, LossOnlyAsset, MomentumScore, Position, Quote, RunContext,
+    SkippedTrade, TradeIntent,
 )
 from .state import AssetPriceState
 
@@ -62,6 +62,9 @@ def ctx_to_jsonable(ctx: RunContext) -> Dict[str, Any]:
         # data) is available. finalize has no broker, so it filters this list down by this
         # cycle's buys rather than recomputing it.
         "loss_only_assets": [asdict(a) for a in ctx.loss_only_assets],
+        # v2.84.0: verify notes gathered in `plan` (broker needed); finalize appends the
+        # in-window repurchase notes once this cycle's buys are known.
+        "deferred_loss_notes": [asdict(n) for n in ctx.deferred_loss_notes],
         "total_high_beta_gains_realized": ctx.total_high_beta_gains_realized,
         "total_cleanup_gains_realized": ctx.total_cleanup_gains_realized,
     }
@@ -97,6 +100,7 @@ def ctx_from_jsonable(data: Dict[str, Any], cfg: PortfolioConfig) -> RunContext:
     ctx.cleanup_sells = [TradeIntent(**t) for t in data.get("cleanup_sells", [])]
     ctx.skipped = [SkippedTrade(**s) for s in data["skipped"]]
     ctx.loss_only_assets = [LossOnlyAsset(**a) for a in data.get("loss_only_assets", [])]
+    ctx.deferred_loss_notes = [DeferredLossNote(**n) for n in data.get("deferred_loss_notes", [])]
     ctx.total_high_beta_gains_realized = data["total_high_beta_gains_realized"]
     ctx.total_cleanup_gains_realized = data.get("total_cleanup_gains_realized", 0.0)
     return ctx
