@@ -191,8 +191,10 @@ class RunContext:
     blocked_liquidations: List[str] = field(default_factory=list)  # blocked AND forceSell AND held -> liquidate 100%
     drawdown_liquidations: List[str] = field(default_factory=list)
     loss_sale_symbols: List[str] = field(default_factory=list)  # any sell this cycle (any
-        # mechanism) that realized a loss -> Step 7 stamps lastLossSaleDate/Price, arming the
-        # wash-sale buy-guard (Step 2) for wash_sale_lookback_days
+        # mechanism) that realized a NET loss -> Step 7 stamps lastLossSaleDate/Price, arming the
+        # wash-sale buy-guard (Step 2) for wash_sale_lookback_days. Keyed on the sale's net
+        # realized figure, never per lot: a v2.83.0 net-profit full exit that disposes of an
+        # individually-underwater lot inside a net-gain sale is NOT a loss sale and never lands here.
     profit_taking_sells: List[TradeIntent] = field(default_factory=list)  # GET THE PROFITS
     cleanup_sells: List[TradeIntent] = field(default_factory=list)  # v2.80.0 — Step 4b Sell
         # Cleanup Pass: full-remainder sells of small/single-lot green positions, bypassing every

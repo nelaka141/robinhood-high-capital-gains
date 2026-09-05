@@ -94,13 +94,21 @@ def _position(sym: str, price: float, quantity: float, avg_cost: float, lots: li
 
 def test_loss_lot_excluded_sale_proceeds_on_profitable_lot() -> None:
     """The classic decreasing-cost trap: 10 old shares @ $100 (FIFO-oldest, underwater at $80)
-    and 10 newer @ $50. v2.66.0 refused this sale outright. v2.75.0 must instead skip the $100
-    lot and sell the profitable $50 lot — the sale fires, and the underwater lot is NOT shipped
-    to the order."""
+    and 10 newer @ $50. v2.66.0 refused this sale outright; v2.75.0 skipped the $100 lot and sold
+    only the $50 lot. v2.83.0 goes one step further: the position is MIXED and its NET figure
+    (-200 + 300 = +$100) is a gain that clears the gate, so the whole position is sold in one
+    ordinary order (see _smoke_test_net_profit_full_exit.py for the full matrix). To keep
+    exercising the profitable-lots-only path here, the net gain is pushed below the dollar bar
+    while the profitable lot alone still clears it."""
     ctx, broker = _position("XYZ", price=80.0, quantity=20.0, avg_cost=75.0, lots=[
         TaxLot(open_lot_id="old", quantity=10.0, cost_per_share=100.0, open_date=date(2026, 1, 1), is_selectable=True),
         TaxLot(open_lot_id="new", quantity=10.0, cost_per_share=50.0, open_date=date(2026, 6, 1), is_selectable=True),
-    ])
+    ], meta_overrides=dict(
+        # percent gate off (raw +6.67% < 50%); dollar gate at $150 flat: net $100 fails it,
+        # the profitable lot's $300 clears it -> net-profit full exit declines, fallback fires.
+        materialize_profit_percentage=50.0, materialize_profit_percentage_max=50.0,
+        materialize_profit_in_dollars=150.0, materialize_profit_in_dollars_max=150.0,
+    ))
     step4_profit_taking(ctx, broker)
 
     assert len(ctx.profit_taking_sells) == 1, ctx.profit_taking_sells
@@ -110,6 +118,7 @@ def test_loss_lot_excluded_sale_proceeds_on_profitable_lot() -> None:
     assert t.realized_profit_dollars == 300.0, t.realized_profit_dollars  # (80-50)*10
     shipped = {l["open_lot_id"] for l in t.tax_lots}
     assert shipped == {"new"}, shipped  # the underwater "old" lot must never reach the order
+    assert "net-profit full exit declined" in t.reason, t.reason
     assert ctx.loss_sale_symbols == [], ctx.loss_sale_symbols
     print(f"[loss-lot-excluded] underwater $100 lot skipped; sold 10 sh from the $50 lot for "
           f"${t.realized_profit_dollars:.2f}")
@@ -186,11 +195,17 @@ def test_pending_basis_still_fails_closed() -> None:
 
 def test_gtp_still_fires_when_fifo_is_genuinely_profitable() -> None:
     """Sanity check nothing over-tightened: a position built at INCREASING cost (cheap first) has
-    FIFO consume the cheap lot first, so the sale fires normally and the guard is a no-op."""
+    FIFO consume the cheap lot first, so the sale fires normally and the guard is a no-op. The
+    newer $100 lot is underwater at $80, which makes the position 'mixed' under v2.83.0, so the
+    net dollar bar is set to $150 flat (net -200+300 = $100 fails it; the cheap lot's $300 alone
+    clears it) to keep this on the profitable-lots-only path rather than the full exit."""
     ctx, broker = _position("INC", price=80.0, quantity=20.0, avg_cost=75.0, lots=[
         TaxLot(open_lot_id="cheap", quantity=10.0, cost_per_share=50.0, open_date=date(2026, 1, 1), is_selectable=True),
         TaxLot(open_lot_id="expensive", quantity=10.0, cost_per_share=100.0, open_date=date(2026, 6, 1), is_selectable=True),
-    ])
+    ], meta_overrides=dict(
+        materialize_profit_percentage=50.0, materialize_profit_percentage_max=50.0,
+        materialize_profit_in_dollars=150.0, materialize_profit_in_dollars_max=150.0,
+    ))
     step4_profit_taking(ctx, broker)
 
     assert len(ctx.profit_taking_sells) == 1, ctx.profit_taking_sells
