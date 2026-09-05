@@ -79,6 +79,7 @@ def render_no_trades_entry(ctx: RunContext) -> str:
         lines.append(f"| {sym} | {dr.drift:.3f} | {dr.asset_drift_tolerance:.3f} |")
     lines += _render_dormant_assets_section(ctx)
     lines += _render_loss_only_assets_section(ctx)
+    lines += _render_deferred_loss_section(ctx)
     return "\n".join(lines) + "\n"
 
 
@@ -191,6 +192,7 @@ def render_entry(ctx: RunContext) -> str:
 
     lines += _render_dormant_assets_section(ctx)
     lines += _render_loss_only_assets_section(ctx)
+    lines += _render_deferred_loss_section(ctx)
 
     lines += [
         "",
@@ -273,10 +275,45 @@ def _render_loss_only_assets_section(ctx: RunContext) -> List[str]:
     return lines
 
 
+_DEFERRED_LOSS_KIND_LABEL = {
+    "repurchase": "REPURCHASE INSIDE WASH-SALE WINDOW",
+    "verified": "VERIFIED",
+    "not_detected": "NOT DETECTED",
+    "pending": "PENDING",
+    "expired": "EXPIRED",
+}
+
+
+def _render_deferred_loss_section(ctx: RunContext) -> List[str]:
+    """v2.84.0 — CLAUDE.md Step 7's Deferred Wash-Sale Loss Tracking report. Purely observational,
+    shared by both render_entry and render_no_trades_entry."""
+    lines = [
+        "",
+        "## Deferred Wash-Sale Loss Tracking (v2.84.0, observational)",
+    ]
+    if not ctx.deferred_loss_notes:
+        lines.append("- none this cycle")
+        return lines
+    for n in ctx.deferred_loss_notes:
+        label = _DEFERRED_LOSS_KIND_LABEL.get(n.kind, n.kind.upper())
+        lines.append(f"- **{n.symbol}** [{label}]: {n.text}")
+    lines += [
+        "",
+        "The bot never adjusts a cost basis itself — `avg_cost_basis` and every lot's `cost_per_share` "
+        "come straight from Robinhood, which already carries same-account wash-sale adjustments. "
+        "These notes only make the deferral visible and check that it landed.",
+    ]
+    return lines
+
+
 def render_email_summary(ctx: RunContext) -> str:
     n_sells = (
         len(ctx.drawdown_liquidations) + len(ctx.blocked_liquidations)
         + len(ctx.profit_taking_sells) + len(ctx.cleanup_sells)
+    )
+    deferred = (
+        f"Deferred wash-sale loss notes: {len(ctx.deferred_loss_notes)}. "
+        if ctx.deferred_loss_notes else ""
     )
     return (
         f"Scheduled rebalance {ctx.current_date.isoformat()}: "
@@ -287,5 +324,6 @@ def render_email_summary(ctx: RunContext) -> str:
         f"Final buying_power: ${ctx.account_cash:,.2f}. "
         f"Dormant assets (no activity > {ctx.config.meta.dormant_asset_days}d): {len(ctx.dormant_assets)}. "
         f"Loss-only-lot assets (no lot sellable at a gain): {len(ctx.loss_only_assets)}. "
+        f"{deferred}"
         "See attached journal entry for full detail."
     )

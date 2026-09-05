@@ -22,6 +22,7 @@ from .fifo import (
 )
 from .indicators import ema_series, rsi_series
 from .models import (
+    DeferredLossNote,
     DormantAsset,
     DriftResult,
     FifoSaleResult,
@@ -971,6 +972,10 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
                     tax_lots=None,
                     realized_profit_dollars=net.realized_profit_dollars,
                     raw_gain_pct=raw_gain_pct,
+                    # v2.84.0: hand the netted lot loss to Step 7's Deferred Wash-Sale Loss
+                    # Tracking (peak/prices.json lastNettedLoss*), observational only.
+                    netted_loss_dollars=abs(underwater_dollars),
+                    netted_loss_shares=underwater_qty,
                 ))
                 continue
 
@@ -1483,6 +1488,124 @@ def step6b_finalize_buys(
         ctx.buys.append(intent)
 
     return buys
+
+
+# ============================================================================================
+# Step 7 — Deferred Wash-Sale Loss Tracking (v2.84.0, observational only)
+# ============================================================================================
+
+_WASH_VERIFY_MAX_DAYS = 10  # calendar days the verify check waits for the broker to price the new lot
+_WASH_VERIFY_MIN_FRACTION = 0.5  # observed uplift must reach this share of the expected deferral
+
+
+def note_wash_window_repurchases(ctx: RunContext) -> List[DeferredLossNote]:
+    """v2.84.0 — after this cycle's buys are known: for every buy of a symbol whose last
+    net-profit full exit (Step 4, v2.83.0) netted an underwater lot's loss within the last
+    `wash_sale_lookback_days`, journal that the repurchase sits inside the IRS wash-sale window —
+    so that lot's loss is DEFERRED into the new lot's cost basis (never forfeited) — and arm
+    `washVerifyPending` on the symbol so `verify_deferred_losses` can confirm on a later cycle
+    that Robinhood applied the adjustment itself.
+
+    Observational only. The bot never adjusts a cost basis of its own: `avg_cost_basis` and every
+    lot's `cost_per_share` are read straight from Robinhood, which already carries the wash-sale
+    adjustment for same-account trades — adding it again here would double-count it."""
+    notes: List[DeferredLossNote] = []
+    today = ctx.current_date
+    lookback = ctx.config.meta.wash_sale_lookback_days
+    for t in ctx.buys:
+        st = ctx.price_state.get(t.symbol)
+        if st is None or not st.lastNettedLossDate or not st.lastNettedLossDollars:
+            continue
+        days = (today - _parse_date(st.lastNettedLossDate)).days
+        if days > lookback:
+            continue
+        quote = ctx.quotes[t.symbol].last_trade_price
+        st.washVerifyPending = {
+            "purchaseDate": today.isoformat(),
+            "buyQuotePrice": quote,
+            "expectedLossDollars": st.lastNettedLossDollars,
+            "exitDate": st.lastNettedLossDate,
+            "exitShares": st.lastNettedLossShares,
+        }
+        notes.append(DeferredLossNote(
+            symbol=t.symbol, kind="repurchase",
+            text=(
+                f"repurchased {days}d after the {st.lastNettedLossDate} net-profit full exit that netted a "
+                f"${st.lastNettedLossDollars:,.2f} lot loss on {st.lastNettedLossShares or 0:.4f} share(s) — "
+                f"inside the {lookback}-day wash-sale window, so the IRS DEFERS that "
+                f"${st.lastNettedLossDollars:,.2f} into this new lot's cost basis (it is not forfeited). "
+                f"Robinhood applies that adjustment itself; the bot does not touch any basis figure and "
+                f"will check the new lot's cost_per_share against today's ${quote:,.2f} buy quote on the "
+                f"next cycle(s)."
+            ),
+        ))
+    return notes
+
+
+def verify_deferred_losses(ctx: RunContext, broker: BrokerClient) -> List[DeferredLossNote]:
+    """v2.84.0 — the follow-up half of `note_wash_window_repurchases`, run at the START of a cycle
+    (it needs the broker's tax lots, so it lives in `plan`, before any state is written). For every
+    symbol carrying `washVerifyPending`: find the priced lot(s) Robinhood opened on the recorded
+    purchase date and compare their basis against `quantity × buy quote`. An uplift of at least
+    `_WASH_VERIFY_MIN_FRACTION` of the expected deferral is reported as "verified"; anything less
+    as "not_detected" (fill-vs-quote slippage can mask a small amount, so the numbers are logged
+    rather than just the verdict). While the new lot is still unpriced the check stays "pending",
+    and after `_WASH_VERIFY_MAX_DAYS` without a priced lot it is dropped as "expired". Verified,
+    not-detected and expired all clear `washVerifyPending`; pending keeps it.
+
+    Observational only — never changes any decision or basis figure."""
+    notes: List[DeferredLossNote] = []
+    for sym, st in ctx.price_state.items():
+        pending = st.washVerifyPending
+        if not pending:
+            continue
+        purchase_date = _parse_date(pending["purchaseDate"])
+        age = (ctx.current_date - purchase_date).days
+        expected = float(pending.get("expectedLossDollars") or 0.0)
+        buy_quote = float(pending.get("buyQuotePrice") or 0.0)
+        pos = ctx.positions.get(sym)
+        lots = broker.get_tax_lots(ctx.account_number, sym) if pos and pos.quantity > 0 else []
+        new_lots = [
+            lot for lot in lots
+            if lot.open_date == purchase_date and lot.is_selectable and lot.cost_per_share is not None
+        ]
+        if new_lots:
+            qty = sum(lot.quantity for lot in new_lots)
+            basis = sum(lot.quantity * lot.cost_per_share for lot in new_lots)
+            at_quote = qty * buy_quote
+            observed = basis - at_quote
+            summary = (
+                f"lot(s) opened {purchase_date} carry ${basis:,.2f} of basis on {qty:.4f} share(s) vs "
+                f"${at_quote:,.2f} at the ${buy_quote:,.2f} buy quote → uplift ${observed:,.2f} "
+                f"(expected ≈ ${expected:,.2f} from the {pending.get('exitDate')} exit)"
+            )
+            if expected > 0 and observed >= _WASH_VERIFY_MIN_FRACTION * expected:
+                kind, text = "verified", (
+                    f"deferred-loss adjustment PRESENT — {summary}. Robinhood carried the netted loss into "
+                    f"this lot's basis; nothing for the bot to do."
+                )
+            else:
+                kind, text = "not_detected", (
+                    f"deferred-loss adjustment NOT detected — {summary}. Slippage between fill and quote "
+                    f"can hide a small amount, Robinhood may post the adjustment later, or the loss may "
+                    f"have been matched to a different replacement lot — check this position's cost "
+                    f"basis in the app / 1099-B. Dropping the check."
+                )
+            st.washVerifyPending = None
+        elif age > _WASH_VERIFY_MAX_DAYS:
+            kind, text = "expired", (
+                f"no priced lot dated {purchase_date} found within {_WASH_VERIFY_MAX_DAYS} days — could not "
+                f"verify the ${expected:,.2f} deferral (the lot may have been sold again, or the buy never "
+                f"filled). Dropping the check."
+            )
+            st.washVerifyPending = None
+        else:
+            kind, text = "pending", (
+                f"awaiting a priced lot dated {purchase_date} to verify the ${expected:,.2f} deferral "
+                f"({age}d since purchase; gives up after {_WASH_VERIFY_MAX_DAYS}d)."
+            )
+        notes.append(DeferredLossNote(symbol=sym, kind=kind, text=text))
+    return notes
 
 
 def compute_dormant_assets(ctx: RunContext) -> List[DormantAsset]:

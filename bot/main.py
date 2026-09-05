@@ -52,6 +52,8 @@ def run_cycle(account_number: str, repo_dir: str, broker: BrokerClient, dry_run:
 
     # ---- Step 1 ----
     steps.step1_fetch_state(ctx, broker, repo_dir)
+    # v2.84.0: follow up on any in-window repurchase recorded on an earlier cycle (see cli.py).
+    ctx.deferred_loss_notes = steps.verify_deferred_losses(ctx, broker)
 
     if not steps.has_any_breach(ctx):
         # No drift breach, no drawdown -> log status & terminate safely (Step 1's early exit).
@@ -125,8 +127,20 @@ def _update_price_state(ctx: RunContext) -> None:
             if st.liquidatedPrice not in (None, ""):
                 st.liquidatedPrice, st.liquidatedDate = "", None
 
+    # v2.84.0: record the netted lot loss of a net-profit full exit — see cli.py's
+    # _update_profit_sell_and_purchase_dates for the identical rationale.
+    for t in ctx.profit_taking_sells:
+        if t.netted_loss_dollars:
+            st = ctx.price_state[t.symbol]
+            st.lastNettedLossDollars = round(t.netted_loss_dollars, 2)
+            st.lastNettedLossShares = t.netted_loss_shares
+            st.lastNettedLossDate = today
+
 
 def _finalize_step7(ctx: RunContext, repo_dir: str, dry_run: bool) -> None:
+    # v2.84.0: this cycle's buys are known — journal in-window repurchases and arm the verify
+    # check, BEFORE the state stamping below overwrites lastNettedLoss* with this cycle's exits.
+    ctx.deferred_loss_notes += steps.note_wash_window_repurchases(ctx)
     _update_price_state(ctx)
     save_price_state(ctx.price_state, f"{repo_dir}/peak/prices.json")
 

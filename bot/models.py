@@ -91,6 +91,10 @@ class TradeIntent:
     realized_profit_dollars: Optional[float] = None  # sells only: FIFO-matched realized gain
     beta: Optional[float] = None
     raw_gain_pct: Optional[float] = None
+    netted_loss_dollars: Optional[float] = None  # v2.83.0 net-profit full exit only: positive
+    netted_loss_shares: Optional[float] = None   # magnitude of the underwater lot loss (and its
+                                                 # share count) netted inside this net-gain sale —
+                                                 # feeds v2.84.0's Deferred Wash-Sale Loss Tracking
 
 
 @dataclass
@@ -109,6 +113,19 @@ class DormantAsset:
     last_activity_date: Optional[str]   # ISO date string, or None to match days_since_activity
     unrealized_dollars: float
     unrealized_pct: float
+
+
+@dataclass
+class DeferredLossNote:
+    """v2.84.0 — one line of Step 7's Deferred Wash-Sale Loss Tracking section. Purely
+    observational: records that a symbol was bought back inside the wash-sale window after a
+    net-profit full exit netted an underwater lot's loss (kind="repurchase"), and the outcome of
+    the follow-up check that Robinhood deferred that loss into the new lot's basis
+    (kind="verified" | "not_detected" | "pending" | "expired"). Never influences any decision or
+    any cost-basis figure the bot uses."""
+    symbol: str
+    kind: str
+    text: str
 
 
 @dataclass
@@ -213,3 +230,6 @@ class RunContext:
 
     dormant_assets: List["DormantAsset"] = field(default_factory=list)  # Step 7 reporting only
     loss_only_assets: List["LossOnlyAsset"] = field(default_factory=list)  # Step 7 reporting only
+    deferred_loss_notes: List["DeferredLossNote"] = field(default_factory=list)  # v2.84.0 Step 7
+        # reporting only — verify notes gathered in `plan` (needs the broker's tax lots), the
+        # in-window repurchase notes appended in `finalize` once this cycle's buys are known

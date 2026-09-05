@@ -27,6 +27,19 @@ class AssetPriceState:
     lastLossSaleDate: Optional[str] = None     # loss (any mechanism) — basis for the wash-sale
                                                 # buy-guard (Step 2): blocks repurchase for
                                                 # wash_sale_lookback_days after ANY loss sale
+    # v2.84.0 — Deferred Wash-Sale Loss Tracking (Step 7, observational only). Stamped by a
+    # net-profit full exit (Step 4, v2.83.0) that disposed of an underwater lot inside a net-gain
+    # sale: the size of that lot's loss, its share count, and the exit date. Read by Step 7 when
+    # the symbol is bought back inside wash_sale_lookback_days — the IRS defers that loss into the
+    # new lot's basis and Robinhood applies the adjustment itself, so the bot only journals it
+    # and verifies it; it never adjusts any basis figure of its own.
+    lastNettedLossDollars: Optional[float] = None   # positive magnitude, e.g. 29.44
+    lastNettedLossShares: Optional[float] = None
+    lastNettedLossDate: Optional[str] = None
+    washVerifyPending: Optional[dict] = None        # {"purchaseDate", "buyQuotePrice",
+                                                    #  "expectedLossDollars", "exitDate",
+                                                    #  "exitShares"} — set on the in-window
+                                                    # repurchase, cleared once verified/expired
 
 
 _PRICE_STATE_FIELDS = {f.name for f in dataclass_fields(AssetPriceState)}
