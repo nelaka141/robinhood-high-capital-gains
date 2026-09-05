@@ -318,8 +318,9 @@ def test_topup_skips_below_momentum_floor() -> None:
 
 def test_topup_skips_held_position_at_a_loss() -> None:
     """I is currently held (small quantity) with avg_cost_basis ABOVE the live quote (100.0) ->
-    the position is at a loss, so v2.81.0's held-at-a-loss guard excludes it from top-up even
-    though it has ample max_position_value room and clears every other guard."""
+    raw_gain_pct = (100-120)/120*100 = -16.67%, well below the default 0.0
+    held_at_loss_rebuy_threshold_percent -> v2.81.0's held-at-a-loss guard excludes it from
+    top-up even though it has ample max_position_value room and clears every other guard."""
     targets = {"I": AssetTarget("I", weight=1.0, max_position_value=5000.0)}
     drift = {"I": _dr(target_weight=0.0, actual_weight=0.0, target_pct=0.0, mv=50.0)}
     ctx = _ctx(targets, drift, current_cash=4500.0)
@@ -330,8 +331,51 @@ def test_topup_skips_held_position_at_a_loss() -> None:
         f"held-at-a-loss guard should block top-up entirely, got {allocations.get('I')}"
     )
     reasons = [s.reason for s in ctx.skipped if s.symbol == "I" and s.would_be_action == "Position Cap Top-Up"]
-    assert reasons and "at a loss" in reasons[0], f"expected a held-at-a-loss SKIPPED entry for I, got {reasons}"
+    assert reasons and "held_at_loss_rebuy_threshold_percent" in reasons[0], (
+        f"expected a held-at-a-loss SKIPPED entry for I, got {reasons}"
+    )
     print("[topup-skips-held-at-a-loss] I (held, underwater vs avg_cost_basis) excluded from top-up — OK")
+
+
+def test_topup_threshold_allows_small_loss_within_bound() -> None:
+    """v2.85.0: M is held at a small loss (-2.0% vs avg_cost_basis, quote 98.0 vs avg 100.0) with
+    held_at_loss_rebuy_threshold_percent set to -3.0 -> -2.0 > -3.0 clears the (now configurable)
+    bar, so top-up proceeds normally instead of being blocked outright."""
+    targets = {"M": AssetTarget("M", weight=1.0, max_position_value=5000.0)}
+    drift = {"M": _dr(target_weight=0.0, actual_weight=0.0, target_pct=0.0, mv=49.0)}
+    ctx = _ctx(targets, drift, current_cash=4500.0, held_at_loss_rebuy_threshold_percent=-3.0)
+    ctx.quotes["M"] = Quote("M", last_trade_price=98.0)
+    ctx.positions["M"] = Position(symbol="M", quantity=0.5, avg_cost_basis=100.0)  # raw_gain_pct = -2.0%
+    allocations = step3_underweight_buys(ctx, _TiedBroker())
+
+    assert math.isclose(allocations.get("M", 0.0), 4500.0, abs_tol=0.01), (
+        f"M's -2.0% loss should clear a -3.0% threshold and top up normally, got {allocations.get('M')}"
+    )
+    reasons = [s.reason for s in ctx.skipped if s.symbol == "M" and s.would_be_action == "Position Cap Top-Up"]
+    assert not reasons, f"M should NOT be skipped by the held-at-a-loss guard, got {reasons}"
+    print(f"[topup-threshold-allows-small-loss] M (-2.0% vs -3.0% threshold) topped up "
+          f"${allocations['M']:.2f} — OK")
+
+
+def test_topup_threshold_still_blocks_loss_beyond_bound() -> None:
+    """v2.85.0: N is held at a larger loss (-4.0% vs avg_cost_basis, quote 96.0 vs avg 100.0) with
+    the same -3.0 threshold -> -4.0 < -3.0 still fails the bar, so top-up is excluded exactly as
+    the original v2.81.0 'any loss' guard would have done."""
+    targets = {"N": AssetTarget("N", weight=1.0, max_position_value=5000.0)}
+    drift = {"N": _dr(target_weight=0.0, actual_weight=0.0, target_pct=0.0, mv=48.0)}
+    ctx = _ctx(targets, drift, current_cash=4500.0, held_at_loss_rebuy_threshold_percent=-3.0)
+    ctx.quotes["N"] = Quote("N", last_trade_price=96.0)
+    ctx.positions["N"] = Position(symbol="N", quantity=0.5, avg_cost_basis=100.0)  # raw_gain_pct = -4.0%
+    allocations = step3_underweight_buys(ctx, _TiedBroker())
+
+    assert math.isclose(allocations.get("N", 0.0), 0.0, abs_tol=0.01), (
+        f"N's -4.0% loss should still fail a -3.0% threshold, got {allocations.get('N')}"
+    )
+    reasons = [s.reason for s in ctx.skipped if s.symbol == "N" and s.would_be_action == "Position Cap Top-Up"]
+    assert reasons and "held_at_loss_rebuy_threshold_percent" in reasons[0], (
+        f"expected a held-at-a-loss SKIPPED entry for N, got {reasons}"
+    )
+    print("[topup-threshold-blocks-loss-beyond-bound] N (-4.0% vs -3.0% threshold) excluded from top-up — OK")
 
 
 def test_topup_still_fires_for_held_position_at_a_gain() -> None:
@@ -399,6 +443,8 @@ def main() -> None:
     test_topup_still_fires_for_held_position_at_a_gain()
     test_topup_skips_unresolved_cost_basis()
     test_topup_unaffected_for_zero_quantity_position_record()
+    test_topup_threshold_allows_small_loss_within_bound()
+    test_topup_threshold_still_blocks_loss_beyond_bound()
     print("\nSMOKE TEST (max_position_value / Position Cap Top-Up) PASSED")
 
 

@@ -1,6 +1,6 @@
 {
   "portfolio_metadata": {
-    "version": "2.84.0",
+    "version": "2.85.0",
     "last_updated": "2026-09-04",
     "global_drift_tolerance": 1.0,
     "max_trailing_drawdown_percentage": 35,
@@ -42,7 +42,8 @@
     "wash_sale_lookback_days": 30,
     "dormant_asset_days": 5,
     "cleanup_dust_threshold_dollars": 200.0,
-    "default_max_position_value": 6000.0
+    "default_max_position_value": 6000.0,
+    "held_at_loss_rebuy_threshold_percent": -3.0
   },
   "targets": {
     "TQQQ": {

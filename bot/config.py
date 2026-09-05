@@ -111,6 +111,17 @@ class PortfolioMetadata:
     # portfolio_targets.json to opt EVERY target into the top-up pass by default.
     default_max_position_value: Optional[float] = None
 
+    # v2.85.0 — Position Cap Top-Up (Step 3) held-at-a-loss guard threshold. The v2.81.0 guard
+    # originally excluded ANY held-at-a-loss position (current_price < avg_cost_basis, i.e. raw
+    # gain % < 0) from Top-Up outright. This softens that to a configurable floor on the
+    # position's raw_gain_pct = (current_price - avg_cost_basis) / avg_cost_basis * 100: the
+    # position is excluded only when raw_gain_pct < held_at_loss_rebuy_threshold_percent, not
+    # merely < 0. Example: a position at -2.0% with this set to -3.0 now clears the guard
+    # (-2.0 > -3.0) and participates in Top-Up; a position at -4.0% still doesn't. Default 0.0
+    # exactly reproduces the original "any loss excludes" behavior (raw_gain_pct < 0), so existing
+    # PortfolioMetadata(...) call sites (mostly test fixtures) are unaffected unless they opt in.
+    held_at_loss_rebuy_threshold_percent: float = 0.0
+
 
 @dataclass(frozen=True)
 class PortfolioConfig:

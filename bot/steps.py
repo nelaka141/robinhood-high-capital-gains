@@ -609,11 +609,22 @@ def step3_underweight_buys(ctx: RunContext, broker: BrokerClient) -> Dict[str, f
             pos = ctx.positions.get(sym)
             if pos is not None and pos.quantity > 0:
                 price = ctx.quotes[sym].last_trade_price
-                if pos.avg_cost_basis is None or price < pos.avg_cost_basis:
+                loss_threshold = ctx.config.meta.held_at_loss_rebuy_threshold_percent
+                if pos.avg_cost_basis is None:
                     ctx.skipped.append(SkippedTrade(
                         sym,
-                        "Position Cap Top-Up: held position is at a loss (or cost basis "
-                        "unresolved) vs. avg_cost_basis — excluded from top-up",
+                        "Position Cap Top-Up: held position's cost basis is unresolved — "
+                        "excluded from top-up (fails closed)",
+                        "Position Cap Top-Up",
+                    ))
+                    continue
+                raw_gain_pct = (price - pos.avg_cost_basis) / pos.avg_cost_basis * 100
+                if raw_gain_pct < loss_threshold:
+                    ctx.skipped.append(SkippedTrade(
+                        sym,
+                        f"Position Cap Top-Up: held position's raw gain ({raw_gain_pct:.2f}%) is "
+                        f"below held_at_loss_rebuy_threshold_percent ({loss_threshold:.2f}%) — "
+                        "excluded from top-up",
                         "Position Cap Top-Up",
                     ))
                     continue
