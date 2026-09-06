@@ -12,11 +12,14 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from bot import journal, state_store, steps
+from bot import journal, steps
 from bot.config import load_portfolio_config
 from bot.main import _update_price_state
 from bot.models import Position, Quote, RunContext, TaxLot
-from bot.state import AssetPriceState
+from bot.state import (
+    AssetPriceState, load_price_state, load_tax_by_year,
+    save_price_state, save_tax_by_year,
+)
 
 random.seed(42)
 REPO = Path(__file__).resolve().parent.parent
@@ -92,15 +95,16 @@ def main() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
         (tmp / "logs").mkdir()
-        peak_dir = tmp / "peak" / "prices"
-        tax_dir = tmp / "tax" / "realized_gains_by_year"
+        (tmp / "peak").mkdir()
+        (tmp / "tax").mkdir()
         shutil.copy(REPO / "portfolio_targets.json", tmp / "portfolio_targets.json")
+        (tmp / "peak" / "prices.json").write_text("{}")
+        (tmp / "tax" / "realized_gains_by_year.json").write_text('{"2025": 4000.0}')
         (tmp / "transferred_basis.json").write_text("{}")
-        state_store.save_tax_by_year({"2025": 4000.0}, date.today(), tax_dir)
 
         ctx = RunContext(current_date=date.today(), config=cfg, account_number="TEST")
-        ctx.price_state = state_store.load_price_state(peak_dir)
-        ctx.tax_by_year = state_store.load_tax_by_year(tax_dir)
+        ctx.price_state = load_price_state(tmp / "peak" / "prices.json")
+        ctx.tax_by_year = load_tax_by_year(tmp / "tax" / "realized_gains_by_year.json")
 
         steps.step1_fetch_state(ctx, broker, str(tmp))
         print(f"[Step 1] account_balance=${ctx.account_balance:,.2f} "
@@ -154,11 +158,11 @@ def main() -> None:
         print("[Step 7] journal rotation OK — live entries capped, overflow moved to history file")
 
         _update_price_state(ctx)
-        state_store.save_price_state(ctx.price_state, ctx.current_date, peak_dir)
-        state_store.save_tax_by_year(ctx.tax_by_year, ctx.current_date, tax_dir)
-        reread = state_store.load_price_state(peak_dir)
+        save_price_state(ctx.price_state, tmp / "peak" / "prices.json")
+        save_tax_by_year(ctx.tax_by_year, tmp / "tax" / "realized_gains_by_year.json")
+        reread = load_price_state(tmp / "peak" / "prices.json")
         assert set(reread.keys()) == set(cfg.targets.keys())
-        print("[Step 7] state snapshot round-trip OK (peak_prices, realized_gains_by_year)")
+        print("[Step 7] state files round-trip OK (peak/prices.json, tax file)")
 
     print("\nSMOKE TEST PASSED — full Step 1-7 pipeline ran end-to-end with no exceptions.")
 
