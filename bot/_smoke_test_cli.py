@@ -15,6 +15,8 @@ import tempfile
 from datetime import date, timedelta
 from pathlib import Path
 
+from bot import state_store
+
 random.seed(13)
 REPO = Path(__file__).resolve().parent.parent
 
@@ -83,11 +85,8 @@ def main() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
         (tmp / "logs").mkdir()
-        (tmp / "peak").mkdir()
-        (tmp / "tax").mkdir()
         shutil.copy(REPO / "portfolio_targets.json", tmp / "portfolio_targets.json")
-        (tmp / "peak" / "prices.json").write_text("{}")
-        (tmp / "tax" / "realized_gains_by_year.json").write_text('{"2025": 4000.0}')
+        state_store.save_tax_by_year({"2025": 4000.0}, date.today(), tmp / "tax" / "realized_gains_by_year")
         (tmp / "transferred_basis.json").write_text("{}")
 
         snapshot_path = tmp / "snapshot.json"
@@ -145,10 +144,11 @@ def main() -> None:
              )
 
         assert (tmp / "logs" / "trade_journal.md").exists()
-        assert (tmp / "peak" / "prices.json").exists()
-        peak_state = json.loads((tmp / "peak" / "prices.json").read_text())
+        peak_state = finalize_result["price_state"]
         assert set(peak_state.keys()) == set(json.loads((REPO / "portfolio_targets.json").read_text())["targets"].keys())
         for f in finalize_result["files_changed"]:
+            assert (tmp / f).exists() or (tmp / f).is_dir(), f"expected {f} to exist"
+        for f in finalize_result["drive_sync_files"]:
             assert (tmp / f).exists() or (tmp / f).is_dir(), f"expected {f} to exist"
 
         print("\nSMOKE TEST (CLI) PASSED — plan -> (caller executes sells) -> finalize -> "

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from .models import RunContext
 
@@ -34,7 +34,12 @@ def _next_history_path(logs_dir: Path) -> Path:
     return logs_dir / f"history_trade_journal-{max(nums)}.md"
 
 
-def prepend_entry(new_entry_md: str, logs_dir: str | Path = "logs") -> None:
+def prepend_entry(new_entry_md: str, logs_dir: str | Path = "logs") -> Optional[Path]:
+    """Returns the history_trade_journal-<seq>.md path if this call rotated an entry into one
+    (created or appended to), else None. `logs/trade_journal.md` stays git-tracked; the caller
+    uses this return value to know which (if any) history file also needs uploading to Google
+    Drive this cycle — history files are no longer git-tracked (see CLAUDE.md's state storage
+    architecture note)."""
     logs_dir = Path(logs_dir)
     logs_dir.mkdir(parents=True, exist_ok=True)
     journal_path = logs_dir / "trade_journal.md"
@@ -47,7 +52,7 @@ def prepend_entry(new_entry_md: str, logs_dir: str | Path = "logs") -> None:
 
     journal_path.write_text("\n".join(live).rstrip("\n") + "\n")
     if not overflow:
-        return
+        return None
 
     history_path = _next_history_path(logs_dir)
     history_entries = _split_entries(history_path.read_text()) if history_path.exists() else []
@@ -58,6 +63,7 @@ def prepend_entry(new_entry_md: str, logs_dir: str | Path = "logs") -> None:
             history_entries = []
         history_entries.append(entry)
     history_path.write_text("\n".join(history_entries).rstrip("\n") + "\n")
+    return history_path
 
 
 def render_no_trades_entry(ctx: RunContext) -> str:

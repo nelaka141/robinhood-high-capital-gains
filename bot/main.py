@@ -23,22 +23,23 @@ from datetime import datetime
 
 from zoneinfo import ZoneInfo
 
-from . import gitops, journal, notify, steps
+from . import gitops, journal, notify, state_store, steps
 from .broker import BrokerClient, RobinStocksBroker
 from .config import load_portfolio_config
 from .models import RunContext
-from .state import (
-    AssetPriceState,
-    load_paid_taxes_by_year,
-    load_price_state,
-    load_tax_by_year,
-    save_price_state,
-    save_tax_by_year,
-)
+from .state import AssetPriceState, load_paid_taxes_by_year
 
 GITHUB_OWNER = "nelaka141"
 GITHUB_REPO = "robinhood-high-capital-gains"
 NOTIFY_EMAIL = "adarsh_141@yahoo.com"
+
+# NOTE: standalone mode has no Google Drive credentials of its own — unlike the snapshot-driven
+# CLAUDE.md flow (bot/cli.py), where the orchestrating agent downloads/uploads the dated Parquet
+# state snapshots via its Google-Drive MCP connection around each `plan`/`finalize` call, this
+# mode only ever reads/writes them at the local `repo_dir`-relative paths below. Syncing them
+# with Drive in standalone mode would need its own Drive service-account wiring — out of scope
+# here, since this mode isn't the one CLAUDE.md's scheduled routine actually runs (see the
+# module docstring).
 
 
 def run_cycle(account_number: str, repo_dir: str, broker: BrokerClient, dry_run: bool = True) -> RunContext:
@@ -46,8 +47,10 @@ def run_cycle(account_number: str, repo_dir: str, broker: BrokerClient, dry_run:
     cfg = load_portfolio_config(f"{repo_dir}/portfolio_targets.json")
 
     ctx = RunContext(current_date=now_et.date(), config=cfg, account_number=account_number)
-    ctx.price_state = load_price_state(f"{repo_dir}/peak/prices.json")
-    ctx.tax_by_year = load_tax_by_year(f"{repo_dir}/tax/realized_gains_by_year.json")
+    peak_dir = f"{repo_dir}/{state_store.DEFAULT_PEAK_PRICES_DIR}"
+    tax_dir = f"{repo_dir}/{state_store.DEFAULT_TAX_DIR}"
+    ctx.price_state = state_store.load_price_state(peak_dir)
+    ctx.tax_by_year = state_store.load_tax_by_year(tax_dir)
     ctx.paid_taxes_by_year = load_paid_taxes_by_year(f"{repo_dir}/tax/paid_taxes_by_year.json")
 
     # ---- Step 1 ----
@@ -142,12 +145,14 @@ def _finalize_step7(ctx: RunContext, repo_dir: str, dry_run: bool) -> None:
     # check, BEFORE the state stamping below overwrites lastNettedLoss* with this cycle's exits.
     ctx.deferred_loss_notes += steps.note_wash_window_repurchases(ctx)
     _update_price_state(ctx)
-    save_price_state(ctx.price_state, f"{repo_dir}/peak/prices.json")
+    peak_dir = f"{repo_dir}/{state_store.DEFAULT_PEAK_PRICES_DIR}"
+    tax_dir = f"{repo_dir}/{state_store.DEFAULT_TAX_DIR}"
+    state_store.save_price_state(ctx.price_state, ctx.current_date, peak_dir)
 
     ctx.tax_by_year[str(ctx.current_date.year)] = max(
         0.0, ctx.net_realized_gains_ytd_effective if ctx.net_realized_gains_ytd_effective is not None else 0.0
     )
-    save_tax_by_year(ctx.tax_by_year, f"{repo_dir}/tax/realized_gains_by_year.json")
+    state_store.save_tax_by_year(ctx.tax_by_year, ctx.current_date, tax_dir)
 
     ctx.dormant_assets = steps.compute_dormant_assets(ctx)
     entry_md = journal.render_entry(ctx)
@@ -156,9 +161,12 @@ def _finalize_step7(ctx: RunContext, repo_dir: str, dry_run: bool) -> None:
     if dry_run:
         return
 
+    # Only logs/trade_journal.md is git-tracked now — the peak_prices/tax Parquet snapshots and
+    # logs/history_trade_journal-*.md are Drive-only (see module note above: this standalone
+    # mode doesn't sync them to Drive itself).
     branch = gitops.commit_and_push_cycle(
         repo_dir,
-        changed_paths=["peak/prices.json", "tax/realized_gains_by_year.json", "logs/"],
+        changed_paths=["logs/trade_journal.md"],
         commit_message=f"Scheduled rebalance {ctx.current_date.isoformat()}",
     )
     gitops.open_and_merge_pr(
