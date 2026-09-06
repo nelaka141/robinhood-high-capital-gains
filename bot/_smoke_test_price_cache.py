@@ -75,16 +75,11 @@ def main() -> None:
         r = run("price-cache-merge", "--repo-dir", str(tmp), "--current-date", day1.isoformat(),
                 "--bars-in", str(bars_path), "--out", str(merge1_out))
         assert r.returncode == 0, r.stderr
+        assert (tmp / "price_history" / "daily_bars.json").exists()
         merge1 = json.loads(merge1_out.read_text())
-        # A cold-start full ~90-day backfill across every symbol is thousands of rows, but
-        # Drive's real size ceiling (30MB) is nowhere near where that lands as plain JSON ->
-        # still just one delta file, no sharding needed.
-        assert merge1["new_delta_files"] == [f"price_history/{day1.isoformat()}.json"]
-        for f in merge1["new_delta_files"]:
-            assert (tmp / f).exists(), f"expected delta file {f} to exist"
         assert set(merge1["daily_closes"].keys()) == set(symbols)
         assert len(merge1["daily_closes"]["SPY" if "SPY" in symbols else symbols[0]]) > 0
-        print(f"[2] merge OK -> {merge1['new_delta_files']} written, "
+        print(f"[2] merge OK -> price_history/daily_bars.json written, "
               f"{len(merge1['daily_closes'][symbols[0]])} bars sliced for {symbols[0]}")
 
         # --- 3. Next day: only an incremental fetch is needed ---
@@ -107,10 +102,6 @@ def main() -> None:
         r = run("price-cache-merge", "--repo-dir", str(tmp), "--current-date", day2.isoformat(),
                 "--bars-in", str(day2_bars_path), "--out", str(merge2_out))
         assert r.returncode == 0, r.stderr
-        merge2 = json.loads(merge2_out.read_text())
-        assert merge2["new_delta_files"] == [f"price_history/{day2.isoformat()}.json"]
-        for f in merge1["new_delta_files"]:
-            assert (tmp / f).exists(), "day1's delta file must never be touched/deleted by a later merge"
 
         plan3_out = tmp / "plan3.json"
         r = run("price-cache-plan", "--repo-dir", str(tmp), "--current-date", day2.isoformat(), "--out", str(plan3_out))
@@ -119,14 +110,6 @@ def main() -> None:
         assert plan3["fetch_batches"] == [], "cache should now be fully up to date for day2"
         assert set(plan3["up_to_date"]) == set(symbols)
         print(f"[3b] same-day re-plan -> fully up to date, zero fetch_batches")
-
-        # Nothing to fetch -> price-cache-merge writes no new delta file (nothing to upload)
-        merge3_out = tmp / "merge3.json"
-        r = run("price-cache-merge", "--repo-dir", str(tmp), "--current-date", day2.isoformat(), "--out", str(merge3_out))
-        assert r.returncode == 0, r.stderr
-        merge3 = json.loads(merge3_out.read_text())
-        assert merge3["new_delta_files"] == [], "no bars fetched -> no new delta files to upload"
-        print(f"[3c] no bars_in / nothing fetched -> new_delta_files is empty, nothing to upload")
 
         # --- 4. A brand-new symbol needs its own full backfill; existing symbols stay incremental ---
         cfg2 = json.loads(json.dumps(cfg))

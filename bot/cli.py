@@ -22,14 +22,15 @@ import json
 from datetime import date
 from pathlib import Path
 
-from dataclasses import asdict
-
-from . import journal, price_cache, price_history_store, state_store, steps
+from . import journal, price_cache, steps
 from .config import load_portfolio_config
 from .models import RunContext
 from .serialize import ctx_from_jsonable, ctx_to_jsonable, dump_json
 from .snapshot_broker import SnapshotBroker
-from .state import AssetPriceState, load_paid_taxes_by_year
+from .state import (
+    AssetPriceState, load_paid_taxes_by_year, load_price_state, load_tax_by_year,
+    save_price_state, save_tax_by_year,
+)
 
 
 def _intent_to_dict(t) -> dict:
@@ -50,10 +51,8 @@ def cmd_plan(args: argparse.Namespace) -> None:
         config=cfg,
         account_number=snapshot.get("account_number", "SNAPSHOT"),
     )
-    peak_dir = f"{repo_dir}/{state_store.DEFAULT_PEAK_PRICES_DIR}"
-    tax_dir = f"{repo_dir}/{state_store.DEFAULT_TAX_DIR}"
-    ctx.price_state = state_store.load_price_state(peak_dir)
-    ctx.tax_by_year = state_store.load_tax_by_year(tax_dir)
+    ctx.price_state = load_price_state(f"{repo_dir}/peak/prices.json")
+    ctx.tax_by_year = load_tax_by_year(f"{repo_dir}/tax/realized_gains_by_year.json")
     ctx.paid_taxes_by_year = load_paid_taxes_by_year(f"{repo_dir}/tax/paid_taxes_by_year.json")
 
     steps.step1_fetch_state(ctx, broker, repo_dir)
@@ -64,24 +63,16 @@ def cmd_plan(args: argparse.Namespace) -> None:
 
     if not steps.has_any_breach(ctx):
         # NO TRADES cycle — CLAUDE.md Step 1's early exit. Still update peak prices + the tax
-        # figures (Step 6 says "do this every cycle, including NO TRADES cycles") and log.
+        # file (Step 6 says "do this every cycle, including NO TRADES cycles") and log.
         _update_peak_prices(ctx)
-        peak_paths = state_store.save_price_state(ctx.price_state, ctx.current_date, peak_dir)
+        save_price_state(ctx.price_state, f"{repo_dir}/peak/prices.json")
         ctx.tax_by_year[str(ctx.current_date.year)] = max(0.0, ctx.net_realized_gains_ytd_pretrade)
-        tax_path = state_store.save_tax_by_year(ctx.tax_by_year, ctx.current_date, tax_dir)
+        save_tax_by_year(ctx.tax_by_year, f"{repo_dir}/tax/realized_gains_by_year.json")
         ctx.dormant_assets = steps.compute_dormant_assets(ctx)
         # No buys happen on a NO TRADES cycle, so the candidate list is already final.
         ctx.loss_only_assets = steps.compute_loss_only_assets(ctx, broker)
         entry_md = journal.render_no_trades_entry(ctx)
-        history_path = journal.prepend_entry(entry_md, f"{repo_dir}/logs")
-        drive_sync_files = [
-            f"{state_store.DEFAULT_PEAK_PRICES_DIR}/{p.name}" for p in peak_paths
-        ] + [
-            f"{state_store.DEFAULT_TAX_DIR}/{tax_path.name}",
-            "logs/trade_journal.md",
-        ]
-        if history_path:
-            drive_sync_files.append(f"logs/{history_path.name}")
+        journal.prepend_entry(entry_md, f"{repo_dir}/logs")
         dump_json({
             "no_trades": True,
             "journal_entry_markdown": entry_md,
@@ -90,13 +81,7 @@ def cmd_plan(args: argparse.Namespace) -> None:
                 f"Dormant assets (no activity > {cfg.meta.dormant_asset_days}d): {len(ctx.dormant_assets)}. "
                 f"Loss-only-lot assets: {len(ctx.loss_only_assets)}."
             ),
-            # Git only ever tracks logs/trade_journal.md now (bucket 2) — peak/tax state moved to
-            # dated JSON snapshots and history_trade_journal-*.md moved out of git entirely;
-            # both sync to Google Drive instead (see CLAUDE.md Execution Mode Step 8 for the
-            # exact upload list this key drives).
-            "files_changed": ["logs/trade_journal.md"],
-            "drive_sync_files": drive_sync_files,
-            "price_state": {sym: asdict(st) for sym, st in ctx.price_state.items()},
+            "files_changed": ["peak/prices.json", "tax/realized_gains_by_year.json", "logs/trade_journal.md"],
         }, args.out)
         print(f"NO TRADES — wrote {args.out}")
         return
@@ -151,31 +136,18 @@ def cmd_finalize(args: argparse.Namespace) -> None:
     # Runs BEFORE the state stamping below so it reads the EARLIER exit's lastNettedLoss* fields.
     ctx.deferred_loss_notes += steps.note_wash_window_repurchases(ctx)
 
-    peak_dir = f"{repo_dir}/{state_store.DEFAULT_PEAK_PRICES_DIR}"
-    tax_dir = f"{repo_dir}/{state_store.DEFAULT_TAX_DIR}"
     _update_peak_prices(ctx)
     _update_profit_sell_and_purchase_dates(ctx)
-    peak_paths = state_store.save_price_state(ctx.price_state, ctx.current_date, peak_dir)
+    save_price_state(ctx.price_state, f"{repo_dir}/peak/prices.json")
     ctx.tax_by_year[str(ctx.current_date.year)] = max(0.0, ctx.net_realized_gains_ytd_effective or 0.0)
-    tax_path = state_store.save_tax_by_year(ctx.tax_by_year, ctx.current_date, tax_dir)
+    save_tax_by_year(ctx.tax_by_year, f"{repo_dir}/tax/realized_gains_by_year.json")
 
     ctx.dormant_assets = steps.compute_dormant_assets(ctx)
     ctx.loss_only_assets = steps.drop_bought_symbols(ctx.loss_only_assets, ctx)
     entry_md = journal.render_entry(ctx)
-    history_path = journal.prepend_entry(entry_md, f"{repo_dir}/logs")
+    journal.prepend_entry(entry_md, f"{repo_dir}/logs")
 
-    # Git only ever tracks logs/trade_journal.md now (bucket 2) — peak/tax state moved to dated
-    # JSON snapshots and history_trade_journal-*.md moved out of git entirely; both sync to
-    # Google Drive instead (see CLAUDE.md Execution Mode Step 8 for the exact upload list).
-    files_changed = ["logs/trade_journal.md"]
-    drive_sync_files = [
-        f"{state_store.DEFAULT_PEAK_PRICES_DIR}/{p.name}" for p in peak_paths
-    ] + [
-        f"{state_store.DEFAULT_TAX_DIR}/{tax_path.name}",
-        "logs/trade_journal.md",
-    ]
-    if history_path:
-        drive_sync_files.append(f"logs/{history_path.name}")
+    files_changed = ["peak/prices.json", "tax/realized_gains_by_year.json", "logs/trade_journal.md"]
 
     result = {
         "buys_to_place": [_intent_to_dict(t) for t in buys_to_place],
@@ -185,8 +157,6 @@ def cmd_finalize(args: argparse.Namespace) -> None:
         "journal_entry_markdown": entry_md,
         "email_summary": journal.render_email_summary(ctx),
         "files_changed": files_changed,
-        "drive_sync_files": drive_sync_files,
-        "price_state": {sym: asdict(st) for sym, st in ctx.price_state.items()},
     }
     dump_json(result, args.out)
     print(f"FINALIZE OK — {len(buys_to_place)} buy(s) to execute. State files written. Wrote {args.out}.")
@@ -249,8 +219,7 @@ def _update_profit_sell_and_purchase_dates(ctx: RunContext) -> None:
 
 def cmd_price_cache_plan(args: argparse.Namespace) -> None:
     cfg = load_portfolio_config(f"{args.repo_dir}/portfolio_targets.json")
-    local_dir = f"{args.repo_dir}/{price_history_store.DEFAULT_LOCAL_DIR}"
-    cache = price_history_store.load_cache_from_deltas(local_dir)
+    cache = price_cache.load_price_cache(f"{args.repo_dir}/price_history/daily_bars.json")
     symbols = price_cache.cache_symbols(cfg)
     result = price_cache.plan_fetches(cache, symbols, date.fromisoformat(args.current_date))
     dump_json(result, args.out)
@@ -260,27 +229,18 @@ def cmd_price_cache_plan(args: argparse.Namespace) -> None:
 
 
 def cmd_price_cache_merge(args: argparse.Namespace) -> None:
-    local_dir = f"{args.repo_dir}/{price_history_store.DEFAULT_LOCAL_DIR}"
-    cache = price_history_store.load_cache_from_deltas(local_dir)
-    current_date = date.fromisoformat(args.current_date)
-    new_bars = {}
+    cache_path = f"{args.repo_dir}/price_history/daily_bars.json"
+    cache = price_cache.load_price_cache(cache_path)
     if args.bars_in:
         new_bars = json.loads(Path(args.bars_in).read_text())
         price_cache.merge_bars(cache, new_bars)
+    current_date = date.fromisoformat(args.current_date)
     price_cache.prune_cache(cache, current_date)
-    # Persist ONLY this cycle's freshly fetched bars — never the whole merged cache — as one
-    # small new delta JSON file, so the agent has a small, safe-to-relay file to upload to Drive
-    # (bot/price_history_store.py's docstring explains why). Empty list if nothing was fetched.
-    delta_paths = price_history_store.write_delta_json(new_bars, current_date, local_dir)
+    price_cache.save_price_cache(cache, cache_path)
     daily_closes, daily_lows_highs = price_cache.slice_for_snapshot(cache, current_date)
-    dump_json({
-        "daily_closes": daily_closes,
-        "daily_lows_highs": daily_lows_highs,
-        "new_delta_files": [f"{price_history_store.DEFAULT_LOCAL_DIR}/{p.name}" for p in delta_paths],
-    }, args.out)
+    dump_json({"daily_closes": daily_closes, "daily_lows_highs": daily_lows_highs}, args.out)
     print(f"PRICE CACHE MERGE — cache now covers {len(cache)} symbol(s). "
-          f"{f'New delta file(s): {[p.name for p in delta_paths]}' if delta_paths else 'No new delta this cycle.'} "
-          f"Wrote {args.out}.")
+          f"Wrote {cache_path} and {args.out}.")
 
 
 def main() -> None:
@@ -305,7 +265,7 @@ def main() -> None:
 
     p_pc_plan = sub.add_parser(
         "price-cache-plan",
-        help="Decide which symbols/date-ranges still need a get_equity_historicals fetch, per the locally-downloaded price_history/*.parquet.gz deltas.",
+        help="Decide which symbols/date-ranges still need a get_equity_historicals fetch, per price_history/daily_bars.json.",
     )
     p_pc_plan.add_argument("--repo-dir", default=".")
     p_pc_plan.add_argument("--current-date", required=True, help="YYYY-MM-DD, US/Eastern")
@@ -314,7 +274,7 @@ def main() -> None:
 
     p_pc_merge = sub.add_parser(
         "price-cache-merge",
-        help="Merge freshly fetched bars, write a new price_history/<date>.parquet.gz delta, and slice daily_closes/daily_lows_highs for snapshot.json.",
+        help="Merge freshly fetched bars into price_history/daily_bars.json, prune, and slice daily_closes/daily_lows_highs for snapshot.json.",
     )
     p_pc_merge.add_argument("--repo-dir", default=".")
     p_pc_merge.add_argument("--current-date", required=True, help="YYYY-MM-DD, US/Eastern")

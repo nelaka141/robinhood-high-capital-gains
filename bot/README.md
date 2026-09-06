@@ -40,51 +40,40 @@ mocking needed).
 
 ### Price history cache
 
-`price_history/` is a local folder of JSON delta files (`bot/price_cache.py`
-for the in-memory logic, `bot/price_history_store.py` for the file I/O) covering every target
-symbol plus `beta_benchmark_symbol`, synced with Google Drive (never git-tracked — see
-`CLAUDE.md`'s "State Storage Architecture") rather than one single ever-growing file. It exists
-so the agent doesn't re-fetch a full ~90-day `get_equity_historicals` window for every symbol on
-every cycle — after the first cycle (a one-time full backfill), a normal day-over-day cycle only
-needs a 1-day incremental fetch per symbol, persisted as one small new delta file.
+`price_history/daily_bars.json` is a persistent, git-tracked rolling ~90-day daily-bar cache
+(`bot/price_cache.py`) covering every target symbol plus `beta_benchmark_symbol`. It exists so
+the agent doesn't re-fetch a full ~90-day `get_equity_historicals` window for every symbol on
+every cycle — after the first cycle (a one-time full backfill), a normal day-over-day cycle
+only needs a 1-day incremental fetch per symbol.
 
-- Before `price-cache-plan` runs, the agent downloads whichever `<date>.json` files (from
-  the Drive `price-history/` folder) fall within the rolling window into local `price_history/`
-  — see `CLAUDE.md` Execution Mode Step 1.
-- **`price-cache-plan`** reads those local files and tells you, per symbol, whether it's
-  `up_to_date` (cache already covers through yesterday — no fetch needed) or needs a fetch: a
-  full ~90-day backfill if the symbol is missing/empty from the cache (new target, or nothing
-  was ever downloaded for it), otherwise just the day(s) since the last cached bar (normally 1,
-  more if a cycle was skipped). Symbols needing the identical date range are grouped into one
+- **`price-cache-plan`** reads the cache and tells you, per symbol, whether it's `up_to_date`
+  (cache already covers through yesterday — no fetch needed) or needs a fetch: a full
+  ~90-day backfill if the symbol is missing/empty from the cache (new target, or the cache
+  doesn't exist yet), otherwise just the day(s) since the last cached bar (normally 1, more if
+  a cycle was skipped). Symbols needing the identical date range are grouped into one
   `fetch_batches` entry so you can batch `get_equity_historicals` calls the normal way.
 - Fetch only what `fetch_batches` asks for, and write it to a JSON file shaped
   `{"SYMBOL": [{"date": "YYYY-MM-DD", "close": ..., "low": ..., "high": ...}, ...]}` — map each
   returned bar's `begins_at` (truncated to the date) to `date`, and `close_price`/`low_price`/
   `high_price` to `close`/`low`/`high`. Omit a symbol entirely if it was already `up_to_date`.
-- **`price-cache-merge`** merges those bars into the in-memory cache (a fresh bar overwrites any
-  existing same-date entry), prunes anything older than the rolling window for the returned
-  slice, writes THIS CYCLE's fetched bars only as one new local `price_history/<date>.json`
-  delta (`price_cache_result.json`'s `new_delta_files` — empty if `fetch_batches` was empty, i.e.
-  nothing needed fetching), and writes `daily_closes`/`daily_lows_highs` — already sliced to the
-  last ~90 calendar days from the full downloaded+merged cache, in the exact `snapshot.json`
-  schema shape — ready to copy straight in.
-- `new_delta_files` gets uploaded to Google Drive's `price-history/` folder in Step 8, alongside
-  the other state files — never git-committed, never overwritten/deleted once uploaded.
+- **`price-cache-merge`** unions those bars into `price_history/daily_bars.json` (a fresh bar
+  overwrites any existing same-date entry), prunes anything older than the rolling window, and
+  writes `daily_closes`/`daily_lows_highs` — already sliced to the last ~90 calendar days, in
+  the exact `snapshot.json` schema shape — ready to copy straight in. Pass `--bars-in` only if
+  `fetch_batches` was non-empty; omitting it just re-slices/re-prunes the existing cache.
+- `price_history/daily_bars.json` is a normal state file — commit it alongside `peak/prices.json`
+  etc. whenever it changes (CLAUDE.md Step 7/8).
 
 ### `plan`
 
-Reads `--snapshot` (schema below) plus the repo's state — `peak_prices`/`realized_gains_by_year`
-(dated JSON snapshots the agent already downloaded from Drive into local `peak/prices/` and
-`tax/realized_gains_by_year/` — see `CLAUDE.md` Step 1) and the two bucket-1 JSON files
-(`tax/paid_taxes_by_year.json`, `transferred_basis.json`, still plain git-tracked files). Runs
+Reads `--snapshot` (schema below) plus the repo's state files (`peak/prices.json`,
+`tax/realized_gains_by_year.json`, `tax/paid_taxes_by_year.json`, `transferred_basis.json`). Runs
 Steps 1–5 (including Step 3's Position Cap Top-Up and Step 4b's Sell Cleanup Pass) and Step 6's
 sell-side planning. Writes `--out` as one of:
 
-- `{"no_trades": true, "price_state": {...}, ...}` — Step 1's early exit (no drift breach, no
-  drawdown). Already wrote a fresh local `peak_prices`/`realized_gains_by_year` JSON snapshot and
-  the NO TRADES journal entry — nothing left to do except commit/upload those changes (Step 8).
-  `price_state` is the full symbol->AssetPriceState dict, handed back so the caller doesn't need
-  to re-read the snapshot files itself (e.g. for the email's All-Assets table).
+- `{"no_trades": true, ...}` — Step 1's early exit (no drift breach, no drawdown). Already wrote
+  the NO TRADES journal entry and updated peak prices / the tax file — nothing left to do except
+  commit those changes.
 - `{"halted_for_approval": true, "halt_reason": "...", ...}` — some individual planned trade
   this cycle (a single sell, or a single provisionally-sized buy) exceeds `seek_approval_value`
   — checked per trade, not against the summed total of the cycle. **Stop. Do not execute
@@ -105,17 +94,14 @@ them in: `net_realized_gains_ytd` (same Jan-1-to-today window, via your realized
 and `buying_power` (fresh, post-sell). `finalize` uses these — not the snapshot's pre-trade
 estimates — to finalize `tax_reserve`, apply the hard-cap scaling, and size the final buys. With
 limited margin enabled on the account, `buying_power` already reflects this cycle's own sale
-proceeds immediately, so no settlement-reserve bridging is needed. It also writes a fresh local
-`peak_prices`/`realized_gains_by_year` JSON snapshot and prepends the rendered entry to
+proceeds immediately, so no settlement-reserve bridging is needed. It also writes
+`peak/prices.json`, `tax/realized_gains_by_year.json`, and prepends the rendered entry to
 `logs/trade_journal.md` — all direct file writes, no MCP/broker needed for any of that.
 
 Output: `{"buys_to_place": [...], "journal_entry_markdown": "...", "email_summary": "...",
-"files_changed": [...], "drive_sync_files": [...], "price_state": {...}}`. Execute
-`buys_to_place` exactly as given (each entry is `{"symbol", "side": "buy", "dollar_amount",
-"reason"}`), then git-commit `files_changed` (always just `logs/trade_journal.md` now — see
-`CLAUDE.md`'s "State Storage Architecture"), upload every path in `drive_sync_files` to its
-matching Google Drive folder, and draft the summary email using `email_summary` +
-`journal_entry_markdown` (+ `price_state` for the All-Assets table).
+"files_changed": [...]}`. Execute `buys_to_place` exactly as given (each entry is
+`{"symbol", "side": "buy", "dollar_amount", "reason"}`), then commit `files_changed` and draft
+the summary email using `email_summary` + `journal_entry_markdown`.
 
 ### snapshot.json schema
 
@@ -167,13 +153,11 @@ uses; kept for fully-standalone use outside of any MCP/agent setup.
 | File | CLAUDE.md section | What it does |
 |---|---|---|
 | `config.py` | "Core Parameters & Risk Triggers", `targets`/`forceSell` | Loads `portfolio_targets.json` into typed dataclasses; `max_allocation_percentage(symbol)` resolves a target's own `max_allocation_percent` override, else the global `max_portfolio_percentage`, mirroring `drift_tolerance(symbol)`'s per-asset `drift` override pattern; `AssetTarget.max_position_value` (v2.80.0) is the optional flat dollar cap driving Step 3's Position Cap Top-Up, resolved via `PortfolioConfig.resolved_max_position_value(symbol)` — that target's own override if set, else the global `PortfolioMetadata.default_max_position_value` (v2.80.1) if configured, else `None`; `sell_price_target_blocks`/`buy_price_target_blocks` resolve the optional `target_price_to_sell`/`target_price_to_buy` per-symbol price floor/ceiling maps |
-| `state.py` | `tax/paid_taxes_by_year.json`, `transferred_basis.json` | `AssetPriceState` dataclass definition + load-only helpers for the two bucket-1 (git-tracked, user-maintained) JSON files — the bot never writes either |
-| `state_store.py` | `peak_prices`, `realized_gains_by_year` (formerly `peak/prices.json`, `tax/realized_gains_by_year.json`) | Load/save as dated JSON snapshots (`peak/prices/<date>.json`, `tax/realized_gains_by_year/<date>.json`), synced with Google Drive — never git-tracked (v2.86.0, see `CLAUDE.md`'s "State Storage Architecture") |
+| `state.py` | `peak/prices.json`, `tax/realized_gains_by_year.json`, `tax/paid_taxes_by_year.json`, `transferred_basis.json` | Load/save the persistent state files. `tax/paid_taxes_by_year.json` (v2.80.0) is read-only from the bot's side, same as `transferred_basis.json` — purely user-maintained, no save function |
 | `models.py` | — | Shared value objects (`Position`, `DriftResult`, `MomentumScore`, `TradeIntent`, `RunContext`, ...) |
 | `broker.py` | "You execute actions via the connected Robinhood MCP Server" | `BrokerClient` Protocol (incl. `get_fifty_two_week_high`, for the Step 5 `52_week_high_guard` check) + a `robin_stocks` reference implementation (standalone mode only) |
 | `snapshot_broker.py` | — | `SnapshotBroker` — reads the same `BrokerClient` interface (incl. `get_fifty_two_week_high` from the snapshot's `fifty_two_week_highs` map) from a JSON snapshot instead of a live connection (snapshot-driven mode) |
-| `price_cache.py` | Execution Mode Step 2, `daily_closes`/`daily_lows_highs` sourcing | Pure in-memory rolling ~90-day cache logic (`DailyBar`, `plan_fetches`, `merge_bars`, `prune_cache`, `slice_for_snapshot`); `price-cache-plan`/`price-cache-merge` (see "Price history cache" above) |
-| `price_history_store.py` | `price_history` (formerly `price_history/daily_bars.json`) | Local read/write of JSON delta files (`price_history/<date>.json`), synced with Google Drive — never git-tracked (v2.86.0) |
+| `price_cache.py` | Execution Mode Step 2, `daily_closes`/`daily_lows_highs` sourcing | `price_history/daily_bars.json` — persistent rolling ~90-day cache; `price-cache-plan`/`price-cache-merge` (see "Price history cache" above) |
 | `serialize.py` | — | JSON round-trip of `RunContext` between `plan` and `finalize` |
 | `indicators.py` | Step 3's RSI/EMA formulas, Step 4's Beta formula | Pure-Python EMA(9), RSI(14), beta — no external indicator API needed |
 | `fifo.py` | Step 4, "Dollar-gate accounting for PARTIAL sales" + "Loss-lot sell guard" | FIFO lot-matched realized-profit calculation; `exclude_loss_lots` skips any lot that would not realize a strict gain, with `profitable_lot_quantity`/`priced_lot_quantity` sizing the sale against it (the latter keeps a pending-basis shortfall failing closed rather than being downsized) |

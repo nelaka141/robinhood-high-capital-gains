@@ -1,4 +1,4 @@
-"""Persistent rolling ~90-day daily-bar price cache — in-memory logic only.
+"""Persistent rolling ~90-day daily-bar price cache: `price_history/daily_bars.json`.
 
 Lets the orchestrating agent avoid re-fetching a full ~90-day `get_equity_historicals` window
 for every target symbol (+ the beta benchmark) on every cycle. Instead:
@@ -14,18 +14,15 @@ for every target symbol (+ the beta benchmark) on every cycle. Instead:
      pre-sliced to the last ~LOOKBACK_DAYS calendar days, ready to drop straight into
      `snapshot.json`.
 
-The cache's persistence (`load_price_cache`/`save_price_cache`) lives in `bot/db.py` now — a
-table in the SQLite state DB synced with Google Drive, no longer a git-tracked JSON file. This
-module only defines the `DailyBar` shape and the pure in-memory planning/merging/pruning logic,
-which is unaffected by the storage backend change.
-
 See bot/README.md, "Price history cache", for the full CLI usage and CLAUDE.md's Execution
 Mode Step 2 for how the agent drives this each cycle.
 """
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import date, timedelta
+from pathlib import Path
 from typing import Dict, List, Tuple
 
 LOOKBACK_DAYS = 90    # calendar days of history the snapshot needs (CLAUDE.md's ~90-day window)
@@ -38,6 +35,24 @@ class DailyBar:
     close: float
     low: float
     high: float
+
+
+def load_price_cache(path: str | Path = "price_history/daily_bars.json") -> Dict[str, List[DailyBar]]:
+    p = Path(path)
+    if not p.exists():
+        return {}
+    raw = json.loads(p.read_text())
+    return {sym: [DailyBar(**b) for b in bars] for sym, bars in raw.items()}
+
+
+def save_price_cache(cache: Dict[str, List[DailyBar]], path: str | Path = "price_history/daily_bars.json") -> None:
+    payload = {
+        sym: [{"date": b.date, "close": b.close, "low": b.low, "high": b.high} for b in bars]
+        for sym, bars in cache.items()
+    }
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
 
 def cache_symbols(cfg) -> List[str]:

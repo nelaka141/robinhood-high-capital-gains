@@ -20,22 +20,3 @@ __pycache__/
 /scratch_*
 /email_body.html
 /email_body_plain.md
-
-# Bucket-3 stateful data — formerly peak/prices.json, price_history/daily_bars.json,
-# tax/realized_gains_by_year.json — is now dated snapshots/deltas on Google Drive, never
-# git-tracked (CLAUDE.md Execution Mode Step 1 downloads the files a cycle needs, Step 8 uploads
-# whatever new file(s) this cycle wrote). See bot/state_store.py (peak_prices,
-# realized_gains_by_year — small, sharded/plain JSON, latest-snapshot-only) and
-# bot/price_history_store.py (price history — gzip-compressed Parquet, windowed deltas). The
-# local copies here are just this cycle's working copies. Note tax/paid_taxes_by_year.json
-# (bucket 1, user-maintained, read-only) stays git-tracked — only the realized_gains_by_year/
-# subdirectory under tax/ is ignored.
-/peak/
-/tax/realized_gains_by_year/
-/price_history/
-
-# Bucket-2 paper-trail rotation files: logs/trade_journal.md stays git-tracked (git already has
-# its full history), but the rotated-out history_trade_journal-*.md files move to Google Drive
-# only (CLAUDE.md Execution Mode Step 8) rather than git, since trade_journal.md's own git
-# history already makes them redundant to keep in the repo.
-/logs/history_trade_journal-*.md

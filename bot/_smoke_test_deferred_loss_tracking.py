@@ -21,11 +21,11 @@ import tempfile
 from datetime import date
 from pathlib import Path
 
-from bot import cli, journal, state_store
+from bot import cli, journal
 from bot.config import AssetTarget, PortfolioConfig, PortfolioMetadata
 from bot.models import Position, Quote, RunContext, TaxLot, TradeIntent
 from bot.serialize import ctx_from_jsonable, ctx_to_jsonable
-from bot.state import AssetPriceState
+from bot.state import AssetPriceState, load_price_state, save_price_state
 from bot.steps import note_wash_window_repurchases, step4_profit_taking, verify_deferred_losses
 
 
@@ -179,27 +179,21 @@ def test_verify_waits_while_lot_unpriced_then_expires() -> None:
 
 
 def test_state_file_round_trip_and_legacy_load() -> None:
-    import json as json_mod
-
     with tempfile.TemporaryDirectory() as d:
-        peak_dir = Path(d) / "peak" / "prices"
-        state_store.save_price_state(
-            {"MU": _pending(), "AAPL": AssetPriceState(peakPrice=1.0)}, date(2026, 9, 10), peak_dir
-        )
-        back = state_store.load_price_state(peak_dir)
+        p = Path(d) / "prices.json"
+        save_price_state({"MU": _pending(), "AAPL": AssetPriceState(peakPrice=1.0)}, p)
+        back = load_price_state(p)
         assert back["MU"].washVerifyPending["purchaseDate"] == "2026-09-10"
         assert back["MU"].lastNettedLossDollars == 10.0
         assert back["AAPL"].washVerifyPending is None and back["AAPL"].lastNettedLossDate is None
 
-        # A pre-v2.84.0 file has none of the new keys at all (an older schema version) — it must
-        # still load, with None defaults, exactly like the old legacy-JSON-file case this
-        # replaces. Simulate it with a hand-built dict missing those keys entirely, written as a
-        # NEWER-dated file so load_price_state's "latest date wins" picks it up.
-        legacy_payload = {"MU": {"peakPrice": 5.0, "peakDate": "2026-09-01"}}
-        (peak_dir / "2026-09-11-part1.json").write_text(json_mod.dumps(legacy_payload))
-        legacy = state_store.load_price_state(peak_dir)
+        # A pre-v2.84.0 file has none of the new keys — it must still load, with None defaults.
+        p.write_text('{"MU": {"peakPrice": 5.0, "peakDate": "2026-09-01", "liquidatedPrice": "", '
+                     '"liquidatedDate": null, "profitSellPrice": null, "profitSellDate": null, '
+                     '"lastPurchaseDate": null, "lastLossSalePrice": null, "lastLossSaleDate": null}}')
+        legacy = load_price_state(p)
         assert legacy["MU"].lastNettedLossDollars is None and legacy["MU"].washVerifyPending is None
-    print("[state-roundtrip] new fields persist; a legacy file without them still loads")
+    print("[state-roundtrip] new fields persist; legacy peak/prices.json without them still loads")
 
 
 def test_resume_blob_round_trip_and_journal_render() -> None:
