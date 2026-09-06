@@ -30,6 +30,13 @@ the IDs below if it's ever lost — nothing else depends on the exact IDs beyond
       history_trade_journal-<N>.md            -> logs/history_trade_journal-<N>.md (Drive-only,
                                                never git — one file per rotation, see journal.py)
 
+Only the CURRENT (highest-numbered) journal-history file ever round-trips through a cycle's
+container — see `_latest_history_name`. bot/journal.py's rotation only ever reads/writes the
+highest-numbered file (appending until it hits 10 entries, then rolling to a new one); every
+lower-numbered file is sealed the moment a higher one exists and never changes again, so moving
+its bytes through pull/push every single cycle forever would be pure waste that grows unboundedly
+over the bot's lifetime. Sealed files simply stay on Drive as the permanent archive.
+
 None of these three state files or the history_trade_journal-*.md files are git-tracked (see
 .gitignore) — the container running a cycle is ephemeral, so `pull_state` MUST run at the start
 of every cycle (before anything reads these files) and `push_state` at the end (after everything
@@ -39,6 +46,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import List, Optional
 
@@ -162,12 +170,24 @@ def upload_file(
     return r.json()["id"]
 
 
+_HISTORY_RE = re.compile(r"history_trade_journal-(\d+)\.md$")
+
+
+def _latest_history_name(names: List[str]) -> Optional[str]:
+    """bot/journal.py's rotation (_next_history_path) only ever reads/writes the highest-numbered
+    history_trade_journal-<N>.md file — every lower-numbered one is sealed forever the moment a
+    higher one exists, so there is never a reason to move its bytes through this cycle's
+    container. Returns the highest-numbered name among `names`, or None if there are none."""
+    numbered = [(int(m.group(1)), n) for n in names for m in [_HISTORY_RE.search(n)] if m]
+    return max(numbered)[1] if numbered else None
+
+
 def pull_state(repo_dir: str | Path) -> None:
     """Cycle start: pull peak/prices.json, tax/realized_gains_by_year.json, and
-    price_history/daily_bars.json from Drive into repo_dir, plus every
-    logs/history_trade_journal-*.md file from the journal-history folder. A state file missing on
-    Drive (first-ever run) is left alone if a local copy already exists, else seeded with an
-    empty JSON object so the rest of the pipeline has something well-formed to read."""
+    price_history/daily_bars.json from Drive into repo_dir, plus ONLY the current (highest-
+    numbered) logs/history_trade_journal-*.md file — see `_latest_history_name`. A state file
+    missing on Drive (first-ever run) is left alone if a local copy already exists, else seeded
+    with an empty JSON object so the rest of the pipeline has something well-formed to read."""
     headers = _headers()
     repo_dir = Path(repo_dir)
 
@@ -182,13 +202,19 @@ def pull_state(repo_dir: str | Path) -> None:
 
     logs_dir = repo_dir / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
-    for f in list_files(JOURNAL_HISTORY_FOLDER_ID, headers):
-        download_file(f["id"], logs_dir / f["name"], headers)
+    remote_files = list_files(JOURNAL_HISTORY_FOLDER_ID, headers)
+    latest_name = _latest_history_name([f["name"] for f in remote_files])
+    if latest_name:
+        latest_id = next(f["id"] for f in remote_files if f["name"] == latest_name)
+        download_file(latest_id, logs_dir / latest_name, headers)
 
 
 def push_state(repo_dir: str | Path) -> None:
     """Cycle end: push the same three state files back to Drive, plus a mirror of
-    logs/trade_journal.md and every current logs/history_trade_journal-*.md file."""
+    logs/trade_journal.md and ONLY the current (highest-numbered) local
+    logs/history_trade_journal-*.md file — see `_latest_history_name`. Every lower-numbered file
+    was already pushed, byte-identical, on the cycle that sealed it, so re-uploading it here would
+    just be wasted transfer."""
     headers = _headers()
     repo_dir = Path(repo_dir)
 
@@ -201,5 +227,8 @@ def push_state(repo_dir: str | Path) -> None:
     if journal_path.exists():
         upload_file(ROOT_FOLDER_ID, "trade_journal.md", journal_path, "text/markdown", headers)
 
-    for p in sorted((repo_dir / "logs").glob("history_trade_journal-*.md")):
-        upload_file(JOURNAL_HISTORY_FOLDER_ID, p.name, p, "text/markdown", headers)
+    local_history = [p.name for p in (repo_dir / "logs").glob("history_trade_journal-*.md")]
+    latest_name = _latest_history_name(local_history)
+    if latest_name:
+        upload_file(JOURNAL_HISTORY_FOLDER_ID, latest_name,
+                    repo_dir / "logs" / latest_name, "text/markdown", headers)

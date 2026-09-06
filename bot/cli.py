@@ -256,7 +256,8 @@ def cmd_drive_pull(args: argparse.Namespace) -> None:
     drive_sync.pull_state(args.repo_dir)
     print(
         "DRIVE PULL OK — peak/prices.json, tax/realized_gains_by_year.json, "
-        "price_history/daily_bars.json, and logs/history_trade_journal-*.md synced from Drive."
+        "price_history/daily_bars.json, and the current logs/history_trade_journal-*.md file "
+        "synced from Drive."
     )
 
 
@@ -264,8 +265,8 @@ def cmd_drive_push(args: argparse.Namespace) -> None:
     drive_sync.push_state(args.repo_dir)
     print(
         "DRIVE PUSH OK — peak/prices.json, tax/realized_gains_by_year.json, "
-        "price_history/daily_bars.json, logs/trade_journal.md (mirror), and "
-        "logs/history_trade_journal-*.md synced to Drive."
+        "price_history/daily_bars.json, logs/trade_journal.md (mirror), and the current "
+        "logs/history_trade_journal-*.md file synced to Drive."
     )
 
 
@@ -276,7 +277,7 @@ def main() -> None:
     p_drive_pull = sub.add_parser(
         "drive-pull",
         help="Run FIRST, every cycle, before price-cache-plan: sync stateful data files + "
-             "journal history down from Google Drive (bot/drive_sync.py) into repo-dir.",
+             "the current journal-history file down from Google Drive (bot/drive_sync.py) into repo-dir.",
     )
     p_drive_pull.add_argument("--repo-dir", default=".")
     p_drive_pull.set_defaults(func=cmd_drive_pull)
@@ -285,7 +286,7 @@ def main() -> None:
         "drive-push",
         help="Run LAST, every cycle, right after plan's NO TRADES write or after finalize (before "
              "the git commit in Step 8): sync stateful data files + a logs/trade_journal.md "
-             "mirror + journal history up to Google Drive.",
+             "mirror + the current journal-history file up to Google Drive.",
     )
     p_drive_push.add_argument("--repo-dir", default=".")
     p_drive_push.set_defaults(func=cmd_drive_push)

@@ -45,12 +45,19 @@ mocking needed).
 ### Google Drive state sync (v2.86.0)
 
 `peak/prices.json`, `tax/realized_gains_by_year.json`, and `price_history/daily_bars.json` —
-plus every rotated `logs/history_trade_journal-*.md` — live on Google Drive, not git. The
+plus the rotated `logs/history_trade_journal-*.md` files — live on Google Drive, not git. The
 container running a scheduled cycle is thrown away afterwards, so `bot/drive_sync.py` must pull
 these down at the start of every cycle and push them back up at the end, or state silently
 reverts to whatever the last pull saw. `logs/trade_journal.md` is the one exception: it stays
 git-tracked as always (the real paper trail) and is *additionally* mirrored to Drive as a
 convenience copy, never treated as Drive-authoritative.
+
+For the journal-history bucket specifically, only the CURRENT (highest-numbered)
+`history_trade_journal-<N>.md` file ever round-trips through a cycle — `bot/journal.py`'s
+rotation only ever reads/writes that one file (appending until it hits 10 entries, then rolling
+to a new one); every lower-numbered file is sealed the moment a higher one exists and never
+changes again, so it just stays on Drive permanently rather than being pulled/pushed every cycle
+forever. See `drive_sync._latest_history_name`.
 
 - **Auth:** a standing OAuth refresh-token credential in the `GOOGLE_DRIVE_TOKEN_JSON`
   environment variable (the standard google-auth "authorized user" JSON shape —
