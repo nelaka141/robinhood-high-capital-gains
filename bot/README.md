@@ -17,6 +17,8 @@ This is what `CLAUDE.md`'s "Execution Mode" section instructs the scheduled rout
 cycle. Two commands, with the agent doing the actual order placement between them:
 
 ```bash
+python3 -m bot.cli drive-pull --repo-dir .   # sync state files + journal history down from Drive
+
 python3 -m bot.cli price-cache-plan  --repo-dir . --current-date <today> --out price_fetch_plan.json
 # agent fetches only price_fetch_plan.json's fetch_batches via get_equity_historicals,
 # writes them to fetched_bars.json
@@ -31,6 +33,8 @@ python3 -m bot.cli finalize --resume plan_result.json \
     --post-sell-pnl <float> --buying-power <float> \
     --repo-dir . --out finalize_result.json
 # agent executes finalize_result.json's buys_to_place via its broker
+
+python3 -m bot.cli drive-push --repo-dir .   # sync state files + journal (+history) up to Drive
 ```
 
 None of these commands call `place_market_order`. All are read-a-JSON-file-in,
@@ -38,9 +42,40 @@ write-a-JSON-file-out — safe to run repeatedly while testing, and trivially un
 (`bot/_smoke_test_cli.py` and `bot/_smoke_test_price_cache.py` run them via `subprocess`, no
 mocking needed).
 
+### Google Drive state sync (v2.86.0)
+
+`peak/prices.json`, `tax/realized_gains_by_year.json`, and `price_history/daily_bars.json` —
+plus every rotated `logs/history_trade_journal-*.md` — live on Google Drive, not git. The
+container running a scheduled cycle is thrown away afterwards, so `bot/drive_sync.py` must pull
+these down at the start of every cycle and push them back up at the end, or state silently
+reverts to whatever the last pull saw. `logs/trade_journal.md` is the one exception: it stays
+git-tracked as always (the real paper trail) and is *additionally* mirrored to Drive as a
+convenience copy, never treated as Drive-authoritative.
+
+- **Auth:** a standing OAuth refresh-token credential in the `GOOGLE_DRIVE_TOKEN_JSON`
+  environment variable (the standard google-auth "authorized user" JSON shape —
+  `client_id`/`client_secret`/`refresh_token`/`token_uri`/`scopes`), refreshed automatically as
+  needed. Not a GCP service account: a bare service account has zero Drive storage quota and can
+  only write into a Shared Drive or via Workspace domain-wide delegation, neither available on a
+  plain personal Google account. Obtain the token once via a local interactive consent flow (a
+  Desktop-app OAuth client + `google-auth-oauthlib`'s `InstalledAppFlow`, same category of setup
+  `bot/notify.py` already assumes for Gmail's `token.json`) and store the resulting JSON as an
+  environment variable — never commit it.
+- **Transfer mechanism:** real file bytes streamed directly between local disk and the Drive v3
+  REST API via `requests` (`MediaFileUpload`-style multipart upload, `alt=media` streamed
+  download) — never routed through an MCP tool's chat-relay content parameters, which silently
+  corrupt files above a few KB/tens of KB at this kind of scale.
+- **Layout:** a fixed "Robinhood-Bot-State" Drive folder with one subfolder per state bucket
+  (`peak-prices/`, `tax-realized-gains-by-year/`, `price-history/`, `journal-history/`), each
+  holding a single consolidated file — no sharding, since real file-based transfer removes the
+  size/reliability pressure that would otherwise motivate it. Folder IDs are hardcoded constants
+  in `bot/drive_sync.py`; see that module's docstring for the full tree and how to recreate it.
+- `python3 -m bot.cli drive-pull --repo-dir .` / `drive-push --repo-dir .` are the only two
+  entry points — see CLAUDE.md's Execution Mode for exactly when each runs in a cycle.
+
 ### Price history cache
 
-`price_history/daily_bars.json` is a persistent, git-tracked rolling ~90-day daily-bar cache
+`price_history/daily_bars.json` is a persistent, Google-Drive-backed rolling ~90-day daily-bar cache
 (`bot/price_cache.py`) covering every target symbol plus `beta_benchmark_symbol`. It exists so
 the agent doesn't re-fetch a full ~90-day `get_equity_historicals` window for every symbol on
 every cycle — after the first cycle (a one-time full backfill), a normal day-over-day cycle
@@ -61,8 +96,8 @@ only needs a 1-day incremental fetch per symbol.
   writes `daily_closes`/`daily_lows_highs` — already sliced to the last ~90 calendar days, in
   the exact `snapshot.json` schema shape — ready to copy straight in. Pass `--bars-in` only if
   `fetch_batches` was non-empty; omitting it just re-slices/re-prunes the existing cache.
-- `price_history/daily_bars.json` is a normal state file — commit it alongside `peak/prices.json`
-  etc. whenever it changes (CLAUDE.md Step 7/8).
+- `price_history/daily_bars.json` is a Drive-only state file (see "Google Drive state sync"
+  above) — never git-committed; `drive-push` syncs it alongside `peak/prices.json` etc.
 
 ### `plan`
 
@@ -73,7 +108,8 @@ sell-side planning. Writes `--out` as one of:
 
 - `{"no_trades": true, ...}` — Step 1's early exit (no drift breach, no drawdown). Already wrote
   the NO TRADES journal entry and updated peak prices / the tax file — nothing left to do except
-  commit those changes.
+  `drive-push` those changes (Drive-only files) and commit `files_changed` (just
+  `logs/trade_journal.md`).
 - `{"halted_for_approval": true, "halt_reason": "...", ...}` — some individual planned trade
   this cycle (a single sell, or a single provisionally-sized buy) exceeds `seek_approval_value`
   — checked per trade, not against the summed total of the cycle. **Stop. Do not execute
@@ -100,8 +136,10 @@ proceeds immediately, so no settlement-reserve bridging is needed. It also write
 
 Output: `{"buys_to_place": [...], "journal_entry_markdown": "...", "email_summary": "...",
 "files_changed": [...]}`. Execute `buys_to_place` exactly as given (each entry is
-`{"symbol", "side": "buy", "dollar_amount", "reason"}`), then commit `files_changed` and draft
-the summary email using `email_summary` + `journal_entry_markdown`.
+`{"symbol", "side": "buy", "dollar_amount", "reason"}`), then `drive-push` (peak prices, the tax
+file, price history, and a journal mirror — see "Google Drive state sync" above), commit
+`files_changed` (just `logs/trade_journal.md`), and draft the summary email using
+`email_summary` + `journal_entry_markdown`.
 
 ### snapshot.json schema
 
@@ -154,6 +192,7 @@ uses; kept for fully-standalone use outside of any MCP/agent setup.
 |---|---|---|
 | `config.py` | "Core Parameters & Risk Triggers", `targets`/`forceSell` | Loads `portfolio_targets.json` into typed dataclasses; `max_allocation_percentage(symbol)` resolves a target's own `max_allocation_percent` override, else the global `max_portfolio_percentage`, mirroring `drift_tolerance(symbol)`'s per-asset `drift` override pattern; `AssetTarget.max_position_value` (v2.80.0) is the optional flat dollar cap driving Step 3's Position Cap Top-Up, resolved via `PortfolioConfig.resolved_max_position_value(symbol)` — that target's own override if set, else the global `PortfolioMetadata.default_max_position_value` (v2.80.1) if configured, else `None`; `sell_price_target_blocks`/`buy_price_target_blocks` resolve the optional `target_price_to_sell`/`target_price_to_buy` per-symbol price floor/ceiling maps |
 | `state.py` | `peak/prices.json`, `tax/realized_gains_by_year.json`, `tax/paid_taxes_by_year.json`, `transferred_basis.json` | Load/save the persistent state files. `tax/paid_taxes_by_year.json` (v2.80.0) is read-only from the bot's side, same as `transferred_basis.json` — purely user-maintained, no save function |
+| `drive_sync.py` (v2.86.0) | "Google Drive state sync" above | `drive-pull`/`drive-push` — real file-based Google Drive transfer for `peak/prices.json`, `tax/realized_gains_by_year.json`, `price_history/daily_bars.json`, and `logs/history_trade_journal-*.md` (plus a `logs/trade_journal.md` mirror), via `GOOGLE_DRIVE_TOKEN_JSON` |
 | `models.py` | — | Shared value objects (`Position`, `DriftResult`, `MomentumScore`, `TradeIntent`, `RunContext`, ...) |
 | `broker.py` | "You execute actions via the connected Robinhood MCP Server" | `BrokerClient` Protocol (incl. `get_fifty_two_week_high`, for the Step 5 `52_week_high_guard` check) + a `robin_stocks` reference implementation (standalone mode only) |
 | `snapshot_broker.py` | — | `SnapshotBroker` — reads the same `BrokerClient` interface (incl. `get_fifty_two_week_high` from the snapshot's `fifty_two_week_highs` map) from a JSON snapshot instead of a live connection (snapshot-driven mode) |
