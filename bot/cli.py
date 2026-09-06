@@ -7,6 +7,9 @@ executes exactly the buy orders `finalize` returns. See bot/README.md, "Snapshot
 for the exact snapshot.json schema and the end-to-end sequence.
 
 Usage:
+    python3 -m bot.cli drive-pull --repo-dir .    # run first, every cycle
+    python3 -m bot.cli drive-push --repo-dir .    # run last, every cycle (see bot/drive_sync.py)
+
     python3 -m bot.cli plan     --snapshot snapshot.json --repo-dir . --out plan_result.json
     python3 -m bot.cli finalize --resume resume_state.json --post-sell-pnl <float> \\
                                  --buying-power <float> --repo-dir . --out finalize_result.json
@@ -22,7 +25,7 @@ import json
 from datetime import date
 from pathlib import Path
 
-from . import journal, price_cache, steps
+from . import drive_sync, journal, price_cache, steps
 from .config import load_portfolio_config
 from .models import RunContext
 from .serialize import ctx_from_jsonable, ctx_to_jsonable, dump_json
@@ -81,7 +84,10 @@ def cmd_plan(args: argparse.Namespace) -> None:
                 f"Dormant assets (no activity > {cfg.meta.dormant_asset_days}d): {len(ctx.dormant_assets)}. "
                 f"Loss-only-lot assets: {len(ctx.loss_only_assets)}."
             ),
-            "files_changed": ["peak/prices.json", "tax/realized_gains_by_year.json", "logs/trade_journal.md"],
+            # peak/prices.json, tax/realized_gains_by_year.json, price_history/daily_bars.json
+            # live on Google Drive only (bot/drive_sync.py, `drive-push` command) — never
+            # git-tracked. Only the journal (also mirrored to Drive) is committed to git.
+            "files_changed": ["logs/trade_journal.md"],
         }, args.out)
         print(f"NO TRADES — wrote {args.out}")
         return
@@ -147,7 +153,10 @@ def cmd_finalize(args: argparse.Namespace) -> None:
     entry_md = journal.render_entry(ctx)
     journal.prepend_entry(entry_md, f"{repo_dir}/logs")
 
-    files_changed = ["peak/prices.json", "tax/realized_gains_by_year.json", "logs/trade_journal.md"]
+    # peak/prices.json, tax/realized_gains_by_year.json, price_history/daily_bars.json live on
+    # Google Drive only (bot/drive_sync.py, `drive-push` command) — never git-tracked. Only the
+    # journal (also mirrored to Drive) is committed to git.
+    files_changed = ["logs/trade_journal.md"]
 
     result = {
         "buys_to_place": [_intent_to_dict(t) for t in buys_to_place],
@@ -243,9 +252,43 @@ def cmd_price_cache_merge(args: argparse.Namespace) -> None:
           f"Wrote {cache_path} and {args.out}.")
 
 
+def cmd_drive_pull(args: argparse.Namespace) -> None:
+    drive_sync.pull_state(args.repo_dir)
+    print(
+        "DRIVE PULL OK — peak/prices.json, tax/realized_gains_by_year.json, "
+        "price_history/daily_bars.json, and logs/history_trade_journal-*.md synced from Drive."
+    )
+
+
+def cmd_drive_push(args: argparse.Namespace) -> None:
+    drive_sync.push_state(args.repo_dir)
+    print(
+        "DRIVE PUSH OK — peak/prices.json, tax/realized_gains_by_year.json, "
+        "price_history/daily_bars.json, logs/trade_journal.md (mirror), and "
+        "logs/history_trade_journal-*.md synced to Drive."
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Snapshot-driven CLAUDE.md pipeline (no broker credentials needed).")
     sub = parser.add_subparsers(dest="command", required=True)
+
+    p_drive_pull = sub.add_parser(
+        "drive-pull",
+        help="Run FIRST, every cycle, before price-cache-plan: sync stateful data files + "
+             "journal history down from Google Drive (bot/drive_sync.py) into repo-dir.",
+    )
+    p_drive_pull.add_argument("--repo-dir", default=".")
+    p_drive_pull.set_defaults(func=cmd_drive_pull)
+
+    p_drive_push = sub.add_parser(
+        "drive-push",
+        help="Run LAST, every cycle, right after plan's NO TRADES write or after finalize (before "
+             "the git commit in Step 8): sync stateful data files + a logs/trade_journal.md "
+             "mirror + journal history up to Google Drive.",
+    )
+    p_drive_push.add_argument("--repo-dir", default=".")
+    p_drive_push.set_defaults(func=cmd_drive_push)
 
     p_plan = sub.add_parser("plan", help="Steps 1-5 + sell planning. Reads snapshot.json, writes plan_result.json.")
     p_plan.add_argument("--snapshot", required=True)

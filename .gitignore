@@ -20,3 +20,13 @@ __pycache__/
 /scratch_*
 /email_body.html
 /email_body_plain.md
+
+# Stateful data files (v2.86.0) — live on Google Drive only (bot/drive_sync.py), pulled at the
+# start of every cycle and pushed at the end. Never git-tracked: the container that runs a cycle
+# is ephemeral, so git-tracking these would either go stale between cycles or (as before) commit
+# live account data to a public paper trail unnecessarily. logs/trade_journal.md is NOT here — it
+# stays git-tracked (the actual paper trail) AND is separately mirrored to Drive.
+/peak/prices.json
+/tax/realized_gains_by_year.json
+/price_history/daily_bars.json
+/logs/history_trade_journal-*.md
