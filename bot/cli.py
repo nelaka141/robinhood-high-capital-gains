@@ -268,10 +268,10 @@ def cmd_price_cache_merge(args: argparse.Namespace) -> None:
         new_bars = json.loads(Path(args.bars_in).read_text())
         price_cache.merge_bars(cache, new_bars)
     price_cache.prune_cache(cache, current_date)
-    # Persist ONLY this cycle's freshly fetched bars — never the whole merged cache — as one or
-    # more small new delta shards, so the agent has small, safe-to-relay files to upload to Drive
+    # Persist ONLY this cycle's freshly fetched bars — never the whole merged cache — as one
+    # small new delta JSON file, so the agent has a small, safe-to-relay file to upload to Drive
     # (bot/price_history_store.py's docstring explains why). Empty list if nothing was fetched.
-    delta_paths = price_history_store.write_delta_parquet(new_bars, current_date, local_dir)
+    delta_paths = price_history_store.write_delta_json(new_bars, current_date, local_dir)
     daily_closes, daily_lows_highs = price_cache.slice_for_snapshot(cache, current_date)
     dump_json({
         "daily_closes": daily_closes,
@@ -279,7 +279,7 @@ def cmd_price_cache_merge(args: argparse.Namespace) -> None:
         "new_delta_files": [f"{price_history_store.DEFAULT_LOCAL_DIR}/{p.name}" for p in delta_paths],
     }, args.out)
     print(f"PRICE CACHE MERGE — cache now covers {len(cache)} symbol(s). "
-          f"{f'New delta shard(s): {[p.name for p in delta_paths]}' if delta_paths else 'No new delta this cycle.'} "
+          f"{f'New delta file(s): {[p.name for p in delta_paths]}' if delta_paths else 'No new delta this cycle.'} "
           f"Wrote {args.out}.")
 
 

@@ -76,9 +76,10 @@ def main() -> None:
                 "--bars-in", str(bars_path), "--out", str(merge1_out))
         assert r.returncode == 0, r.stderr
         merge1 = json.loads(merge1_out.read_text())
-        # A cold-start full ~90-day backfill across every symbol is thousands of rows, but gzip
-        # keeps even that comfortably small -> still just one delta file, not sharded.
-        assert merge1["new_delta_files"] == [f"price_history/{day1.isoformat()}.parquet.gz"]
+        # A cold-start full ~90-day backfill across every symbol is thousands of rows, but
+        # Drive's real size ceiling (30MB) is nowhere near where that lands as plain JSON ->
+        # still just one delta file, no sharding needed.
+        assert merge1["new_delta_files"] == [f"price_history/{day1.isoformat()}.json"]
         for f in merge1["new_delta_files"]:
             assert (tmp / f).exists(), f"expected delta file {f} to exist"
         assert set(merge1["daily_closes"].keys()) == set(symbols)
@@ -107,7 +108,7 @@ def main() -> None:
                 "--bars-in", str(day2_bars_path), "--out", str(merge2_out))
         assert r.returncode == 0, r.stderr
         merge2 = json.loads(merge2_out.read_text())
-        assert merge2["new_delta_files"] == [f"price_history/{day2.isoformat()}.parquet.gz"]
+        assert merge2["new_delta_files"] == [f"price_history/{day2.isoformat()}.json"]
         for f in merge1["new_delta_files"]:
             assert (tmp / f).exists(), "day1's delta file must never be touched/deleted by a later merge"
 
