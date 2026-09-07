@@ -60,6 +60,23 @@ def prepend_entry(new_entry_md: str, logs_dir: str | Path = "logs") -> None:
     history_path.write_text("\n".join(history_entries).rstrip("\n") + "\n")
 
 
+def render_market_closed_entry(checked_at, reason: str) -> str:
+    """v2.88.0 — the market-hours gate's journal entry: written when the cycle aborts before
+    touching Robinhood at all because the market is closed. `checked_at` is the US/Eastern
+    datetime the check ran at. Standalone (takes no RunContext) since nothing was ever fetched."""
+    ts = checked_at.strftime("%Y-%m-%d %I:%M %p ET")
+    lines = [
+        f"# {checked_at.date().isoformat()} — Scheduled Rebalance Check — MARKET CLOSED",
+        "",
+        f"**Status:** MARKET CLOSED. Checked in at {ts} and aborted before any Robinhood data "
+        f"was fetched — {reason}.",
+        "",
+        "No account data was read, no orders were considered, and no state files changed this "
+        "cycle.",
+    ]
+    return "\n".join(lines) + "\n"
+
+
 def render_no_trades_entry(ctx: RunContext) -> str:
     ts = ctx.current_date.isoformat()
     lines = [

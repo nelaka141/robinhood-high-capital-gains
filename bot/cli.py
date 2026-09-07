@@ -8,6 +8,8 @@ for the exact snapshot.json schema and the end-to-end sequence.
 
 Usage:
     python3 -m bot.cli drive-pull --repo-dir .    # run first, every cycle
+    python3 -m bot.cli market-check --current-datetime <now, US/Eastern> --repo-dir . \\
+                                     --out market_check_result.json  # run second, every cycle
     python3 -m bot.cli drive-push --repo-dir .    # run last, every cycle (see bot/drive_sync.py)
 
     python3 -m bot.cli plan     --snapshot snapshot.json --repo-dir . --out plan_result.json
@@ -22,10 +24,10 @@ from __future__ import annotations
 
 import argparse
 import json
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
-from . import drive_sync, journal, price_cache, steps
+from . import drive_sync, journal, market_calendar, price_cache, steps
 from .config import load_portfolio_config
 from .models import RunContext
 from .serialize import ctx_from_jsonable, ctx_to_jsonable, dump_json
@@ -270,6 +272,35 @@ def cmd_drive_push(args: argparse.Namespace) -> None:
     )
 
 
+def cmd_market_check(args: argparse.Namespace) -> None:
+    checked_at = datetime.fromisoformat(args.current_datetime)
+    is_open, reason = market_calendar.is_market_open(checked_at)
+    result = {"market_open": is_open, "reason": reason, "checked_at": checked_at.isoformat()}
+
+    if not is_open:
+        entry_md = journal.render_market_closed_entry(checked_at, reason)
+        journal.prepend_entry(entry_md, f"{args.repo_dir}/logs")
+        result.update({
+            "journal_entry_markdown": entry_md,
+            "email_summary": (
+                f"Market closed ({reason}) — cycle aborted before fetching any account data or "
+                "considering any trade."
+            ),
+            "files_changed": ["logs/trade_journal.md"],
+        })
+
+    dump_json(result, args.out)
+    if is_open:
+        print(f"MARKET OPEN ({reason}) — proceed to Step 1. Wrote {args.out}.")
+    else:
+        print(
+            f"MARKET CLOSED ({reason}) — journal entry already written. ABORT the cycle now: "
+            "no Robinhood MCP call, no snapshot, no plan/finalize this cycle. Run drive-push, "
+            "then commit/push/merge files_changed and email email_summary/journal_entry_markdown "
+            f"exactly like Step 8/9. Wrote {args.out}."
+        )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Snapshot-driven CLAUDE.md pipeline (no broker credentials needed).")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -281,6 +312,22 @@ def main() -> None:
     )
     p_drive_pull.add_argument("--repo-dir", default=".")
     p_drive_pull.set_defaults(func=cmd_drive_pull)
+
+    p_market_check = sub.add_parser(
+        "market-check",
+        help="Run SECOND, every cycle, right after drive-pull and before any Robinhood MCP call: "
+             "abort-gate on market hours/holidays (bot/market_calendar.py, no live/network "
+             "dependency). If market_open is false, the MARKET CLOSED journal entry is already "
+             "written to logs/trade_journal.md — drive-push + commit + email, then stop the "
+             "cycle entirely (no Step 1 onward this cycle).",
+    )
+    p_market_check.add_argument(
+        "--current-datetime", required=True,
+        help="Current US/Eastern local datetime, ISO8601 (e.g. 2026-09-07T10:32:00) — NOT UTC.",
+    )
+    p_market_check.add_argument("--repo-dir", default=".")
+    p_market_check.add_argument("--out", default="market_check_result.json")
+    p_market_check.set_defaults(func=cmd_market_check)
 
     p_drive_push = sub.add_parser(
         "drive-push",
