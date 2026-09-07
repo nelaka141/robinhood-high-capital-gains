@@ -20,7 +20,7 @@ from .fifo import (
     profitable_lot_quantity,
     round_sell_quantity,
 )
-from .indicators import ema_series, rsi_series
+from .indicators import daily_return_stdev, ema_series, rsi_series
 from .models import (
     DeferredLossNote,
     DormantAsset,
@@ -39,6 +39,11 @@ from .state import AssetPriceState, load_transferred_basis
 # (Step 2/4) — matches price_history/daily_bars.json's rolling ~90-day cache, so this reads
 # whatever history is already there without requesting a wider window than the cache carries.
 _PRICE_CHANGE_LOOKBACK_DAYS = 95
+
+# v2.87.0: trailing trading days of daily returns used to scale leg1/leg2/leg3_price_change per
+# asset (see _leg_scale_factors) — independent of _PRICE_CHANGE_LOOKBACK_DAYS above, which is
+# just how much history is fetched; this is how much of it the volatility estimate looks at.
+_LEG_VOLATILITY_LOOKBACK_DAYS = 20
 
 
 def _parse_date(s: Optional[str]) -> Optional[date]:
@@ -265,9 +270,42 @@ def has_any_breach(ctx: RunContext) -> bool:
 # Step 2 — Rules and Guardrails (in-play exclusions; places no trades itself)
 # ============================================================================================
 
+def _leg_scale_factors(
+    cfg, broker: BrokerClient, hist_start: date, hist_end: date, closes_by_symbol: Dict[str, List[float]]
+) -> Dict[str, float]:
+    """v2.87.0: per-asset volatility scaling for the buy-timing guard's three legs — each
+    target's own trailing `_LEG_VOLATILITY_LOOKBACK_DAYS`-day daily-return stdev, relative to the
+    PORTFOLIO-AVERAGE stdev across every target with enough history (not the benchmark: a
+    benchmark-relative scale would come out > 1 for literally every target in a high-beta book,
+    widening every symbol's legs uniformly instead of properly separating the calm ones from the
+    volatile ones). Populates `closes_by_symbol` as a side effect so the caller's per-symbol loop
+    doesn't re-fetch the same daily closes a second time. A target with insufficient history for
+    a stable stdev (fewer than 5 trailing daily returns) simply has no entry here — the caller
+    falls back to scale 1.0 (the flat global legs, unscaled) for it. That's a deliberately softer
+    fallback than fail-closed: the buy-timing guard's own per-leg missing-history check (using
+    the same closes, but needing only 3 specific closes rather than 5+ returns) is what actually
+    fails closed on a true missing-history case — this scale factor only calibrates the bar for a
+    symbol the guard can otherwise evaluate."""
+    stdevs: Dict[str, float] = {}
+    for sym in cfg.targets:
+        closes = broker.get_daily_closes(sym, hist_start, hist_end)
+        closes_by_symbol[sym] = closes
+        sd = daily_return_stdev(closes, _LEG_VOLATILITY_LOOKBACK_DAYS)
+        if sd is not None:
+            stdevs[sym] = sd
+    if not stdevs:
+        return {}
+    portfolio_avg = sum(stdevs.values()) / len(stdevs)
+    if portfolio_avg <= 0:
+        return {}
+    return {sym: sd / portfolio_avg for sym, sd in stdevs.items()}
+
+
 def step2_guardrails(ctx: RunContext, broker: BrokerClient) -> None:
     cfg = ctx.config
     hist_start, hist_end = _price_change_window(ctx.current_date)
+    closes_by_symbol: Dict[str, List[float]] = {}
+    leg_scale = _leg_scale_factors(cfg, broker, hist_start, hist_end, closes_by_symbol)
 
     for sym in cfg.targets:
         st = ctx.price_state.get(sym, AssetPriceState())
@@ -308,8 +346,16 @@ def step2_guardrails(ctx: RunContext, broker: BrokerClient) -> None:
         # one and never blocks a never-sold symbol. v2.72.0: the pullback check compares raw
         # daily-close percentage price changes directly (against the live current price as the
         # denominator) instead of Z-scores — see leg1_price_change / leg2_price_change /
-        # leg3_price_change.
-        closes = broker.get_daily_closes(sym, hist_start, hist_end)
+        # leg3_price_change. v2.87.0: those three globals are now scaled per-asset by this
+        # symbol's own trailing volatility (see _leg_scale_factors) unless the target sets its
+        # own override (PortfolioConfig.leg_thresholds) — a flat 0.2%/-0.05%/0.15% treats a 3x
+        # leveraged ETF and a slow utility identically, which is exactly backwards.
+        closes = closes_by_symbol[sym]
+        scale = leg_scale.get(sym, 1.0)
+        leg1_thr, leg2_thr, leg3_thr = cfg.leg_thresholds(
+            sym,
+            (cfg.meta.leg1_price_change * scale, cfg.meta.leg2_price_change * scale, cfg.meta.leg3_price_change * scale),
+        )
         # closes[-1] is yesterday (ascending-date, cache trails one session), so 1 trading
         # session further back is closes[-2], and 2 sessions further back is closes[-3].
         close_yesterday = closes[-1] if closes else None
@@ -339,9 +385,9 @@ def step2_guardrails(ctx: RunContext, broker: BrokerClient) -> None:
         # price, so they're directly comparable regardless of the symbol's own price level.
         pulled_back = (
             leg1_change is not None and leg2_change is not None and leg3_change is not None
-            and leg1_change > cfg.meta.leg1_price_change
-            and leg2_change > cfg.meta.leg2_price_change
-            and leg3_change > cfg.meta.leg3_price_change
+            and leg1_change > leg1_thr
+            and leg2_change > leg2_thr
+            and leg3_change > leg3_thr
         )
         cooled_down = True
         days_since_sell: Optional[int] = None
@@ -364,20 +410,20 @@ def step2_guardrails(ctx: RunContext, broker: BrokerClient) -> None:
             if leg1_change is None or leg2_change is None or leg3_change is None:
                 unmet.append("insufficient price history to compute leg price changes")
             else:
-                if not (leg1_change > cfg.meta.leg1_price_change):
+                if not (leg1_change > leg1_thr):
                     unmet.append(
                         f"earlier dip not confirmed (leg1 close_2d_back→close_1d_back change="
-                        f"{leg1_change:+.3f}%, need > {cfg.meta.leg1_price_change:.3f}%)"
+                        f"{leg1_change:+.3f}%, need > {leg1_thr:.3f}% [asset-scaled, x{scale:.2f}])"
                     )
-                if not (leg2_change > cfg.meta.leg2_price_change):
+                if not (leg2_change > leg2_thr):
                     unmet.append(
                         f"dip not confirmed (leg2 close_1d_back→close_yesterday change="
-                        f"{leg2_change:+.3f}%, need > {cfg.meta.leg2_price_change:.3f}%)"
+                        f"{leg2_change:+.3f}%, need > {leg2_thr:.3f}% [asset-scaled, x{scale:.2f}])"
                     )
-                if not (leg3_change > cfg.meta.leg3_price_change):
+                if not (leg3_change > leg3_thr):
                     unmet.append(
                         f"upturn not confirmed (leg3 close_yesterday→today change="
-                        f"{leg3_change:+.3f}%, need > {cfg.meta.leg3_price_change:.3f}%)"
+                        f"{leg3_change:+.3f}%, need > {leg3_thr:.3f}% [asset-scaled, x{scale:.2f}])"
                     )
             if st.profitSellPrice is not None and st.profitSellDate:
                 prefix = (

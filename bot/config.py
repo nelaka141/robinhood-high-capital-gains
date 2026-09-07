@@ -22,6 +22,11 @@ class AssetTarget:
         # that spends any deployable cash LEFT OVER after the momentum-ranked top-down fill by
         # topping the asset's market value up toward this dollar figure. None -> the asset never
         # participates in the top-up pass (its normal drift-gap fill is unaffected either way).
+    leg1_price_change: Optional[float] = None  # v2.87.0: per-asset override for the buy-timing
+        # guard's leg1 (Step 2); None -> use the volatility-scaled computed value (see
+        # PortfolioConfig.leg_thresholds and steps.py's _leg_scale_factors)
+    leg2_price_change: Optional[float] = None  # same, for leg2
+    leg3_price_change: Optional[float] = None  # same, for leg3
 
 
 @dataclass(frozen=True)
@@ -188,6 +193,21 @@ class PortfolioConfig:
             return override
         return self.meta.default_max_position_value
 
+    def leg_thresholds(self, symbol: str, computed: "tuple[float, float, float]") -> "tuple[float, float, float]":
+        """Effective (leg1, leg2, leg3) buy-timing-guard thresholds for `symbol`: that target's
+        own leg1_price_change/leg2_price_change/leg3_price_change override, independently per
+        leg, if set; else the volatility-scaled `computed` value steps.py derived from this
+        asset's own trailing price history (see _leg_scale_factors) — mirrors the
+        override-else-computed pattern `drift_tolerance`/`max_allocation_percentage` already use,
+        except the "else" side is a per-cycle computed value here rather than a flat global."""
+        t = self.targets[symbol]
+        c1, c2, c3 = computed
+        return (
+            t.leg1_price_change if t.leg1_price_change is not None else c1,
+            t.leg2_price_change if t.leg2_price_change is not None else c2,
+            t.leg3_price_change if t.leg3_price_change is not None else c3,
+        )
+
     def sell_price_target_blocks(self, symbol: str, current_price: float) -> bool:
         """target_price_to_sell: True while `symbol` has a configured sell-price floor and
         `current_price` hasn't yet crossed (reached/exceeded) it. Blocks a sale by ANY mechanism —
@@ -296,6 +316,9 @@ def load_portfolio_config(path: str | Path = "portfolio_targets.json") -> Portfo
             symbol=sym, weight=t["weight"], drift=t.get("drift"),
             max_allocation_percent=t.get("max_allocation_percent"),
             max_position_value=t.get("max_position_value"),
+            leg1_price_change=t.get("leg1_price_change"),
+            leg2_price_change=t.get("leg2_price_change"),
+            leg3_price_change=t.get("leg3_price_change"),
         )
         for sym, t in data["targets"].items()
     }
