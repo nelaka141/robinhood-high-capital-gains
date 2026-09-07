@@ -48,6 +48,26 @@ def main() -> None:
     assert any("Juneteenth" in v for v in market_calendar.nyse_holidays(2022).values())
     print("[juneteenth] absent pre-2022, present 2022+")
 
+    # --- NYSE Rule 7.2 exception: New Year's Day does NOT shift to the preceding Friday when it
+    # falls on a Saturday (unlike every other fixed-date holiday) -- Dec 31 is the critical
+    # year-end accounting date, so the market stays open. Jan 1, 2022 was a Saturday. ---
+    assert date(2022, 1, 1).weekday() == 5
+    holidays_2022 = market_calendar.nyse_holidays(2022)
+    assert "New Year's Day" not in holidays_2022.values(), holidays_2022
+    assert date(2021, 12, 31) not in market_calendar.nyse_holidays(2021)
+    is_open, reason = market_calendar.is_market_open(datetime(2021, 12, 31, 10, 0))
+    assert is_open and reason == "regular hours", reason
+    print("[new year's exception] Sat Jan 1 2022 -> no observed holiday; Fri Dec 31 2021 stays open")
+
+    # --- A Sunday New Year's Day still shifts to the following Monday as normal (only the
+    # Saturday case is the exception) -- Jan 1, 2023 was a Sunday. ---
+    assert date(2023, 1, 1).weekday() == 6
+    holidays_2023 = market_calendar.nyse_holidays(2023)
+    assert holidays_2023.get(date(2023, 1, 2)) == "New Year's Day", holidays_2023
+    is_open, reason = market_calendar.is_market_open(datetime(2023, 1, 2, 10, 0))
+    assert not is_open and "New Year's Day" in reason, reason
+    print("[new year's sunday] Sun Jan 1 2023 -> observed Mon Jan 2 2023, closed")
+
     # --- Daily time-window boundaries on a genuine trading day (Tuesday 2026-09-08) ---
     cases = [
         (datetime(2026, 9, 8, 6, 59), False, "before pre-market"),

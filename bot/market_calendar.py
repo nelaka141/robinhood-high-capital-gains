@@ -70,7 +70,6 @@ def nyse_holidays(year: int) -> Dict[date, str]:
     """Every NYSE full-market-closure holiday in `year`, computed from the standard rules (not a
     hardcoded per-year date list) so this stays correct for any year without maintenance."""
     holidays: Dict[date, str] = {
-        _observed(date(year, 1, 1)): "New Year's Day",
         _nth_weekday_of_month(year, 1, 0, 3): "Martin Luther King Jr. Day",
         _nth_weekday_of_month(year, 2, 0, 3): "Washington's Birthday (Presidents Day)",
         _easter_sunday(year) - timedelta(days=2): "Good Friday",
@@ -80,6 +79,13 @@ def nyse_holidays(year: int) -> Dict[date, str]:
         _observed(date(year, 7, 4)): "Independence Day",
         _observed(date(year, 12, 25)): "Christmas Day",
     }
+    # NYSE Rule 7.2 exception: every other fixed-date holiday shifts to the preceding Friday when
+    # it falls on a Saturday, but New Year's Day does NOT — December 31 is the critical
+    # month/quarter/year-end accounting date, so the market stays open that Friday. A Sunday
+    # New Year's Day still shifts to the following Monday as usual (_observed handles that half).
+    new_years = date(year, 1, 1)
+    if new_years.weekday() != 5:
+        holidays[_observed(new_years)] = "New Year's Day"
     if year >= 2022:  # NYSE added Juneteenth as a market holiday starting 2022
         holidays[_observed(date(year, 6, 19))] = "Juneteenth National Independence Day"
     return holidays

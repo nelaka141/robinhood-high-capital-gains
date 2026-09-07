@@ -91,7 +91,8 @@ Runs right after `drive-pull`, before Step 1 makes its first Robinhood call. `bo
 computes — with no live/network dependency, just the standard date-arithmetic holiday rules (so it
 never needs a yearly update) — whether right now is a weekend, an NYSE holiday, or outside the
 7:00 AM–8:00 PM ET extended-trading window CLAUDE.md's "Extended Hours Execution" rule already
-uses. When closed, `market-check` writes a "MARKET CLOSED" journal entry itself (no `RunContext`
+uses. Full holiday set and the New Year's-Day-never-shifts-to-Friday exception (NYSE Rule 7.2) are
+documented in CLAUDE.md's Execution Mode — see that for the exact rules `nyse_holidays()` implements. When closed, `market-check` writes a "MARKET CLOSED" journal entry itself (no `RunContext`
 needed — nothing was ever fetched) and the cycle aborts immediately: no `get_accounts`, no
 snapshot, no `plan`/`finalize`, just `drive-push` + the usual git commit + email for that one
 journal entry.
