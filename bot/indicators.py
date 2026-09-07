@@ -3,10 +3,12 @@ closes, matching the exact formulas CLAUDE.md Step 3/4 specify for Momentum_Scor
 High_Beta_Gain_Score. No external indicator API is required. (The buy-timing/resell-timing
 guards in steps.py compare raw daily-close percentage price changes directly — see
 `leg1_price_change`/`leg2_price_change`/`leg3_price_change`/`selling_price_change` in
-config.py — and don't need an indicator helper of their own.)"""
+config.py — but DO use `daily_return_stdev` below to scale those three legs per-asset, v2.87.0.)
+"""
 from __future__ import annotations
 
-from typing import List, Sequence
+import statistics
+from typing import List, Optional, Sequence
 
 
 def ema_series(closes: Sequence[float], period: int = 9) -> List[float]:
@@ -52,6 +54,21 @@ def rsi_series(closes: Sequence[float], period: int = 14) -> List[float]:
 
 def daily_returns(closes: Sequence[float]) -> List[float]:
     return [(b - a) / a for a, b in zip(closes, closes[1:])]
+
+
+def daily_return_stdev(closes: Sequence[float], lookback_days: int = 20) -> Optional[float]:
+    """Sample stdev of daily close-to-close % returns over the trailing `lookback_days` (needs
+    lookback_days+1 closes to get lookback_days returns; uses however many are available if
+    `closes` is shorter). Returns None if fewer than 5 return observations are available — not
+    enough for a stable volatility estimate — so the caller can fail closed (fall back to an
+    unscaled/neutral value) exactly like every other price-history-dependent gate in this repo.
+    Used by steps.py's buy-timing guard (v2.87.0) to scale `leg1_price_change`/`leg2_price_change`/
+    `leg3_price_change` per asset, in percentage-point units (matching those config values)."""
+    tail = closes[-(lookback_days + 1):]
+    rets = [(tail[i] - tail[i - 1]) / tail[i - 1] * 100 for i in range(1, len(tail)) if tail[i - 1]]
+    if len(rets) < 5:
+        return None
+    return statistics.stdev(rets)
 
 
 def beta(asset_returns: Sequence[float], benchmark_returns: Sequence[float]) -> float:

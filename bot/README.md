@@ -19,6 +19,11 @@ cycle. Two commands, with the agent doing the actual order placement between the
 ```bash
 python3 -m bot.cli drive-pull --repo-dir .   # sync state files + journal history down from Drive
 
+python3 -m bot.cli market-check --current-datetime <now, US/Eastern> --repo-dir . \
+    --out market_check_result.json
+# market_open: false -> MARKET CLOSED entry already written; drive-push + commit + email, then
+# stop the cycle entirely (no Robinhood call, no plan/finalize this cycle)
+
 python3 -m bot.cli price-cache-plan  --repo-dir . --current-date <today> --out price_fetch_plan.json
 # agent fetches only price_fetch_plan.json's fetch_batches via get_equity_historicals,
 # writes them to fetched_bars.json
@@ -45,12 +50,19 @@ mocking needed).
 ### Google Drive state sync (v2.86.0)
 
 `peak/prices.json`, `tax/realized_gains_by_year.json`, and `price_history/daily_bars.json` —
-plus every rotated `logs/history_trade_journal-*.md` — live on Google Drive, not git. The
+plus the rotated `logs/history_trade_journal-*.md` files — live on Google Drive, not git. The
 container running a scheduled cycle is thrown away afterwards, so `bot/drive_sync.py` must pull
 these down at the start of every cycle and push them back up at the end, or state silently
 reverts to whatever the last pull saw. `logs/trade_journal.md` is the one exception: it stays
 git-tracked as always (the real paper trail) and is *additionally* mirrored to Drive as a
 convenience copy, never treated as Drive-authoritative.
+
+For the journal-history bucket specifically, only the CURRENT (highest-numbered)
+`history_trade_journal-<N>.md` file ever round-trips through a cycle — `bot/journal.py`'s
+rotation only ever reads/writes that one file (appending until it hits 10 entries, then rolling
+to a new one); every lower-numbered file is sealed the moment a higher one exists and never
+changes again, so it just stays on Drive permanently rather than being pulled/pushed every cycle
+forever. See `drive_sync._latest_history_name`.
 
 - **Auth:** a standing OAuth refresh-token credential in the `GOOGLE_DRIVE_TOKEN_JSON`
   environment variable (the standard google-auth "authorized user" JSON shape —
@@ -72,6 +84,26 @@ convenience copy, never treated as Drive-authoritative.
   in `bot/drive_sync.py`; see that module's docstring for the full tree and how to recreate it.
 - `python3 -m bot.cli drive-pull --repo-dir .` / `drive-push --repo-dir .` are the only two
   entry points — see CLAUDE.md's Execution Mode for exactly when each runs in a cycle.
+
+### Market-hours gate (v2.88.0)
+
+Runs right after `drive-pull`, before Step 1 makes its first Robinhood call. `bot/market_calendar.py`
+computes — with no live/network dependency, just the standard date-arithmetic holiday rules (so it
+never needs a yearly update) — whether right now is a weekend, an NYSE holiday, or outside the
+7:00 AM–8:00 PM ET extended-trading window CLAUDE.md's "Extended Hours Execution" rule already
+uses. Full holiday set and the New Year's-Day-never-shifts-to-Friday exception (NYSE Rule 7.2) are
+documented in CLAUDE.md's Execution Mode — see that for the exact rules `nyse_holidays()` implements. When closed, `market-check` writes a "MARKET CLOSED" journal entry itself (no `RunContext`
+needed — nothing was ever fetched) and the cycle aborts immediately: no `get_accounts`, no
+snapshot, no `plan`/`finalize`, just `drive-push` + the usual git commit + email for that one
+journal entry.
+
+```bash
+python3 -m bot.cli market-check --current-datetime 2026-09-07T10:32:00 --repo-dir . \
+    --out market_check_result.json
+```
+
+`--current-datetime` is a **US/Eastern local** ISO8601 datetime (not UTC) — get it with e.g.
+`TZ=America/New_York date +%Y-%m-%dT%H:%M:%S` before calling.
 
 ### Price history cache
 
@@ -190,15 +222,16 @@ uses; kept for fully-standalone use outside of any MCP/agent setup.
 
 | File | CLAUDE.md section | What it does |
 |---|---|---|
-| `config.py` | "Core Parameters & Risk Triggers", `targets`/`forceSell` | Loads `portfolio_targets.json` into typed dataclasses; `max_allocation_percentage(symbol)` resolves a target's own `max_allocation_percent` override, else the global `max_portfolio_percentage`, mirroring `drift_tolerance(symbol)`'s per-asset `drift` override pattern; `AssetTarget.max_position_value` (v2.80.0) is the optional flat dollar cap driving Step 3's Position Cap Top-Up, resolved via `PortfolioConfig.resolved_max_position_value(symbol)` — that target's own override if set, else the global `PortfolioMetadata.default_max_position_value` (v2.80.1) if configured, else `None`; `sell_price_target_blocks`/`buy_price_target_blocks` resolve the optional `target_price_to_sell`/`target_price_to_buy` per-symbol price floor/ceiling maps |
+| `config.py` | "Core Parameters & Risk Triggers", `targets`/`forceSell` | Loads `portfolio_targets.json` into typed dataclasses; `max_allocation_percentage(symbol)` resolves a target's own `max_allocation_percent` override, else the global `max_portfolio_percentage`, mirroring `drift_tolerance(symbol)`'s per-asset `drift` override pattern; `AssetTarget.max_position_value` (v2.80.0) is the optional flat dollar cap driving Step 3's Position Cap Top-Up, resolved via `PortfolioConfig.resolved_max_position_value(symbol)` — that target's own override if set, else the global `PortfolioMetadata.default_max_position_value` (v2.80.1) if configured, else `None`; `sell_price_target_blocks`/`buy_price_target_blocks` resolve the optional `target_price_to_sell`/`target_price_to_buy` per-symbol price floor/ceiling maps; `leg_thresholds(symbol, computed)` (v2.87.0) resolves the buy-timing guard's per-asset `leg1_price_change`/`leg2_price_change`/`leg3_price_change` override, independently per leg, else the volatility-scaled `computed` value steps.py derives from that asset's own price history |
 | `state.py` | `peak/prices.json`, `tax/realized_gains_by_year.json`, `tax/paid_taxes_by_year.json`, `transferred_basis.json` | Load/save the persistent state files. `tax/paid_taxes_by_year.json` (v2.80.0) is read-only from the bot's side, same as `transferred_basis.json` — purely user-maintained, no save function |
 | `drive_sync.py` (v2.86.0) | "Google Drive state sync" above | `drive-pull`/`drive-push` — real file-based Google Drive transfer for `peak/prices.json`, `tax/realized_gains_by_year.json`, `price_history/daily_bars.json`, and `logs/history_trade_journal-*.md` (plus a `logs/trade_journal.md` mirror), via `GOOGLE_DRIVE_TOKEN_JSON` |
+| `market_calendar.py` (v2.88.0) | "Extended Hours Execution", "Market-hours gate" above | `is_market_open(dt_et)` — pure computed NYSE holiday calendar (no live/network dependency) + the 7:00 AM–8:00 PM ET window check backing the `market-check` CLI command |
 | `models.py` | — | Shared value objects (`Position`, `DriftResult`, `MomentumScore`, `TradeIntent`, `RunContext`, ...) |
 | `broker.py` | "You execute actions via the connected Robinhood MCP Server" | `BrokerClient` Protocol (incl. `get_fifty_two_week_high`, for the Step 5 `52_week_high_guard` check) + a `robin_stocks` reference implementation (standalone mode only) |
 | `snapshot_broker.py` | — | `SnapshotBroker` — reads the same `BrokerClient` interface (incl. `get_fifty_two_week_high` from the snapshot's `fifty_two_week_highs` map) from a JSON snapshot instead of a live connection (snapshot-driven mode) |
 | `price_cache.py` | Execution Mode Step 2, `daily_closes`/`daily_lows_highs` sourcing | `price_history/daily_bars.json` — persistent rolling ~90-day cache; `price-cache-plan`/`price-cache-merge` (see "Price history cache" above) |
 | `serialize.py` | — | JSON round-trip of `RunContext` between `plan` and `finalize` |
-| `indicators.py` | Step 3's RSI/EMA formulas, Step 4's Beta formula | Pure-Python EMA(9), RSI(14), beta — no external indicator API needed |
+| `indicators.py` | Step 3's RSI/EMA formulas, Step 4's Beta formula, Step 2's per-asset leg scaling | Pure-Python EMA(9), RSI(14), beta, and `daily_return_stdev` (v2.87.0, trailing daily-return volatility feeding the buy-timing guard's per-asset leg scaling) — no external indicator API needed |
 | `fifo.py` | Step 4, "Dollar-gate accounting for PARTIAL sales" + "Loss-lot sell guard" | FIFO lot-matched realized-profit calculation; `exclude_loss_lots` skips any lot that would not realize a strict gain, with `profitable_lot_quantity`/`priced_lot_quantity` sizing the sale against it (the latter keeps a pending-basis shortfall failing closed rather than being downsized) |
 | `cost_basis.py` | Step 1, `avg_cost_basis` sourcing waterfall | primary → tax-lots → `transferred_basis.json` override → fail closed |
 | `steps.py` | **Steps 1–6** (incl. 4b), in order | Drift/drawdown (`_compute_tax_reserve` — v2.80.0, nets `tax/paid_taxes_by_year.json`'s summed entries dollar-for-dollar off the percentage-based reserve, shared by Step 1's pretrade figure and Step 6's finalized one), guardrails (incl. the universal three-leg price-change buy-timing guard, `1st_leg_price_change`/`2nd_leg_price_change`/`3rd_leg_price_change` (`cfg.meta.leg1_price_change`/`leg2_price_change`/`leg3_price_change` — the ordinal JSON keys are renamed on load since a Python identifier can't start with a digit) — gates every buy; the wash-sale forward buy-guard; the flat-calendar `profit_resell_cooldown_days` resell guard; and the `selling_price_change` resell-timing guard requiring `(close_yesterday - price) * 100 / price < selling_price_change`), momentum-ranked top-down Underweight fills PLUS the Position Cap Top-Up (`step3_underweight_buys` — each qualifying candidate gets its FULL drift gap, capped by its per-asset `max_allocation_percent`/`max_portfolio_percentage` headroom, in `Momentum_Score`-descending order until deployable cash runs out; candidates below `min_momentum_score_to_fill_underweight` get nothing even when cash is left over; a buy-guarded candidate is out of the ranking entirely so the fill shifts down; v2.80.0 — leftover cash is then distributed, water-filling pro-rata by `weight`, toward every symbol's `max_position_value`, independent of drift/momentum status, before the sector cap pass runs over the combined total; `ctx.position_cap_topups` is the reporting-only breakdown), the v2.83.0 net-profit full exit (a MIXED loss/gain position whose NET FIFO figure across all lots clears the gate is sold 100% as an ordinary order, ahead of the loss-lot guard, and never arms the wash-sale buy-guard — `bot/_smoke_test_net_profit_full_exit.py`), GET THE PROFITS (percent/dollar gate pair OR'd, not AND'd; each leg's threshold now ramps parabolically from a day-0 floor to its own cap over `profit_threshold_ramp_days`, keyed off the quantity-weighted average age of the specific profitable lots the sale would consume — `_weighted_avg_lot_age_days`/`_dynamic_profit_threshold`; the only routine PROFIT-TAKING sell mechanism) plus the Step 4b Sell Cleanup Pass (`step4b_sell_cleanup`, v2.80.0 — sweeps a single-lot, non-loss remainder either under `cleanup_dust_threshold_dollars` or left over from this cycle's own GET THE PROFITS sale, bypassing every profit gate; `ctx.cleanup_sells`/`ctx.total_cleanup_gains_realized`, tracked separately from `ctx.profit_taking_sells`), `target_price_to_sell`/`target_price_to_buy` (`_sell_price_target_blocked` overrides every sell mechanism including the emergency stop-losses), price-limit halts (`step5_price_limits`, incl. `52_week_high_guard`/`cfg.meta.fifty_two_week_high_guard` — blocks every planned buy once `price / fifty_two_week_high * 100` exceeds the guard; fails open on missing 52-week-high data), and `compute_dormant_assets` (Step 7's reporting-only Dormant Assets section, `dormant_asset_days`), `note_wash_window_repurchases`/`verify_deferred_losses` (v2.84.0 — Step 7's reporting-only Deferred Wash-Sale Loss Tracking: journals a repurchase inside the wash-sale window of a net-profit full exit and later checks that Robinhood carried the netted lot loss into the new lot's basis; the bot never adjusts basis itself — `bot/_smoke_test_deferred_loss_tracking.py`), and `compute_loss_only_assets`/`drop_bought_symbols` (Step 7's reporting-only Loss-Only Lot Assets section — assets with no lot sellable at a gain; gathered in `plan` where the broker is available, then filtered by this cycle's buys in `finalize`). Step 6 is split: `step6a_prepare_sells`/`step6b_finalize_buys` (planning-only, used by `cli.py` — `_selling_symbols()` unions `profit_taking_sells`, `cleanup_sells`, and both liquidation lists for the same-cycle buy/sell exclusivity rule) vs. `step6_execute_live` (actually places orders, used by `main.py`) |
