@@ -64,7 +64,7 @@ PRICE_HISTORY_FOLDER_ID = "18EExEcp4b3ZkvdnardPh255CcPPwmv8X"
 JOURNAL_HISTORY_FOLDER_ID = "1Yg734fEjD9gVwwUUubbeTJ_SA_eMCUxC"
 
 TOKEN_ENV_VAR = "GOOGLE_DRIVE_TOKEN_JSON"
-SCOPES = ["https://www.googleapis.com/auth/drive"]
+SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 
 # (local path relative to repo_dir, Drive parent folder id, Drive filename)
 STATE_FILES = [
