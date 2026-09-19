@@ -618,11 +618,12 @@ def step3_underweight_buys(ctx: RunContext, broker: BrokerClient) -> Dict[str, f
     # candidates simply because they had leftover room under the cap:
     #   - `min_momentum_score_to_fill_underweight` now applies to Top-Up too, same floor and same
     #     "no computable score fails closed" posture as the top-down fill above.
-    #   - A symbol already held (any quantity > 0) whose current price sits below its
-    #     `avg_cost_basis` is excluded — don't add fresh dollars to a position that's already
-    #     losing money just to chase the dollar cap. An unresolved cost basis fails closed too
-    #     (can't prove it isn't a loss), same posture as every other cost-basis-dependent gate in
-    #     this document.
+    #   - A symbol already held (any quantity > 0) whose raw gain percentage vs. `avg_cost_basis`
+    #     sits below `held_at_loss_rebuy_threshold_percent` is excluded — don't add fresh dollars
+    #     to a position sitting on too large a loss just to chase the dollar cap. (v2.85.0 made
+    #     that bar configurable; the original v2.81.0 behaviour is the default 0.0, i.e. any loss
+    #     at all excludes.) An unresolved cost basis fails closed too (can't prove it isn't a
+    #     loss), same posture as every other cost-basis-dependent gate in this document.
     #
     # Multiple candidates share the leftover cash pro-rata by `weight` (water-filling: repeatedly
     # split whatever's left proportionally, remove any candidate that hits its own room this

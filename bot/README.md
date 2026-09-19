@@ -1,7 +1,7 @@
 # bot/ — Python implementation of CLAUDE.md
 
-A direct, ordered translation of the markdown spec in `../CLAUDE.md` (v2.42.0) into runnable
-Python. `CLAUDE.md` stays the maintained business-rules spec; this package is what actually
+A direct, ordered translation of the markdown spec in `../CLAUDE.md` (v2.88.0 — bump this
+stamp whenever CLAUDE.md's own version changes) into runnable Python. `CLAUDE.md` stays the maintained business-rules spec; this package is what actually
 executes it. Two ways to run it:
 
 - **Snapshot-driven mode** (`bot/cli.py`) — the mode this repo actually uses. An MCP-connected
