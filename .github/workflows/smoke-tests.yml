@@ -1,0 +1,48 @@
+name: Smoke Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: smoke-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke-tests:
+    name: bot/ smoke tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: bot/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r bot/requirements.txt
+
+      - name: Run smoke tests
+        run: |
+          failed=()
+          for f in bot/_smoke_test*.py; do
+            module="bot.$(basename "$f" .py)"
+            echo "::group::$module"
+            if python -m "$module"; then
+              echo "PASS $module"
+            else
+              echo "FAIL $module"
+              failed+=("$module")
+            fi
+            echo "::endgroup::"
+          done
+          if [ ${#failed[@]} -gt 0 ]; then
+            echo "::error::${#failed[@]} smoke test(s) failed: ${failed[*]}"
+            exit 1
+          fi
+          echo "All smoke tests passed."
