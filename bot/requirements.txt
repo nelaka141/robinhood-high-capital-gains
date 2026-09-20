@@ -2,3 +2,16 @@ robin_stocks>=3.1.0
 requests>=2.31.0
 google-api-python-client>=2.100.0
 google-auth-oauthlib>=1.0.0
+
+# Not imported by bot/ directly — it backs `cryptography`, which google-auth imports
+# unconditionally (google.auth.transport.requests -> google.oauth2.service_account ->
+# google.auth.crypt), which bot/drive_sync.py imports at module load, which bot/cli.py imports
+# at module load. So a missing _cffi_backend takes down EVERY cli subcommand at import time,
+# drive-pull and market-check included, before the cycle can do anything at all.
+#
+# Why it can go missing: some sandbox images ship a Debian-packaged `cryptography` in
+# /usr/lib/python3/dist-packages whose compiled _cffi_backend .so is built for a different
+# Python minor version than the interpreter actually on PATH. pip still counts that package as
+# satisfying google-auth's dependency and installs no wheel, so nothing here pulls a usable
+# cffi in on its own. Listing it explicitly makes pip install one for the running interpreter.
+cffi>=1.16.0
