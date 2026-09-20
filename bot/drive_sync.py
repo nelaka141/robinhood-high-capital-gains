@@ -14,19 +14,30 @@ delegation — neither available on a plain personal (non-Workspace) Google acco
 token for the account's own Google login has no such restriction.
 
 Storage layout — fixed Drive folder IDs under a "Robinhood-Bot-State" folder in the account's own
-personal Drive (created once by hand; recreate the tree with the same names/nesting and update
-the IDs below if it's ever lost — nothing else depends on the exact IDs beyond this module):
-  Robinhood-Bot-State/                        12SwkVAnrybOF-D2aHNQzpKsmNu8VQcgV
+personal Drive (recreate the tree with the same names/nesting and update the IDs below if it's
+ever lost — nothing else depends on the exact IDs beyond this module).
+
+The IDs below are the tree recreated on 2026-09-20. The original tree was created by hand, but
+the credential backing this module is scoped to `drive.file` (see SCOPES), which only grants
+visibility of files that credential itself created — so the bot could not see the hand-made
+folders' older contents (`history_trade_journal-1.md` .. `-10.md`, written before the scope
+narrowed). The tree was rebuilt by uploading a full export of the old folder through this
+credential, so every file in it is now visible to the bot. Anything added to these folders by
+another client (the web UI, a different OAuth app) will again be invisible here — put files in
+via this credential, or re-export and re-upload the same way.
+
+  layout:
+  Robinhood-Bot-State/                        1rxXF06g00IQ2cDajP0_rbIoFN61deXKD
     trade_journal.md                          mirror of logs/trade_journal.md (which ALSO stays
                                                git-tracked — Drive here is a convenience copy,
                                                not the source of truth for this one file)
-    peak-prices/                               1ssOwdDphKOY4OCaNxUu6HLtO1exe4pp-
+    peak-prices/                               1pxp28-H2g00DV_R7ojASEWkN_--65eW7
       prices.json                             -> peak/prices.json (Drive is authoritative)
-    tax-realized-gains-by-year/                1kCOywFmcZBGemK72t9KyHDBdxdXmtRxr
+    tax-realized-gains-by-year/                1p93uKm4T6-RI2t5btu4naeB7bKEcr87_
       realized_gains_by_year.json             -> tax/realized_gains_by_year.json (Drive is authoritative)
-    price-history/                             18EExEcp4b3ZkvdnardPh255CcPPwmv8X
+    price-history/                             1iRyV8S4ogmg2n3qRSf446qOTdkZUYlBm
       daily_bars.json                         -> price_history/daily_bars.json (Drive is authoritative)
-    journal-history/                           1Yg734fEjD9gVwwUUubbeTJ_SA_eMCUxC
+    journal-history/                           1oxa8Oamk_1tRBNh6u9Vm3dWf4aU6hUIq
       history_trade_journal-<N>.md            -> logs/history_trade_journal-<N>.md (Drive-only,
                                                never git — one file per rotation, see journal.py)
 
@@ -57,11 +68,11 @@ from google.oauth2.credentials import Credentials
 DRIVE_API = "https://www.googleapis.com/drive/v3"
 DRIVE_UPLOAD_API = "https://www.googleapis.com/upload/drive/v3"
 
-ROOT_FOLDER_ID = "12SwkVAnrybOF-D2aHNQzpKsmNu8VQcgV"        # Robinhood-Bot-State
-PEAK_PRICES_FOLDER_ID = "1ssOwdDphKOY4OCaNxUu6HLtO1exe4pp-"
-TAX_FOLDER_ID = "1kCOywFmcZBGemK72t9KyHDBdxdXmtRxr"
-PRICE_HISTORY_FOLDER_ID = "18EExEcp4b3ZkvdnardPh255CcPPwmv8X"
-JOURNAL_HISTORY_FOLDER_ID = "1Yg734fEjD9gVwwUUubbeTJ_SA_eMCUxC"
+ROOT_FOLDER_ID = "1rxXF06g00IQ2cDajP0_rbIoFN61deXKD"        # Robinhood-Bot-State
+PEAK_PRICES_FOLDER_ID = "1pxp28-H2g00DV_R7ojASEWkN_--65eW7"
+TAX_FOLDER_ID = "1p93uKm4T6-RI2t5btu4naeB7bKEcr87_"
+PRICE_HISTORY_FOLDER_ID = "1iRyV8S4ogmg2n3qRSf446qOTdkZUYlBm"
+JOURNAL_HISTORY_FOLDER_ID = "1oxa8Oamk_1tRBNh6u9Vm3dWf4aU6hUIq"
 
 TOKEN_ENV_VAR = "GOOGLE_DRIVE_TOKEN_JSON"
 SCOPES = ["https://www.googleapis.com/auth/drive.file"]
