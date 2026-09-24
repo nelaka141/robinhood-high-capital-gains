@@ -1355,6 +1355,7 @@ def step5_price_limits(ctx: RunContext, broker: BrokerClient, buy_candidates: Di
                          f"(limit {cfg.meta.buy_price_diff_limit}%)",
                     "Underweight buy",
                 ))
+                ctx.position_cap_topups.pop(sym, None)
                 continue
 
         # 52_week_high_guard: blocks chasing a symbol already trading near its 52-week high, by
@@ -1369,6 +1370,7 @@ def step5_price_limits(ctx: RunContext, broker: BrokerClient, buy_candidates: Di
                          f"52-week high ${high_52w:,.2f} (limit {cfg.meta.fifty_two_week_high_guard}%)",
                     "Underweight buy",
                 ))
+                ctx.position_cap_topups.pop(sym, None)
                 continue
 
         filtered_buys[sym] = dollars
