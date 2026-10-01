@@ -99,6 +99,15 @@ class PortfolioMetadata:
     profit_threshold_ramp_days: float = 30  # number of days of (quantity-weighted-average)
         # profitable-lot age at which both legs' dynamic threshold reaches its own max
 
+    # v2.89.0 — downward leg of the same ramp. After the peak at profit_threshold_ramp_days, each
+    # leg falls back along a mirrored parabola from its own max to its own *_final figure over
+    # profit_threshold_decay_days more days, then holds flat there. Defaulted so the feature is
+    # off (0 days = held at the cap forever, the v2.78.0 behavior) for fixtures that predate it;
+    # a None final falls back to that leg's day-0 floor.
+    profit_threshold_decay_days: float = 0
+    materialize_profit_percentage_final: Optional[float] = None
+    materialize_profit_in_dollars_final: Optional[float] = None
+
     # v2.80.0 — Sell Cleanup Pass (Step 4b): dollar market-value ceiling for cleanup rule (a) —
     # a currently-held target asset whose remaining position (after this cycle's GET THE PROFITS
     # sale, if any) is exactly one tax lot, that lot is not a loss, AND the remaining market
