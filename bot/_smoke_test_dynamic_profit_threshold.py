@@ -180,6 +180,62 @@ def test_ramp_is_configurable() -> None:
           "(would have fired under the 30-day production ramp, still short of its own cap at day 10)")
 
 
+def test_decay_leg_formula_unit() -> None:
+    """v2.89.0 downward leg: past the peak the threshold falls along a mirrored parabola from the
+    cap to the final floor over decay_days, then holds flat there."""
+    f = lambda d, **kw: _dynamic_profit_threshold(base=2.0, max_value=10.0, ramp_days=30, days_held=d, **kw)
+    kw = dict(decay_days=30, final_value=1.0)
+    assert f(30, **kw) == 10.0                        # peak unchanged
+    # 15 days past the peak -> u=0.5 -> 1.0 + 9.0*0.25 = 3.25 (drops fastest just after the peak)
+    assert abs(f(45, **kw) - 3.25) < 1e-9, f(45, **kw)
+    assert f(60, **kw) == 1.0 and f(200, **kw) == 1.0  # lands on, then flat at, the final floor
+    assert abs(f(15, **kw) - 4.0) < 1e-9               # rising leg untouched
+    assert f(45, decay_days=30) == 2.0 + 8.0 * 0.25    # final_value=None -> falls back to base
+    assert f(200) == 10.0 and f(200, decay_days=0, final_value=1.0) == 10.0  # off -> flat at cap
+    print("[decay-formula] cap at the peak, mirrored parabola down, flat at the final floor; off when decay_days=0")
+
+
+def test_decay_leg_end_to_end() -> None:
+    """A +5% gain on a 30-day-old lot is blocked at the 10% cap, but the identical gain fires once
+    the lot is 60 days old under a 30-day decay back to a 2% final floor -- and is still blocked
+    at 35 days (threshold ~6.89%, barely off the peak)."""
+    decay = {"profit_threshold_decay_days": 30, "materialize_profit_percentage_final": 2.0}
+    for age, fires in ((30, False), (35, False), (60, True), (90, True)):
+        ctx, broker = _position(f"D{age}", price=105.0, quantity=10.0, avg_cost=100.0, lots=[
+            TaxLot(open_lot_id="a", quantity=10.0, cost_per_share=90.0,
+                   open_date=CURRENT_DATE - timedelta(days=age), is_selectable=True),
+        ], meta_overrides=decay)
+        step4_profit_taking(ctx, broker)
+        assert (len(ctx.profit_taking_sells) == 1) == fires, (age, ctx.profit_taking_sells)
+    print("[decay-e2e] +5% gain: blocked at 30d and 35d, fires again at 60d and 90d once decayed to 2%")
+
+
+def test_decay_final_floors_are_independent_per_leg() -> None:
+    """Dollar leg decays to its own final figure regardless of the percent leg's."""
+    ctx, broker = _position("DDOL", price=105.0, quantity=10.0, avg_cost=100.0, lots=[
+        TaxLot(open_lot_id="a", quantity=10.0, cost_per_share=100.0,
+               open_date=CURRENT_DATE - timedelta(days=60), is_selectable=True),
+    ], meta_overrides=dict(
+        materialize_profit_percentage=1000.0, materialize_profit_percentage_max=1000.0,  # percent leg off
+        materialize_profit_in_dollars=5.0, materialize_profit_in_dollars_max=100.0,
+        profit_threshold_decay_days=30, materialize_profit_in_dollars_final=40.0,
+    ))
+    step4_profit_taking(ctx, broker)
+    # FIFO profit = 10 * (105 - 100) = $50 > $40 final floor (would fail the $100 cap) -> fires
+    assert len(ctx.profit_taking_sells) == 1, ctx.profit_taking_sells
+    print("[decay-dollar] $50 FIFO profit fires at 60d against the dollar leg's own $40 final floor")
+
+
+def test_portfolio_targets_json_loads_decay_params() -> None:
+    from bot.config import load_portfolio_config
+    m = load_portfolio_config("portfolio_targets.json").meta
+    assert m.profit_threshold_decay_days >= 0
+    for v in (m.materialize_profit_percentage_final, m.materialize_profit_in_dollars_final):
+        assert v is None or v >= 0
+    print(f"[config] portfolio_targets.json: decay {m.profit_threshold_decay_days}d -> "
+          f"{m.materialize_profit_percentage_final}% / ${m.materialize_profit_in_dollars_final}")
+
+
 def main() -> None:
     test_dynamic_threshold_formula_unit()
     test_weighted_avg_lot_age_helper()
@@ -187,6 +243,10 @@ def main() -> None:
     test_mixed_age_lots_land_between_floor_and_cap()
     test_dollar_leg_ramps_independently_of_percent_leg()
     test_ramp_is_configurable()
+    test_decay_leg_formula_unit()
+    test_decay_leg_end_to_end()
+    test_decay_final_floors_are_independent_per_leg()
+    test_portfolio_targets_json_loads_decay_params()
     print("\nSMOKE TEST (dynamic profit-threshold ramp) PASSED")
 
 

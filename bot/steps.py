@@ -90,15 +90,48 @@ def _weighted_avg_lot_age_days(lots_consumed: List[dict], lots: List[TaxLot], cu
     return weighted_days / total_qty
 
 
-def _dynamic_profit_threshold(base: float, max_value: float, ramp_days: float, days_held: float) -> float:
-    """v2.78.0: parabolic ramp from `base` (day 0) up to `max_value` (reached at `ramp_days` and
-    held flat beyond it) — threshold(days) = base + (max_value - base) * min(1, days/ramp_days)**2.
+def _dynamic_profit_threshold(
+    base: float, max_value: float, ramp_days: float, days_held: float,
+    decay_days: float = 0, final_value: float | None = None,
+) -> float:
+    """v2.78.0: parabolic ramp from `base` (day 0) up to `max_value` (reached at `ramp_days`) —
+    threshold(days) = base + (max_value - base) * min(1, days/ramp_days)**2.
     Applies independently to each leg of GET THE PROFITS' percent/dollar OR-gate; `ramp_days<=0`
-    degenerates to the max (no ramp at all, i.e. always at the cap)."""
-    if ramp_days <= 0:
+    degenerates to the max (no ramp at all, i.e. already at the cap on day 0).
+
+    v2.89.0: downward leg. Once the peak is reached, the threshold falls back along a mirrored
+    parabola from `max_value` to `final_value` over the next `decay_days`, then holds flat at
+    `final_value` — with e = days past the peak:
+    threshold = final_value + (max_value - final_value) * (1 - min(1, e/decay_days))**2.
+    The mirror of the upward leg played backwards: it drops fastest just after the peak and
+    flattens out as it lands on `final_value`. `decay_days<=0` disables the downward leg (the
+    pre-v2.89.0 behavior: held flat at the cap forever); `final_value=None` falls back to `base`."""
+    peak_day = max(0.0, ramp_days)
+    days = max(0.0, days_held)
+    if days < peak_day:
+        t = days / peak_day
+        return base + (max_value - base) * t * t
+    if decay_days <= 0:
         return max_value
-    t = min(1.0, max(0.0, days_held) / ramp_days)
-    return base + (max_value - base) * t * t
+    floor = base if final_value is None else final_value
+    u = 1.0 - min(1.0, (days - peak_day) / decay_days)
+    return floor + (max_value - floor) * u * u
+
+
+def _profit_thresholds(meta, days_held: float) -> tuple[float, float]:
+    """(percent, dollar) dynamic GET THE PROFITS thresholds for a sale whose consumed lots
+    average `days_held` days old — each leg ramps up and back down on its own figures."""
+    pct = _dynamic_profit_threshold(
+        meta.materialize_profit_percentage, meta.materialize_profit_percentage_max,
+        meta.profit_threshold_ramp_days, days_held,
+        meta.profit_threshold_decay_days, meta.materialize_profit_percentage_final,
+    )
+    dollars = _dynamic_profit_threshold(
+        meta.materialize_profit_in_dollars, meta.materialize_profit_in_dollars_max,
+        meta.profit_threshold_ramp_days, days_held,
+        meta.profit_threshold_decay_days, meta.materialize_profit_in_dollars_final,
+    )
+    return pct, dollars
 
 
 def _compute_tax_reserve(
@@ -956,14 +989,7 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
             )
             profitable_dollars = net.realized_profit_dollars - underwater_dollars
             net_days_held = _weighted_avg_lot_age_days(net.lots_consumed, lots, ctx.current_date)
-            net_pct_threshold = _dynamic_profit_threshold(
-                cfg.meta.materialize_profit_percentage, cfg.meta.materialize_profit_percentage_max,
-                cfg.meta.profit_threshold_ramp_days, net_days_held,
-            )
-            net_dollar_threshold = _dynamic_profit_threshold(
-                cfg.meta.materialize_profit_in_dollars, cfg.meta.materialize_profit_in_dollars_max,
-                cfg.meta.profit_threshold_ramp_days, net_days_held,
-            )
+            net_pct_threshold, net_dollar_threshold = _profit_thresholds(cfg.meta, net_days_held)
             net_gate_passes = net.fully_covered and (
                 raw_gain_pct > net_pct_threshold or net.realized_profit_dollars > net_dollar_threshold
             )
@@ -1102,16 +1128,11 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
             # average age of the SPECIFIC profitable lots this sale actually consumes (post
             # loss-lot exclusion), not the position's full lot history. A freshly-profitable
             # position clears a low bar; one that's sat on its gains for a while must clear a
-            # much higher one before GTP will harvest it.
+            # much higher one before GTP will harvest it. v2.89.0: past the peak the bar falls
+            # back down a mirrored parabola to materialize_profit_*_final over
+            # profit_threshold_decay_days, so a long-held gain gets easier to harvest again.
             weighted_days_held = _weighted_avg_lot_age_days(fifo.lots_consumed, lots, ctx.current_date)
-            dynamic_percent_threshold = _dynamic_profit_threshold(
-                cfg.meta.materialize_profit_percentage, cfg.meta.materialize_profit_percentage_max,
-                cfg.meta.profit_threshold_ramp_days, weighted_days_held,
-            )
-            dynamic_dollar_threshold = _dynamic_profit_threshold(
-                cfg.meta.materialize_profit_in_dollars, cfg.meta.materialize_profit_in_dollars_max,
-                cfg.meta.profit_threshold_ramp_days, weighted_days_held,
-            )
+            dynamic_percent_threshold, dynamic_dollar_threshold = _profit_thresholds(cfg.meta, weighted_days_held)
             percent_gate_passes = raw_gain_pct > dynamic_percent_threshold
             dollar_gate_passes = fifo.fully_covered and fifo.realized_profit_dollars > dynamic_dollar_threshold
             if percent_gate_passes or dollar_gate_passes:

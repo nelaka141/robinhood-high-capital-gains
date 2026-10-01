@@ -1,7 +1,7 @@
-# Trade Decision Logic (v2.88.0)
+# Trade Decision Logic (v2.89.0)
 
 This document details every step of the bot's **sell decision** and **buy decision** as of
-v2.88.0. The rules below are exactly what `bot/steps.py` implements and what `CLAUDE.md`'s
+v2.89.0. The rules below are exactly what `bot/steps.py` implements and what `CLAUDE.md`'s
 Business Rules Reference specifies — if the three ever disagree, that is a bug to flag, not a
 choice to make silently.
 
@@ -149,11 +149,18 @@ order:
      `materialize_profit_percentage` → `materialize_profit_percentage_max`;
    * dollar leg: FIFO lot-matched `Realized_Profit_Dollars >` the ramped
      `materialize_profit_in_dollars` → `materialize_profit_in_dollars_max`.
+   * **Downward leg (v2.89.0):** past the peak at `profit_threshold_ramp_days`, each leg falls
+     back along a mirrored parabola to its own final floor
+     (`materialize_profit_percentage_final` / `materialize_profit_in_dollars_final`) over
+     `profit_threshold_decay_days`, then holds flat —
+     `threshold = final + (max − final) × (1 − min(1, (days_held − ramp) / decay))²`. It drops
+     fastest just after the peak and flattens onto the final floor. `profit_threshold_decay_days
+     = 0` disables it (held at the cap forever, the v2.78.0 behavior).
    * The FIFO figure walks the tax lots **oldest-first** (never the API's default
      newest-first order), skipping unpriced/unselectable lots.
    * The intent: a position that just crossed into profit shouldn't be harvested on a razor-thin
-     move, but one that's been sitting on a gain for a while can be harvested on a smaller move
-     before it slips back.
+     move; past the peak, a gain that has sat unharvested for a long time gets progressively easier
+     to take again instead of waiting forever for a move that clears the cap.
 6. **Mandatory positive-FIFO invariant (v2.66.0):** regardless of which gate passed, require
    `fifo.fully_covered` and `Realized_Profit_Dollars > 0`. A blended-average "gain" whose
    actual FIFO-matched lots would realize a loss is refused (logged SKIPPED). The loss-lot guard
