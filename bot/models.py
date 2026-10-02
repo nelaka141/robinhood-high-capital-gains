@@ -95,6 +95,11 @@ class TradeIntent:
     netted_loss_shares: Optional[float] = None   # magnitude of the underwater lot loss (and its
                                                  # share count) netted inside this net-gain sale —
                                                  # feeds v2.84.0's Deferred Wash-Sale Loss Tracking
+    min_sell_price: Optional[float] = None  # v2.91.0 profit sells only (GET THE PROFITS + Step 4b
+                                            # cleanup): the cost the sale must still clear at a
+                                            # fresh re-quote placed right before the order (see
+                                            # steps.recheck_sells_against_requotes). None = never
+                                            # re-checked (the emergency liquidations).
 
 
 @dataclass

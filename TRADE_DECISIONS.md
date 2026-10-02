@@ -1,7 +1,7 @@
-# Trade Decision Logic (v2.90.0)
+# Trade Decision Logic (v2.91.0)
 
 This document details every step of the bot's **sell decision** and **buy decision** as of
-v2.90.0. The rules below are exactly what `bot/steps.py` implements and what `CLAUDE.md`'s
+v2.91.0. The rules below are exactly what `bot/steps.py` implements and what `CLAUDE.md`'s
 Business Rules Reference specifies — if the three ever disagree, that is a bug to flag, not a
 choice to make silently.
 
@@ -224,6 +224,17 @@ dollars are reported separately as `Total_Cleanup_Gains_Realized`, not folded in
   buy — exceeds `seek_approval_value`, the whole cycle halts before ANY order is placed and
   waits for explicit user approval. (Buys that could never actually be placed — same-cycle
   sellers, `blocked` symbols — are excluded from this check.)
+* **Pre-sell re-quote check (v2.91.0, `sell-recheck`):** the sells above are priced off the
+  snapshot quote, but the market orders go out minutes later. Immediately before placing any
+  sell, the agent re-quotes every sell symbol and `sell-recheck` drops each GET THE PROFITS sale
+  or cleanup sweep whose fresh price is below its own `min_sell_price` × (1 +
+  `requote_min_margin_percent`/100). `min_sell_price` is the costliest lot the sale consumes
+  (S3 profitable-lots path), the whole position's lot-weighted break-even (S3 net-profit full
+  exit), the blended `avg_cost_basis` (zero-available-lots fallback) or the single lot's cost
+  (S4). A missing fresh quote fails closed. A dropped symbol loses all of its sells this cycle and
+  is kept out of this cycle's buys; it is re-evaluated next cycle. Emergency liquidations are never
+  re-checked. Why: on 2026-10-02 COIN was quoted at $198.75 and filled at $191.29 against a
+  $193.49 lot, realizing −$28.19 on a planned +$63 sale.
 * Consequences recorded after fills: profit sales and cleanup sweeps stamp `profitSellPrice/Date`
   (arming the buy-side repurchase guard); liquidations stamp `liquidatedPrice/Date`; loss sales
   stamp `lastLossSalePrice/Date`. **"Realized a loss" is judged on the sale's NET figure, never
