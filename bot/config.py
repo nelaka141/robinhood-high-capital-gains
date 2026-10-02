@@ -80,7 +80,9 @@ class PortfolioMetadata:
         # not instead of, the percent/dollar OR-gate and the per-sold-lot profit check. Closes
         # the gap the v2.75.0 loss-lot sell guard opened: without this, GTP can cherry-pick a
         # losing position's few profitable lots and fire even while the position as a whole is
-        # underwater or only marginally ahead.
+        # underwater or only marginally ahead. v2.90.0: applies to the Step 4 net-profit full
+        # exit only (the one GET THE PROFITS path that disposes of underwater lots); a sale of
+        # profitable lots only is no longer gated on it.
     keep_aside_profits_for_tax_percent: float
     momentum_lookback_days: int
     min_momentum_score_to_fill_underweight: float

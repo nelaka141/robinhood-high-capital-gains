@@ -1,6 +1,6 @@
 # bot/ — Python implementation of CLAUDE.md
 
-A direct, ordered translation of the markdown spec in `../CLAUDE.md` (v2.89.0 — bump this
+A direct, ordered translation of the markdown spec in `../CLAUDE.md` (v2.90.0 — bump this
 stamp whenever CLAUDE.md's own version changes) into runnable Python. `CLAUDE.md` stays the maintained business-rules spec; this package is what actually
 executes it. Two ways to run it:
 

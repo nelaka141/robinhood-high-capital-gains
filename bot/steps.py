@@ -1160,22 +1160,16 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
                         f"(not a real profit) — refusing to sell at a loss",
                         "partial profit-take sale",
                     ))
-                elif raw_gain_pct <= cfg.meta.min_raw_gain_percent_to_sell:
-                    # v2.77.0: the loss-lot sell guard (Step 4) lets GTP fire by cherry-picking a
-                    # position's profitable lots even when the position is overall a loser (or
-                    # only marginally ahead) on the blended average — the percent/dollar OR-gate
-                    # above and the per-lot profit check just above only look at the lots actually
-                    # being sold, not at the position as a whole. This floor closes that: refuse
-                    # to sell out of a losing/marginal position at all, regardless of which gate
-                    # cleared or how many lots the loss-lot guard already excluded.
-                    ctx.skipped.append(SkippedTrade(
-                        sym,
-                        f"GTP gate clears (FIFO ${fifo.realized_profit_dollars:.2f} on the profitable "
-                        f"lots) but the position's overall blended-average gain ({raw_gain_pct:+.2f}%) "
-                        f"doesn't clear min_raw_gain_percent_to_sell ({cfg.meta.min_raw_gain_percent_to_sell}%) "
-                        f"— refusing to harvest gains out of a losing/marginal position",
-                        "partial profit-take sale",
-                    ))
+                # v2.90.0: no min_raw_gain_percent_to_sell check on this path anymore. Since
+                # v2.77.0 a floor on the position's OVERALL blended-average gain refused to sell
+                # profitable lots out of a position that was a loser overall (e.g. ORCL on
+                # 2026-10-01: profitable lots cleared the decayed $40 bar, position at -14.5%).
+                # Every lot this path sells is individually in profit (loss-lot sell guard) and
+                # the sale cleared the profit thresholds, so it realizes a real gain regardless of
+                # the position-level figure; specified-lot orders carry those exact lots, and the
+                # account's lowest-cost-first disposal preference covers the ordinary-order
+                # fallbacks. The floor still governs the net-profit full exit above, which does
+                # dispose of underwater lots.
                 elif cooldown_blocks:
                     ctx.skipped.append(SkippedTrade(
                         sym, f"GTP gate clears ({raw_gain_pct:+.2f}% / FIFO ${fifo.realized_profit_dollars:.2f}) "

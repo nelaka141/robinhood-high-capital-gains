@@ -1,7 +1,7 @@
-# Trade Decision Logic (v2.89.0)
+# Trade Decision Logic (v2.90.0)
 
 This document details every step of the bot's **sell decision** and **buy decision** as of
-v2.89.0. The rules below are exactly what `bot/steps.py` implements and what `CLAUDE.md`'s
+v2.90.0. The rules below are exactly what `bot/steps.py` implements and what `CLAUDE.md`'s
 Business Rules Reference specifies — if the three ever disagree, that is a bug to flag, not a
 choice to make silently.
 
@@ -166,10 +166,12 @@ order:
    actual FIFO-matched lots would realize a loss is refused (logged SKIPPED). The loss-lot guard
    at step 4 makes this structurally redundant — every consumed lot is now individually
    profitable — and it is deliberately retained as a backstop.
-7. **`min_raw_gain_percent_to_sell` floor (v2.77.0):** the position's OVERALL blended-average
-   `raw_gain_pct` must exceed this, regardless of which gate cleared or how many lots the
-   loss-lot guard excluded. This is what stops GET THE PROFITS from cherry-picking the few
-   profitable lots out of a position that is a loser overall.
+7. **`min_raw_gain_percent_to_sell` floor — no longer applies here (v2.90.0):** from v2.77.0 the
+   position's OVERALL blended-average `raw_gain_pct` had to exceed this before any lots were
+   sold, which blocked selling profitable lots out of a position that is a loser overall. With
+   the account's tax-lot disposal set to lowest-cost-first and every sold lot individually in
+   profit, that sale realizes a real gain, so this path no longer checks the floor. It still
+   gates the net-profit full exit (step 3), which disposes of underwater lots.
 8. **Same-day repeat guard:** skip if `profitSellDate` already equals today.
 9. **Resell cooldown:** skip if `(current_date − profitSellDate) <
    profit_resell_cooldown_days` (strict `<`; a gap exactly equal to the window clears).
