@@ -184,7 +184,8 @@ def test_net_gain_below_gate_falls_back_to_profitable_lots_only() -> None:
 
 def test_min_raw_gain_floor_applies_to_the_full_exit() -> None:
     """The position is only marginally ahead on the blended average -> min_raw_gain_percent_to_sell
-    blocks the full exit (and, as before, the fallback path too)."""
+    blocks the full exit (it would dispose of the underwater lot). v2.90.0: the profitable-lots-only
+    fallback is no longer gated on that floor, so the gain lot alone is sold instead."""
     lots = [
         TaxLot(open_lot_id="loss", quantity=10.0, cost_per_share=105.0, open_date=date(2026, 1, 1), is_selectable=True),
         TaxLot(open_lot_id="gain", quantity=10.0, cost_per_share=94.0, open_date=date(2026, 6, 1), is_selectable=True),
@@ -194,10 +195,11 @@ def test_min_raw_gain_floor_applies_to_the_full_exit() -> None:
                             meta_overrides=dict(materialize_profit_percentage=-1e9, materialize_profit_percentage_max=-1e9))
     step4_profit_taking(ctx, broker)
 
-    assert ctx.profit_taking_sells == [], ctx.profit_taking_sells
-    reasons = [s.reason for s in ctx.skipped if s.symbol == "MARG"]
-    assert any("min_raw_gain_percent_to_sell" in r for r in reasons), reasons
-    print("[net-min-raw-gain] marginal position -> full exit and fallback both refused")
+    assert len(ctx.profit_taking_sells) == 1, ctx.profit_taking_sells
+    t = ctx.profit_taking_sells[0]
+    assert t.tax_lots == [{"open_lot_id": "gain", "quantity": 10.0}], t.tax_lots
+    assert "net-profit full exit declined" in t.reason and "min_raw_gain_percent_to_sell" in t.reason, t.reason
+    print("[net-min-raw-gain] marginal position -> full exit refused; gain lot sold on its own")
 
 
 def test_pending_basis_lot_disables_the_full_exit() -> None:

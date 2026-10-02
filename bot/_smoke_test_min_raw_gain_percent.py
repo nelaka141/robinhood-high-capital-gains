@@ -1,16 +1,15 @@
-"""Coverage for `min_raw_gain_percent_to_sell` (v2.77.0) — the floor that closes the gap the
-v2.75.0 loss-lot sell guard opened.
+"""Coverage for `min_raw_gain_percent_to_sell` — v2.77.0 floor, narrowed in v2.90.0.
 
-The gap: the loss-lot sell guard lets GET THE PROFITS cherry-pick a position's profitable lots
-and fire even when the position as a whole is a loser (or only marginally ahead) on the blended
-average — the percent/dollar OR-gate and the per-sold-lot FIFO profit check only look at the lots
-actually being sold, never at the position overall. Confirmed against the live account on
-2026-08-14: TSLA at -11.91% overall and F at -0.04% overall both fired under the loss-lot guard
-alone, extracting gains from lots while the position itself was underwater.
+v2.77.0 added a floor on the position's OVERALL blended-average gain: GET THE PROFITS refused to
+sell even its individually-profitable lots out of a position that was a loser (or only marginally
+ahead) overall. Confirmed live on 2026-10-01: ORCL's profitable lots cleared the decayed $40
+dollar bar, but the position sat at -14.5% and the 0.5% floor blocked the sale.
 
-`min_raw_gain_percent_to_sell` adds one more mandatory gate: `raw_gain_pct` (the whole-position
-blended-average gain) must clear this floor, regardless of which OR-gate leg passed or how many
-lots the loss-lot guard already excluded. Default 0.5%.
+v2.90.0: the account's tax-lot disposal preference is now lowest-cost-first, and the planner ships
+the exact profitable lots on a specified-lot order anyway, so a sale of profitable lots realizes a
+real gain whatever the position-level figure says. The floor no longer gates that path. It still
+gates the v2.83.0 net-profit full exit, the one path that disposes of underwater lots (covered in
+bot/_smoke_test_net_profit_full_exit.py and below).
 
 Pure logic tests against step4_profit_taking directly, no snapshot/CLI plumbing needed (same
 style as bot/_smoke_test_gtp_profit_invariant.py).
@@ -75,41 +74,41 @@ def _position(sym: str, price: float, quantity: float, avg_cost: float, lots: li
     return ctx, _Broker({sym: lots})
 
 
-def test_underwater_position_no_longer_harvests_via_loss_lot_guard() -> None:
-    """The exact TSLA-shaped scenario: position overall at -11.91% on the blended average, but
-    the loss-lot guard leaves one profitable lot that clears the FIFO dollar gate. Before this
-    guard, that fired. It must now be skipped."""
+def test_underwater_position_sells_its_profitable_lots() -> None:
+    """The ORCL/TSLA shape: position overall at -11.91% on the blended average, but one lot is
+    in profit and clears the FIFO dollar gate. v2.77.0-v2.89.0 refused this; it now fires, selling
+    only the profitable lot (the underwater one stays put)."""
     ctx, broker = _position("TSLA", price=88.09, quantity=20.0, avg_cost=100.0, lots=[
         TaxLot(open_lot_id="old", quantity=15.0, cost_per_share=105.0, open_date=date(2026, 1, 1), is_selectable=True),
         TaxLot(open_lot_id="new", quantity=5.0, cost_per_share=80.0, open_date=date(2026, 6, 1), is_selectable=True),
     ])
     step4_profit_taking(ctx, broker)
 
-    assert ctx.profit_taking_sells == [], ctx.profit_taking_sells
-    reasons = [s.reason for s in ctx.skipped if s.symbol == "TSLA"]
-    assert any("min_raw_gain_percent_to_sell" in r and "losing/marginal position" in r for r in reasons), reasons
-    print("[underwater-blocked] position at -11.91% overall -> GTP refused even though a lot "
-          "would clear the FIFO dollar gate")
+    assert len(ctx.profit_taking_sells) == 1, ctx.profit_taking_sells
+    t = ctx.profit_taking_sells[0]
+    assert t.tax_lots == [{"open_lot_id": "new", "quantity": 5.0}], t.tax_lots
+    assert t.realized_profit_dollars > 0, t.realized_profit_dollars
+    assert not any("losing/marginal position" in s.reason for s in ctx.skipped), ctx.skipped
+    print(f"[underwater-sells-winners] position at -11.91% overall -> profitable lot sold, "
+          f"FIFO ${t.realized_profit_dollars:.2f}; underwater lot untouched")
 
 
-def test_marginal_position_below_floor_is_blocked() -> None:
-    """F-shaped scenario: position only marginally positive (or breakeven) overall — below the
-    0.5% floor — must also be blocked, not just outright-negative positions."""
+def test_marginal_position_sells_its_profitable_lots() -> None:
+    """Position only marginally positive overall (+0.10%, under the 0.5% floor): the profitable
+    lot is sold rather than the whole sale being refused."""
     ctx, broker = _position("F", price=100.1, quantity=20.0, avg_cost=100.0, lots=[
         TaxLot(open_lot_id="old", quantity=15.0, cost_per_share=100.5, open_date=date(2026, 1, 1), is_selectable=True),
         TaxLot(open_lot_id="new", quantity=5.0, cost_per_share=80.0, open_date=date(2026, 6, 1), is_selectable=True),
     ])
     step4_profit_taking(ctx, broker)
 
-    assert ctx.profit_taking_sells == [], ctx.profit_taking_sells  # raw_gain_pct = +0.10%, < 0.5% floor
-    reasons = [s.reason for s in ctx.skipped if s.symbol == "F"]
-    assert any("min_raw_gain_percent_to_sell" in r for r in reasons), reasons
-    print("[marginal-blocked] position at +0.10% overall (below the 0.5% floor) -> refused")
+    assert len(ctx.profit_taking_sells) == 1, ctx.profit_taking_sells
+    assert ctx.profit_taking_sells[0].tax_lots == [{"open_lot_id": "new", "quantity": 5.0}]
+    print("[marginal-sells-winners] position at +0.10% overall -> profitable lot sold")
 
 
 def test_position_above_floor_still_fires() -> None:
-    """Sanity check the floor doesn't over-tighten: a position genuinely ahead on the blended
-    average, above the floor, fires exactly as before."""
+    """Unchanged case: a position genuinely ahead on the blended average fires exactly as before."""
     ctx, broker = _position("HEALTHY", price=110.0, quantity=20.0, avg_cost=100.0, lots=[
         TaxLot(open_lot_id="a", quantity=20.0, cost_per_share=90.0, open_date=date(2026, 1, 1), is_selectable=True),
     ])
@@ -118,31 +117,44 @@ def test_position_above_floor_still_fires() -> None:
     assert len(ctx.profit_taking_sells) == 1, ctx.profit_taking_sells
     t = ctx.profit_taking_sells[0]
     assert "min_raw_gain_percent_to_sell" not in t.reason, t.reason
-    print(f"[above-floor-fires] position at +10.00% overall (above the 0.5% floor) -> fires "
-          f"normally, FIFO ${t.realized_profit_dollars:.2f}")
+    print(f"[above-floor-fires] position at +10.00% overall -> fires normally, "
+          f"FIFO ${t.realized_profit_dollars:.2f}")
 
 
-def test_floor_is_configurable() -> None:
-    """A stricter floor (e.g. 5%) blocks a position that would have cleared a looser one — proves
-    the value in portfolio_targets.json actually drives the gate, not a hardcoded constant."""
+def test_high_floor_no_longer_blocks_profitable_lot_sale() -> None:
+    """Even a strict 5% floor no longer blocks a +3.0% position whose lots are all in profit."""
     ctx, broker = _position("MOD", price=103.0, quantity=20.0, avg_cost=100.0, lots=[
         TaxLot(open_lot_id="a", quantity=20.0, cost_per_share=95.0, open_date=date(2026, 1, 1), is_selectable=True),
     ], meta_overrides={"min_raw_gain_percent_to_sell": 5.0})
     step4_profit_taking(ctx, broker)
 
-    assert ctx.profit_taking_sells == [], ctx.profit_taking_sells  # raw_gain_pct = +3.0%, < 5% floor
-    reasons = [s.reason for s in ctx.skipped if s.symbol == "MOD"]
-    assert any("min_raw_gain_percent_to_sell (5.0%)" in r for r in reasons), reasons
-    print("[configurable] a stricter 5% floor blocks a +3.0% position that a 0.5% floor "
-          "would have allowed")
+    assert len(ctx.profit_taking_sells) == 1, ctx.profit_taking_sells
+    print("[floor-ignored-for-winners] 5% floor, +3.0% position -> profitable-lot sale fires")
+
+
+def test_floor_still_gates_net_profit_full_exit() -> None:
+    """The floor still governs the net-profit full exit (which would dispose of the underwater
+    lot): with a 5% floor the full exit declines and only the profitable lot is sold."""
+    ctx, broker = _position("MIX", price=100.0, quantity=20.0, avg_cost=97.0, lots=[
+        TaxLot(open_lot_id="loss", quantity=10.0, cost_per_share=104.0, open_date=date(2026, 1, 1), is_selectable=True),
+        TaxLot(open_lot_id="gain", quantity=10.0, cost_per_share=90.0, open_date=date(2026, 6, 1), is_selectable=True),
+    ], meta_overrides={"min_raw_gain_percent_to_sell": 5.0})
+    step4_profit_taking(ctx, broker)
+
+    assert len(ctx.profit_taking_sells) == 1, ctx.profit_taking_sells
+    t = ctx.profit_taking_sells[0]
+    assert t.tax_lots == [{"open_lot_id": "gain", "quantity": 10.0}], t.tax_lots
+    assert "net-profit full exit declined" in t.reason and "min_raw_gain_percent_to_sell (5.0%)" in t.reason, t.reason
+    print("[floor-gates-full-exit] +3.09% mixed position, 5% floor -> full exit declined, gain lot sold")
 
 
 def main() -> None:
-    test_underwater_position_no_longer_harvests_via_loss_lot_guard()
-    test_marginal_position_below_floor_is_blocked()
+    test_underwater_position_sells_its_profitable_lots()
+    test_marginal_position_sells_its_profitable_lots()
     test_position_above_floor_still_fires()
-    test_floor_is_configurable()
-    print("\nSMOKE TEST (min_raw_gain_percent_to_sell floor) PASSED")
+    test_high_floor_no_longer_blocks_profitable_lot_sale()
+    test_floor_still_gates_net_profit_full_exit()
+    print("\nSMOKE TEST (min_raw_gain_percent_to_sell, v2.90.0 scope) PASSED")
 
 
 if __name__ == "__main__":
