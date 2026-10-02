@@ -1060,6 +1060,9 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
                     # Tracking (peak/prices.json lastNettedLoss*), observational only.
                     netted_loss_dollars=abs(underwater_dollars),
                     netted_loss_shares=underwater_qty,
+                    # v2.91.0: a net exit stays a gain only while price clears the whole
+                    # position's lot-weighted break-even.
+                    min_sell_price=_lot_weighted_cost(net.lots_consumed),
                 ))
                 continue
 
@@ -1208,6 +1211,13 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
                             [{"open_lot_id": l["open_lot_id"], "quantity": l["quantity"]} for l in fifo.lots_consumed],
                         realized_profit_dollars=fifo.realized_profit_dollars,
                         raw_gain_pct=raw_gain_pct,
+                        # v2.91.0: every lot sold must still be in profit at the pre-order
+                        # re-quote — the costliest consumed lot is the bar (blended average when
+                        # there's no lot data at all, the zero-available-lots fallback).
+                        min_sell_price=max(
+                            (l["cost_per_share"] for l in fifo.lots_consumed),
+                            default=pos.avg_cost_basis,
+                        ),
                     ))
                     if fifo.realized_profit_dollars <= 0:
                         # Defensive backstop — unreachable given the guard above, but keeps
@@ -1218,6 +1228,15 @@ def step4_profit_taking(ctx: RunContext, broker: BrokerClient) -> None:
     ctx.total_high_beta_gains_realized = sum(
         t.realized_profit_dollars or 0.0 for t in ctx.profit_taking_sells
     )
+
+
+def _lot_weighted_cost(lots_consumed: List[dict]) -> Optional[float]:
+    """Σ(qty × cost) / Σ(qty) over a FIFO walk's consumed lots — the break-even price of the
+    whole sale. None when nothing was consumed."""
+    qty = sum(l["quantity"] for l in lots_consumed)
+    if qty <= 0:
+        return None
+    return sum(l["quantity"] * l["cost_per_share"] for l in lots_consumed) / qty
 
 
 # ============================================================================================
@@ -1334,6 +1353,7 @@ def step4b_sell_cleanup(ctx: RunContext, broker: BrokerClient) -> None:
         ctx.cleanup_sells.append(TradeIntent(
             symbol=sym, side="sell", quantity=remaining_qty, reason=reason,
             tax_lots=None, realized_profit_dollars=realized,
+            min_sell_price=lot.cost_per_share,  # v2.91.0: never sweep the lot at a loss
         ))
 
     ctx.total_cleanup_gains_realized = sum(
@@ -1516,6 +1536,66 @@ def step6a_prepare_sells(
     ctx.total_cleanup_gains_realized = sum(t.realized_profit_dollars or 0.0 for t in ctx.cleanup_sells)
 
     return sells_to_place, False, None
+
+
+def recheck_sells_against_requotes(
+    ctx: RunContext,
+    sells: List[TradeIntent],
+    fresh_prices: Dict[str, float],
+    planned_buys: Optional[Dict[str, float]] = None,
+) -> List[TradeIntent]:
+    """v2.91.0 pre-sell re-quote check. `plan` sizes and gates every sell off the snapshot quote,
+    but the market orders go out minutes later; a sharp move in between can turn a planned profit
+    sale into a realized loss (COIN, 2026-10-02: quoted $198.75, filled $191.29 against a $193.49
+    lot). The agent re-quotes the sell symbols immediately before placing any order and passes the
+    fresh prices here.
+
+    Every sell carrying a `min_sell_price` (GET THE PROFITS and the Step 4b cleanup sweeps) must
+    see a fresh price of at least min_sell_price × (1 + requote_min_margin_percent / 100). A sell
+    that misses — or whose symbol has no fresh price at all (fail closed) — is dropped, together
+    with every other sell of the same symbol (a cleanup sweep's lot structure assumes its GTP sale
+    went through). Emergency liquidations (min_sell_price None) always pass. A dropped symbol also
+    stays out of this cycle's buys: the cycle had already decided to sell it, so buying it now
+    would contradict that decision.
+
+    Mutates ctx (per-category sell lists, realized-gain totals, skipped) and `planned_buys` in
+    place; returns the sells still to place.
+    """
+    margin = ctx.config.meta.requote_min_margin_percent
+    dropped: Dict[str, str] = {}
+    for t in sells:
+        if t.min_sell_price is None or t.symbol in dropped:
+            continue
+        fresh = fresh_prices.get(t.symbol)
+        bar = t.min_sell_price * (1 + margin / 100)
+        if fresh is None:
+            dropped[t.symbol] = (
+                f"pre-sell re-quote check: no fresh quote for {t.symbol} (fail-closed) — "
+                f"snapshot ${ctx.quotes[t.symbol].last_trade_price:,.2f}, needs ≥ ${bar:,.2f}"
+            )
+        elif fresh < bar:
+            dropped[t.symbol] = (
+                f"pre-sell re-quote check: price moved from ${ctx.quotes[t.symbol].last_trade_price:,.2f} "
+                f"(snapshot) to ${fresh:,.2f}, below the ${bar:,.2f} bar (lot cost "
+                f"${t.min_sell_price:,.2f} + {margin}%) — selling now would not lock in a profit"
+            )
+
+    for sym, reason in dropped.items():
+        gtp_syms = {t.symbol for t in ctx.profit_taking_sells}
+        cleanup_syms = {t.symbol for t in ctx.cleanup_sells}
+        actions = " + ".join(
+            label for label, syms in (("GET THE PROFITS", gtp_syms), ("Sell Cleanup Pass", cleanup_syms))
+            if sym in syms
+        )
+        ctx.skipped.append(SkippedTrade(sym, reason, f"{actions} sale (re-evaluated next cycle)"))
+        if planned_buys is not None:
+            planned_buys.pop(sym, None)
+
+    ctx.profit_taking_sells = [t for t in ctx.profit_taking_sells if t.symbol not in dropped]
+    ctx.cleanup_sells = [t for t in ctx.cleanup_sells if t.symbol not in dropped]
+    ctx.total_high_beta_gains_realized = sum(t.realized_profit_dollars or 0.0 for t in ctx.profit_taking_sells)
+    ctx.total_cleanup_gains_realized = sum(t.realized_profit_dollars or 0.0 for t in ctx.cleanup_sells)
+    return [t for t in sells if t.symbol not in dropped]
 
 
 def step6b_finalize_buys(

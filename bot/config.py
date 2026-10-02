@@ -138,6 +138,14 @@ class PortfolioMetadata:
     # PortfolioMetadata(...) call sites (mostly test fixtures) are unaffected unless they opt in.
     held_at_loss_rebuy_threshold_percent: float = 0.0
 
+    # v2.91.0 — pre-sell re-quote check. `plan` prices every profit sell (GET THE PROFITS and the
+    # Step 4b cleanup sweeps) off the snapshot quote, but the market order goes out minutes later;
+    # on 2026-10-02 COIN fell 3.7% in that gap and a planned +$63 sale realized -$28. Right
+    # before placing the sells the agent re-quotes and runs `sell-recheck`, which drops any profit
+    # sell whose fresh price no longer clears its own lot cost (TradeIntent.min_sell_price) by at
+    # least this percentage. Emergency liquidations are never re-checked.
+    requote_min_margin_percent: float = 0.25
+
 
 @dataclass(frozen=True)
 class PortfolioConfig:

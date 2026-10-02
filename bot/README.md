@@ -1,6 +1,6 @@
 # bot/ — Python implementation of CLAUDE.md
 
-A direct, ordered translation of the markdown spec in `../CLAUDE.md` (v2.90.0 — bump this
+A direct, ordered translation of the markdown spec in `../CLAUDE.md` (v2.91.0 — bump this
 stamp whenever CLAUDE.md's own version changes) into runnable Python. `CLAUDE.md` stays the maintained business-rules spec; this package is what actually
 executes it. Two ways to run it:
 
@@ -32,7 +32,10 @@ python3 -m bot.cli price-cache-merge --repo-dir . --current-date <today> \
 # price_cache_result.json's daily_closes/daily_lows_highs drop straight into snapshot.json
 
 python3 -m bot.cli plan     --snapshot snapshot.json --repo-dir . --out plan_result.json
-# agent executes plan_result.json's sells_to_place via its broker, then re-fetches
+# v2.91.0: immediately before placing any sell, agent re-quotes every sells_to_place symbol
+# (get_equity_quotes) into requotes.json as {"SYMBOL": price, ...}, then:
+python3 -m bot.cli sell-recheck --plan plan_result.json --quotes requotes.json --out plan_result.json
+# agent executes the (possibly shorter) sells_to_place via its broker, then re-fetches
 # net_realized_gains_ytd and buying_power
 python3 -m bot.cli finalize --resume plan_result.json \
     --post-sell-pnl <float> --buying-power <float> \

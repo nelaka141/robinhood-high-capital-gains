@@ -13,6 +13,7 @@ Usage:
     python3 -m bot.cli drive-push --repo-dir .    # run last, every cycle (see bot/drive_sync.py)
 
     python3 -m bot.cli plan     --snapshot snapshot.json --repo-dir . --out plan_result.json
+    python3 -m bot.cli sell-recheck --plan plan_result.json --quotes requotes.json --out plan_result.json
     python3 -m bot.cli finalize --resume resume_state.json --post-sell-pnl <float> \\
                                  --buying-power <float> --repo-dir . --out finalize_result.json
 
@@ -29,7 +30,7 @@ from pathlib import Path
 
 from . import drive_sync, journal, market_calendar, price_cache, steps
 from .config import load_portfolio_config
-from .models import RunContext
+from .models import RunContext, TradeIntent
 from .serialize import ctx_from_jsonable, ctx_to_jsonable, dump_json
 from .snapshot_broker import SnapshotBroker
 from .state import (
@@ -42,6 +43,9 @@ def _intent_to_dict(t) -> dict:
     return {
         "symbol": t.symbol, "side": t.side, "quantity": t.quantity,
         "dollar_amount": t.dollar_amount, "tax_lots": t.tax_lots, "reason": t.reason,
+        # v2.91.0: the price a profit sell must still clear at the pre-order re-quote
+        # (`sell-recheck`); null for buys and emergency liquidations.
+        "min_sell_price": t.min_sell_price,
     }
 
 
@@ -124,6 +128,41 @@ def cmd_plan(args: argparse.Namespace) -> None:
     else:
         print(f"PLAN OK — {len(sells_to_place)} sell(s) to execute, then re-fetch post-sell "
               f"realized P&L + buying power and run `finalize`. Wrote {args.out}.")
+
+
+def cmd_sell_recheck(args: argparse.Namespace) -> None:
+    """v2.91.0 pre-sell re-quote check — run right before placing `plan`'s sells, with a fresh
+    get_equity_quotes for every symbol in sells_to_place ({"SYMBOL": price, ...}). Drops any profit
+    sell whose fresh price no longer clears its own lot cost (steps.recheck_sells_against_requotes)
+    and rewrites the plan so both the agent and `finalize` see only the sells actually placed."""
+    cfg = load_portfolio_config(f"{args.repo_dir}/portfolio_targets.json")
+    plan = json.loads(Path(args.plan).read_text())
+    if plan.get("no_trades") or plan.get("halted_for_approval"):
+        raise SystemExit("sell-recheck: plan has no sells to re-check (no_trades or halted_for_approval)")
+    fresh_prices = {sym.upper(): float(p) for sym, p in json.loads(Path(args.quotes).read_text()).items()}
+
+    resume_state = plan["resume_state"]
+    ctx = ctx_from_jsonable(resume_state["ctx"], cfg)
+    planned_buys = resume_state["planned_buys"]
+    sells = [_intent_from_dict(d) for d in plan["sells_to_place"]]
+
+    kept = steps.recheck_sells_against_requotes(ctx, sells, fresh_prices, planned_buys)
+    dropped = sorted({t.symbol for t in sells} - {t.symbol for t in kept})
+
+    plan["sells_to_place"] = [_intent_to_dict(t) for t in kept]
+    plan["gross_sell_value"] = sum((t.quantity or 0.0) * ctx.quotes[t.symbol].last_trade_price for t in kept)
+    plan["sell_recheck"] = {"fresh_prices": fresh_prices, "dropped_symbols": dropped}
+    plan["resume_state"] = {"ctx": ctx_to_jsonable(ctx), "planned_buys": planned_buys}
+    dump_json(plan, args.out)
+    print(f"SELL RECHECK OK — {len(kept)} sell(s) to execute"
+          + (f"; dropped {', '.join(dropped)} (price no longer clears lot cost)" if dropped else "")
+          + f". Wrote {args.out}.")
+
+
+def _intent_from_dict(d: dict) -> TradeIntent:
+    return TradeIntent(symbol=d["symbol"], side=d["side"], quantity=d.get("quantity"),
+                       dollar_amount=d.get("dollar_amount"), tax_lots=d.get("tax_lots"),
+                       reason=d.get("reason", ""), min_sell_price=d.get("min_sell_price"))
 
 
 def cmd_finalize(args: argparse.Namespace) -> None:
@@ -343,6 +382,18 @@ def main() -> None:
     p_plan.add_argument("--repo-dir", default=".")
     p_plan.add_argument("--out", default="plan_result.json")
     p_plan.set_defaults(func=cmd_plan)
+
+    p_recheck = sub.add_parser(
+        "sell-recheck",
+        help="v2.91.0: run right before placing plan's sells. Re-checks every profit sell against a "
+             "fresh quote and drops any that would no longer clear its lot cost; rewrites the plan.",
+    )
+    p_recheck.add_argument("--plan", required=True, help="The plan_result.json written by `plan`")
+    p_recheck.add_argument("--quotes", required=True,
+                           help='JSON {"SYMBOL": <fresh last-trade price>, ...} for every sells_to_place symbol')
+    p_recheck.add_argument("--repo-dir", default=".")
+    p_recheck.add_argument("--out", default="plan_result.json")
+    p_recheck.set_defaults(func=cmd_sell_recheck)
 
     p_final = sub.add_parser("finalize", help="Step 6 buy-side tail + Step 7. Reads plan_result.json's resume_state.")
     p_final.add_argument("--resume", required=True, help="The plan_result.json written by `plan`")
