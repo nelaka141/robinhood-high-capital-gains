@@ -14,6 +14,7 @@ __pycache__/
 /fetched_bars.json
 /price_cache_result.json
 /market_check_result.json
+/requotes.json
 
 # Ad-hoc scratch files (report tables, PnL matching, email body assembly, etc.) built by
 # the agent while composing the Step 9 email report each cycle — same rationale as above:
