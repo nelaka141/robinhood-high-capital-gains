@@ -1,7 +1,7 @@
-# Trade Decision Logic (v2.91.0)
+# Trade Decision Logic (v2.92.0)
 
 This document details every step of the bot's **sell decision** and **buy decision** as of
-v2.91.0. The rules below are exactly what `bot/steps.py` implements and what `CLAUDE.md`'s
+v2.92.0. The rules below are exactly what `bot/steps.py` implements and what `CLAUDE.md`'s
 Business Rules Reference specifies — if the three ever disagree, that is a bug to flag, not a
 choice to make silently.
 
@@ -260,7 +260,8 @@ A symbol is **excluded entirely** this cycle (no score, no ranking, no fill) if:
 * it is in the `blocked` list; or
 * it was previously liquidated, is currently unheld, and has not yet cleared BOTH the
   recovery gate (price ≥ `liquidatedPrice` × (1 + `min_recovery_price_percentage`/100)) and
-  the cooldown (`current_date − liquidatedDate ≥ cool_down_period_after_lquidation`); or
+  the cooldown (`current_date − liquidatedDate ≥ cool_down_period_after_lquidation`, 60 days
+  as of v2.92.0); or
 * it was fully exited via a profit-sell (zero position + recorded `profitSellDate`) and the
   buy guards below haven't cleared yet.
 
