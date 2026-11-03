@@ -1533,6 +1533,13 @@ def step6a_prepare_sells(
     ctx.blocked_liquidations = [s for s in ctx.blocked_liquidations if s in placed_symbols]
     ctx.profit_taking_sells = [t for t in ctx.profit_taking_sells if t.symbol in placed_symbols]
     ctx.cleanup_sells = [t for t in ctx.cleanup_sells if t.symbol in placed_symbols]
+    # loss_sale_symbols is populated alongside drawdown_liquidations, blocked_liquidations, and
+    # the profit_taking_sells defensive backstop above — every one of those three append sites
+    # has its own list resynced to placed_symbols right above, so this one needs the identical
+    # resync or cli.py's _update_peak_prices stamps lastLossSaleDate/Price (arming the wash-sale
+    # buy-guard) for a symbol whose liquidation/sale candidate never actually cleared
+    # sell_or_buy_value_limit here and was never placed.
+    ctx.loss_sale_symbols = [s for s in ctx.loss_sale_symbols if s in placed_symbols]
     ctx.total_cleanup_gains_realized = sum(t.realized_profit_dollars or 0.0 for t in ctx.cleanup_sells)
 
     return sells_to_place, False, None
