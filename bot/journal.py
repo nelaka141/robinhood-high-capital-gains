@@ -77,6 +77,26 @@ def render_market_closed_entry(checked_at, reason: str) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _render_unrealized_loss_guard(ctx: RunContext) -> List[str]:
+    """v2.92.0 — one-section summary of the portfolio-wide unrealized-loss buy halt."""
+    threshold = ctx.config.meta.total_unrealized_losses_threshold
+    if threshold is None:
+        return []
+    if ctx.unrealized_loss_buy_halt:
+        status = "**BUYS HALTED** — no buy of any kind this cycle"
+    elif ctx.total_unrealized_losses > threshold:
+        status = "over threshold (no buy step ran this cycle)"
+    else:
+        status = "under threshold — buys allowed (subject to every per-asset guard)"
+    return [
+        "## Unrealized-Loss Buy Guard",
+        f"- Total unrealized losses (underwater positions only): "
+        f"**${ctx.total_unrealized_losses:,.2f}** vs. `total_unrealized_losses_threshold` "
+        f"**${threshold:,.2f}** — {status}",
+        "",
+    ]
+
+
 def render_no_trades_entry(ctx: RunContext) -> str:
     ts = ctx.current_date.isoformat()
     lines = [
@@ -88,6 +108,7 @@ def render_no_trades_entry(ctx: RunContext) -> str:
         f"- `buying_power`: **${ctx.account_cash:,.2f}**",
         f"- `account_balance`: **${ctx.account_balance:,.2f}**",
         "",
+        *_render_unrealized_loss_guard(ctx),
         "## Drift (all within tolerance)",
         "| Symbol | Drift | Tolerance |",
         "|---|---|---|",
@@ -122,6 +143,7 @@ def render_entry(ctx: RunContext) -> str:
         "## Drawdown Audit",
         f"Emergency liquidations: {', '.join(ctx.drawdown_liquidations) or 'none'}",
         "",
+        *_render_unrealized_loss_guard(ctx),
         "## Excluded / Buy-Guarded Symbols (Step 2)",
     ]
     for sym, reason in ctx.excluded_symbols.items():

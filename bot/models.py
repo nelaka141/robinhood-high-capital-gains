@@ -200,6 +200,11 @@ class RunContext:
                                                                           # Underweight buys), including
                                                                           # any symbol liquidated via blocked_liquidations
 
+    total_unrealized_losses: float = 0.0  # v2.92.0 — Step 1: summed dollar loss of every held
+        # target position currently underwater vs. avg_cost_basis (gains don't offset it)
+    unrealized_loss_buy_halt: Optional[str] = None  # v2.92.0 — set by Step 3 when
+        # total_unrealized_losses > total_unrealized_losses_threshold: no buys at all this cycle
+
     momentum_scores: Dict[str, MomentumScore] = field(default_factory=dict)  # ranks the
                                                                           # Underweight fill order (Step 3)
 

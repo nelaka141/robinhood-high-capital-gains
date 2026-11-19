@@ -256,6 +256,15 @@ def step1_fetch_state(ctx: RunContext, broker: BrokerClient, repo_dir: str = "."
             ctx.drawdown_liquidations.append(sym)  # overrides target weights + lock_in_period
             ctx.loss_sale_symbols.append(sym)  # drop_vs_cost >= drawdown_pct guarantees a loss
 
+    # --- v2.92.0: portfolio-wide unrealized loss (feeds Step 3's total_unrealized_losses_threshold
+    # buy halt). Only positions currently underwater count; a position in profit does not offset
+    # them. A held position with an unresolved cost basis can't be measured and is left out.
+    ctx.total_unrealized_losses = sum(
+        max(0.0, (pos.avg_cost_basis - ctx.quotes[sym].last_trade_price) * pos.quantity)
+        for sym, pos in ctx.positions.items()
+        if sym in cfg.targets and pos.quantity > 0 and pos.avg_cost_basis is not None
+    )
+
     # --- Per-asset drift (weight units) ---
     for sym in symbols:
         pos = ctx.positions.get(sym)
@@ -565,6 +574,19 @@ def step3_underweight_buys(ctx: RunContext, broker: BrokerClient) -> Dict[str, f
             price_vs_ema_pct=(price - ema_now) / ema_now * 100,
             ema_slope_pct=(ema_now - ema_prior) / ema_prior * 100,
         )
+
+    # v2.92.0 — portfolio-wide unrealized-loss buy halt. Checked after the Momentum_Score table
+    # is built (so the journal still shows the ranking) and before any sizing: when the summed
+    # loss on underwater positions is MORE than the threshold, nothing is bought this cycle by
+    # any path (top-down fill and Position Cap Top-Up alike), whatever the per-asset guards say.
+    threshold = cfg.meta.total_unrealized_losses_threshold
+    if threshold is not None and ctx.total_unrealized_losses > threshold:
+        ctx.unrealized_loss_buy_halt = (
+            f"total unrealized losses ${ctx.total_unrealized_losses:,.2f} exceed "
+            f"total_unrealized_losses_threshold ${threshold:,.2f} — no buys this cycle"
+        )
+        ctx.skipped.append(SkippedTrade("ALL", ctx.unrealized_loss_buy_halt, "any buy"))
+        return {}
 
     if not ctx.momentum_scores:
         return {}
@@ -1620,6 +1642,9 @@ def step6b_finalize_buys(
     settlement-reserve bridging is needed here.
     """
     cfg = ctx.config
+
+    if ctx.unrealized_loss_buy_halt:
+        planned_buys = {}  # v2.92.0 backstop — Step 3 already planned nothing
 
     selling_syms = _selling_symbols(ctx)
     planned_buys = {s: d for s, d in planned_buys.items() if s not in selling_syms and s not in ctx.blocked_symbols}
