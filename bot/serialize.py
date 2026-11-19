@@ -50,6 +50,8 @@ def ctx_to_jsonable(ctx: RunContext) -> Dict[str, Any]:
         "excluded_symbols": ctx.excluded_symbols,
         "buy_guarded_symbols": ctx.buy_guarded_symbols,
         "blocked_symbols": ctx.blocked_symbols,
+        "total_unrealized_losses": ctx.total_unrealized_losses,
+        "unrealized_loss_buy_halt": ctx.unrealized_loss_buy_halt,
         "momentum_scores": {sym: asdict(m) for sym, m in ctx.momentum_scores.items()},
         "position_cap_topups": ctx.position_cap_topups,
         "blocked_liquidations": ctx.blocked_liquidations,
@@ -91,6 +93,8 @@ def ctx_from_jsonable(data: Dict[str, Any], cfg: PortfolioConfig) -> RunContext:
     ctx.excluded_symbols = data["excluded_symbols"]
     ctx.buy_guarded_symbols = data["buy_guarded_symbols"]
     ctx.blocked_symbols = data.get("blocked_symbols", {})
+    ctx.total_unrealized_losses = data.get("total_unrealized_losses", 0.0)
+    ctx.unrealized_loss_buy_halt = data.get("unrealized_loss_buy_halt")
     ctx.momentum_scores = {sym: MomentumScore(**m) for sym, m in data["momentum_scores"].items()}
     ctx.position_cap_topups = data.get("position_cap_topups", {})
     ctx.blocked_liquidations = data.get("blocked_liquidations", [])

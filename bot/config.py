@@ -146,6 +146,14 @@ class PortfolioMetadata:
     # least this percentage. Emergency liquidations are never re-checked.
     requote_min_margin_percent: float = 0.25
 
+    # v2.92.0 — portfolio-wide unrealized-loss buy halt. When the summed dollar loss of every
+    # held target position currently underwater ((avg_cost_basis - price) * quantity, positions
+    # in profit do NOT offset it) is MORE than this figure, Step 3 plans no buys at all this
+    # cycle — the top-down Underweight fill and the Position Cap Top-Up alike — however every
+    # per-asset guard came out. Sells are untouched. None (the default) disables the guard, so
+    # existing PortfolioMetadata(...) call sites (mostly test fixtures) are unaffected.
+    total_unrealized_losses_threshold: Optional[float] = None
+
 
 @dataclass(frozen=True)
 class PortfolioConfig:

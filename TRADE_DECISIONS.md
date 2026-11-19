@@ -1,7 +1,7 @@
-# Trade Decision Logic (v2.91.0)
+# Trade Decision Logic (v2.92.0)
 
 This document details every step of the bot's **sell decision** and **buy decision** as of
-v2.91.0. The rules below are exactly what `bot/steps.py` implements and what `CLAUDE.md`'s
+v2.92.0. The rules below are exactly what `bot/steps.py` implements and what `CLAUDE.md`'s
 Business Rules Reference specifies — if the three ever disagree, that is a bug to flag, not a
 choice to make silently.
 
@@ -81,6 +81,7 @@ Sells come from exactly four mechanisms, evaluated in this order. Nothing else e
 * Fires only when **both** legs breach simultaneously:
   * price is ≥ `max_trailing_drawdown_percentage` below `peakPrice`, **and**
   * price is ≥ `max_trailing_drawdown_percentage` below `avg_cost_basis`.
+  * (v2.92.0: `max_trailing_drawdown_percentage` is 50 — down at least 50% from both.)
 * Liquidates 100%, overriding target weights and `lock_in_period`.
 * Skipped entirely for `blocked` symbols (S1 is their only sell path) and for a symbol whose
   `target_price_to_sell` floor hasn't been crossed (logged SKIPPED/PENDING).
@@ -299,6 +300,15 @@ next-ranked qualifying candidate; cash is never held back for it.**
    guards above).
 4. **`target_price_to_buy` ceiling:** while `current_price` is above the configured ceiling,
    block all new buys of that symbol.
+
+### B2b. Portfolio-wide unrealized-loss buy halt (Step 3, v2.92.0)
+
+* `total_unrealized_losses` = sum over held targets that are underwater of
+  `(avg_cost_basis − price) × quantity` (positions in profit don't offset; unresolved basis is
+  left out; `blocked` symbols are excluded), measured on the pre-trade snapshot.
+* If it is **more than** `total_unrealized_losses_threshold` ($5,000), **nothing is bought this
+  cycle** — no top-down fill, no Position Cap Top-Up — whatever the per-asset guards say. Sells
+  are unaffected. Unset (`null`) disables it.
 
 ### B3. Momentum scoring (Step 3)
 
