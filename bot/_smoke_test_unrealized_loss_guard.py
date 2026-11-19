@@ -21,9 +21,9 @@ from bot._smoke_test_position_cap import _TiedBroker, _ctx, _dr, _meta
 from bot._smoke_test_wash_sale import _Step1Broker
 
 
-def _step1_ctx(positions, prices, **meta_overrides) -> RunContext:
+def _step1_ctx(positions, prices, blocked=(), **meta_overrides) -> RunContext:
     targets = {s: AssetTarget(s, weight=1.0) for s in prices}
-    cfg = PortfolioConfig(meta=_meta(**meta_overrides), targets=targets, force_sell={}, blocked=[])
+    cfg = PortfolioConfig(meta=_meta(**meta_overrides), targets=targets, force_sell={}, blocked=list(blocked))
     ctx = RunContext(current_date=date(2026, 11, 19), config=cfg, account_number="TEST")
     ctx.price_state = {s: AssetPriceState(peakPrice=p) for s, p in prices.items()}
     quotes = {s: Quote(s, last_trade_price=p) for s, p in prices.items()}
@@ -37,11 +37,12 @@ def test_total_counts_only_underwater_positions() -> None:
         "LOSS2": Position("LOSS2", quantity=5.0, avg_cost_basis=50.0),     # -$100
         "GAIN": Position("GAIN", quantity=100.0, avg_cost_basis=10.0),     # +$1000, must NOT offset
         "NOBASIS": Position("NOBASIS", quantity=10.0, avg_cost_basis=None),  # unmeasurable -> left out
+        "FROZEN": Position("FROZEN", quantity=300.0, avg_cost_basis=7.0),  # blocked/exempt -> left out
     }
-    prices = {"LOSS1": 80.0, "LOSS2": 30.0, "GAIN": 20.0, "NOBASIS": 1.0}
-    ctx = _step1_ctx(positions, prices)
+    prices = {"LOSS1": 80.0, "LOSS2": 30.0, "GAIN": 20.0, "NOBASIS": 1.0, "FROZEN": 0.3}
+    ctx = _step1_ctx(positions, prices, blocked=["FROZEN"])
     assert math.isclose(ctx.total_unrealized_losses, 300.0), ctx.total_unrealized_losses
-    print(f"[unrealized-loss-total] ${ctx.total_unrealized_losses:.2f} (gains don't offset) — OK")
+    print(f"[unrealized-loss-total] ${ctx.total_unrealized_losses:.2f} (gains don't offset, blocked excluded) — OK")
 
 
 def _buy_ctx(total_losses: float, threshold):

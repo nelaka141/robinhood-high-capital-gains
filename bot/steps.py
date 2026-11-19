@@ -258,11 +258,13 @@ def step1_fetch_state(ctx: RunContext, broker: BrokerClient, repo_dir: str = "."
 
     # --- v2.92.0: portfolio-wide unrealized loss (feeds Step 3's total_unrealized_losses_threshold
     # buy halt). Only positions currently underwater count; a position in profit does not offset
-    # them. A held position with an unresolved cost basis can't be measured and is left out.
+    # them. A held position with an unresolved cost basis can't be measured and is left out, and
+    # so is every `blocked` (exempt) symbol — operator decision 2026-11-19.
     ctx.total_unrealized_losses = sum(
         max(0.0, (pos.avg_cost_basis - ctx.quotes[sym].last_trade_price) * pos.quantity)
         for sym, pos in ctx.positions.items()
-        if sym in cfg.targets and pos.quantity > 0 and pos.avg_cost_basis is not None
+        if sym in cfg.targets and sym not in cfg.blocked
+        and pos.quantity > 0 and pos.avg_cost_basis is not None
     )
 
     # --- Per-asset drift (weight units) ---

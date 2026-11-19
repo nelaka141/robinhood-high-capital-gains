@@ -305,7 +305,7 @@ next-ranked qualifying candidate; cash is never held back for it.**
 
 * `total_unrealized_losses` = sum over held targets that are underwater of
   `(avg_cost_basis − price) × quantity` (positions in profit don't offset; unresolved basis is
-  left out), measured on the pre-trade snapshot.
+  left out; `blocked` symbols are excluded), measured on the pre-trade snapshot.
 * If it is **more than** `total_unrealized_losses_threshold` ($5,000), **nothing is bought this
   cycle** — no top-down fill, no Position Cap Top-Up — whatever the per-asset guards say. Sells
   are unaffected. Unset (`null`) disables it.
